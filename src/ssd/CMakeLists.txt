@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.5)
+
+project(sound-server-daemon LANGUAGES CXX VERSION 0.0)
+
+set(SOURCES main.cpp)
+set(HEADERS )
+
+add_executable(sound-server-daemon ${HEADERS} ${SOURCES})

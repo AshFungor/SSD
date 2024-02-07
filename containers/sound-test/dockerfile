@@ -1,0 +1,20 @@
+FROM alpine:latest
+
+# Connect to Pulseaudio over a shared socket
+
+RUN apk update
+# Pulseaudio client lib
+RUN apk add libpulse pulseaudio pulseaudio-alsa
+
+# Provide config for pulse in container
+ENV PULSE_SERVER=unix:/tmp/pulseaudio.socket
+ENV PULSE_COOKIE=/tmp/pulseaudio.cookie
+
+# For ffplay usage
+RUN apk add ffmpeg
+
+# Sample
+ADD breakout.flac /sample/
+
+ENTRYPOINT [ "ffplay /sample/breakout.falc" ]
+
