@@ -2,9 +2,9 @@
 
 ## Overview
 
-Sound Server Daemon is laar's substitute for pulseaudio daemon in systems. It 
+Sound Server Daemon is laar's substitute for pulseaudio daemon in our systems. It 
 uses PCM (Pulse Calls Mapper) to map pulseaudio API to our own and pack requests
-for daemon in messages for SSD (Sound Server Daemon) ro process them.
+in messages for SSD (Sound Server Daemon) to process them.
 
 ## Setup
 
