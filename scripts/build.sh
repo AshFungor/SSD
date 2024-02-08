@@ -11,14 +11,14 @@ configure() {
     echo "Configuring..."
     cd "$ROOT_FOLDER/build" || mkdir build
     conan -v || "Error: Conan was not found."
-    cd "$ROOT_FOLDER/build" && conan install .. --output-folder="$ROOT_FOLDER/build" --build=missing
-    cd "$ROOT_FOLDER/build" && cmake .. -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE="$ROOT_FOLDER/build/conan_toolchain.cmake"
+    cd "$ROOT_FOLDER/build" && conan install "$ROOT_FOLDER" --output-folder="$ROOT_FOLDER/build" --build=missing
+    cd "$ROOT_FOLDER/build" && cmake "$ROOT_FOLDER" -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE="$ROOT_FOLDER/build/conan_toolchain.cmake"
 }
 
 build() {
     echo "Building..."
     cd "$ROOT_FOLDER/build" || $(printf "Build floder does not exist, configuring..." && configure)
-    cd "$ROOT_FOLDER/build" && cmake --build "$ROOT_FOLDER/build"
+    cmake --build "$ROOT_FOLDER/build"
 }
 while getopts "hcb" arg; do 
     if [ "$arg" = "c" ]; then
