@@ -12,7 +12,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(protobuf CONFIG REQUIRED VERSION 3.21.12)
 find_package(GTest REQUIRED VERSION 1.14.0)
 find_package(plog REQUIRED VERSION 1.1.10)
+find_package(glib REQUIRED VERSION 2.78.3)
 
 set(ROOT ${CMAKE_SOURCE_DIR})
+
+# dummy target containing headers
+add_subdirectory(pulse-audio-headers)
 
 add_subdirectory(src)
