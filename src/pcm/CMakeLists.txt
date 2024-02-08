@@ -6,6 +6,7 @@ set(SOURCES main.cpp)
 set(HEADERS )
 
 add_subdirectory(protos)
+add_subdirectory(trace)
 
 add_executable(pulse-calls-mapper ${HEADERS} ${SOURCES})
 
