@@ -11,6 +11,16 @@
 
 #include "trace.hpp"
 
+// case section for mapping enum values to string literals
+#define CASE(literal, var, str) \
+    case literal:               \
+        var = str;              \
+        break;
+
+#define DEFAULT(var, str)       \
+    default:                    \
+        var = str;
+
 using namespace pcm_log;
 
 std::ostream& __pcm_trace_internal::timedLog(std::ostream& os, const std::string& tag) {
@@ -91,221 +101,60 @@ std::string pcm_log::pa_channel_position_t_to_string(const pa_channel_position_t
     std::string result;
 
     switch (pos) {
-        case PA_CHANNEL_POSITION_INVALID:
-            result = "INVALID";
-            break;
-
-        case PA_CHANNEL_POSITION_MONO:
-            result = "MONO";
-            break;
-
-        case PA_CHANNEL_POSITION_FRONT_LEFT:
-            result = "FRONT_LEFT";
-            break;
-
-        case PA_CHANNEL_POSITION_FRONT_RIGHT:
-            result = "FRONT_RIGHT";
-            break;
-
-        case PA_CHANNEL_POSITION_FRONT_CENTER:
-            result = "FRONT_CENTER";
-            break;
-
-        case PA_CHANNEL_POSITION_REAR_CENTER:
-            result = "REAR_CENTER";
-            break;
-
-        case PA_CHANNEL_POSITION_REAR_LEFT:
-            result = "REAR_LEFT";
-            break;
-
-        case PA_CHANNEL_POSITION_REAR_RIGHT:
-            result = "REAR_RIGHT";
-            break;
-
-        case PA_CHANNEL_POSITION_LFE:
-            result = "LFE";
-            break;
-
-        case PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER:
-            result = "FRONT_LEFT_OF_CENTER";
-            break;
-
-        case PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER:
-            result = "FRONT_RIGHT_OF_CENTER";
-            break;
-
-        case PA_CHANNEL_POSITION_SIDE_LEFT:
-            result = "SIDE_LEFT";
-            break;
-
-        case PA_CHANNEL_POSITION_SIDE_RIGHT:
-            result = "SIDE_RIGHT";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX0:
-            result = "AUX0";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX1:
-            result = "AUX1";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX2:
-            result = "AUX2";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX3:
-            result = "AUX3";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX4:
-            result = "AUX4";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX5:
-            result = "AUX5";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX6:
-            result = "AUX6";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX7:
-            result = "AUX7";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX8:
-            result = "AUX8";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX9:
-            result = "AUX9";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX10:
-            result = "AUX10";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX11:
-            result = "AUX11";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX12:
-            result = "AUX12";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX13:
-            result = "AUX13";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX14:
-            result = "AUX14";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX15:
-            result = "AUX15";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX16:
-            result = "AUX16";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX17:
-            result = "AUX17";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX18:
-            result = "AUX18";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX19:
-            result = "AUX19";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX20:
-            result = "AUX20";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX21:
-            result = "AUX21";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX22:
-            result = "AUX22";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX23:
-            result = "AUX23";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX24:
-            result = "AUX24";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX25:
-            result = "AUX25";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX26:
-            result = "AUX26";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX27:
-            result = "AUX27";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX28:
-            result = "AUX28";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX29:
-            result = "AUX29";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX30:
-            result = "AUX30";
-            break;
-
-        case PA_CHANNEL_POSITION_AUX31:
-            result = "AUX31";
-            break;
-
-        case PA_CHANNEL_POSITION_TOP_CENTER:
-            result = "TOP_CENTER";
-            break;
-
-        case PA_CHANNEL_POSITION_TOP_FRONT_LEFT:
-            result = "TOP_FRONT_LEFT";
-            break;
-
-        case PA_CHANNEL_POSITION_TOP_FRONT_RIGHT:
-            result = "TOP_FRONT_RIGHT";
-            break;
-
-        case PA_CHANNEL_POSITION_TOP_FRONT_CENTER:
-            result = "TOP_FRONT_CENTER";
-            break;
-
-        case PA_CHANNEL_POSITION_TOP_REAR_LEFT:
-            result = "TOP_REAR_LEFT";
-            break;
-
-        case PA_CHANNEL_POSITION_TOP_REAR_RIGHT:
-            result = "TOP_REAR_RIGHT";
-            break;
-
-        case PA_CHANNEL_POSITION_TOP_REAR_CENTER:
-            result = "TOP_REAR_CENTER";
-            break;
-
-        case PA_CHANNEL_POSITION_MAX:
-            result = "MAX";
-            break;
-
-        default:
-            result = "UNKNOWN";
-            break;
+        CASE(PA_CHANNEL_POSITION_INVALID, result, "INVALID")
+        CASE(PA_CHANNEL_POSITION_MONO, result, "MONO")
+        CASE(PA_CHANNEL_POSITION_FRONT_LEFT, result, "FRONT_LEFT")
+        CASE(PA_CHANNEL_POSITION_FRONT_RIGHT, result, "FRONT_RIGHT")
+        CASE(PA_CHANNEL_POSITION_FRONT_CENTER, result, "FRONT_CENTER")
+        CASE(PA_CHANNEL_POSITION_REAR_CENTER, result, "REAR_CENTER")
+        CASE(PA_CHANNEL_POSITION_REAR_LEFT, result, "REAR_LEFT")
+        CASE(PA_CHANNEL_POSITION_REAR_RIGHT, result, "REAR_RIGHT")
+        CASE(PA_CHANNEL_POSITION_LFE, result, "LFE")
+        CASE(PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER, result, "FRONT_LEFT_OF_CENTER")
+        CASE(PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER, result, "FRONT_RIGHT_OF_CENTER")
+        CASE(PA_CHANNEL_POSITION_SIDE_LEFT, result, "SIDE_LEFT")
+        CASE(PA_CHANNEL_POSITION_SIDE_RIGHT, result, "SIDE_RIGHT")
+        CASE(PA_CHANNEL_POSITION_AUX0, result, "AUX0")
+        CASE(PA_CHANNEL_POSITION_AUX1, result, "AUX1")
+        CASE(PA_CHANNEL_POSITION_AUX2, result, "AUX2")
+        CASE(PA_CHANNEL_POSITION_AUX3, result, "AUX3")
+        CASE(PA_CHANNEL_POSITION_AUX4, result, "AUX4")
+        CASE(PA_CHANNEL_POSITION_AUX5, result, "AUX5")
+        CASE(PA_CHANNEL_POSITION_AUX6, result, "AUX6")
+        CASE(PA_CHANNEL_POSITION_AUX7, result, "AUX7")
+        CASE(PA_CHANNEL_POSITION_AUX8, result, "AUX8")
+        CASE(PA_CHANNEL_POSITION_AUX9, result, "AUX9")
+        CASE(PA_CHANNEL_POSITION_AUX10, result, "AUX10")
+        CASE(PA_CHANNEL_POSITION_AUX11, result, "AUX11")
+        CASE(PA_CHANNEL_POSITION_AUX12, result, "AUX12")
+        CASE(PA_CHANNEL_POSITION_AUX13, result, "AUX13")
+        CASE(PA_CHANNEL_POSITION_AUX14, result, "AUX14")
+        CASE(PA_CHANNEL_POSITION_AUX15, result, "AUX15")
+        CASE(PA_CHANNEL_POSITION_AUX16, result, "AUX16")
+        CASE(PA_CHANNEL_POSITION_AUX17, result, "AUX17")
+        CASE(PA_CHANNEL_POSITION_AUX18, result, "AUX18")
+        CASE(PA_CHANNEL_POSITION_AUX19, result, "AUX19")
+        CASE(PA_CHANNEL_POSITION_AUX20, result, "AUX20")
+        CASE(PA_CHANNEL_POSITION_AUX21, result, "AUX21")
+        CASE(PA_CHANNEL_POSITION_AUX22, result, "AUX22")
+        CASE(PA_CHANNEL_POSITION_AUX23, result, "AUX23")
+        CASE(PA_CHANNEL_POSITION_AUX24, result, "AUX24")
+        CASE(PA_CHANNEL_POSITION_AUX25, result, "AUX25")
+        CASE(PA_CHANNEL_POSITION_AUX26, result, "AUX26")
+        CASE(PA_CHANNEL_POSITION_AUX27, result, "AUX27")
+        CASE(PA_CHANNEL_POSITION_AUX28, result, "AUX28")
+        CASE(PA_CHANNEL_POSITION_AUX29, result, "AUX29")
+        CASE(PA_CHANNEL_POSITION_AUX30, result, "AUX30")
+        CASE(PA_CHANNEL_POSITION_AUX31, result, "AUX31")
+        CASE(PA_CHANNEL_POSITION_TOP_CENTER, result, "TOP_CENTER")
+        CASE(PA_CHANNEL_POSITION_TOP_FRONT_LEFT, result, "TOP_FRONT_LEFT")
+        CASE(PA_CHANNEL_POSITION_TOP_FRONT_RIGHT, result, "TOP_FRONT_RIGHT")
+        CASE(PA_CHANNEL_POSITION_TOP_FRONT_CENTER, result, "TOP_FRONT_CENTER")
+        CASE(PA_CHANNEL_POSITION_TOP_REAR_LEFT, result, "TOP_REAR_LEFT")
+        CASE(PA_CHANNEL_POSITION_TOP_REAR_RIGHT, result, "TOP_REAR_RIGHT")
+        CASE(PA_CHANNEL_POSITION_TOP_REAR_CENTER, result, "TOP_REAR_CENTER")
+        CASE(PA_CHANNEL_POSITION_MAX, result, "MAX")
+        DEFAULT(result, "UNKNOWN")
     }
 
     return std::vformat("{}({})", std::make_format_args(result, pos));
@@ -334,69 +183,22 @@ std::string pcm_log::pa_channel_map_to_string(const pa_channel_map *m) {
 std::string pcm_log::pa_sample_format_t_to_string(pa_sample_format_t sf) {
     std::string fmt;
     switch (sf) {
-        case PA_SAMPLE_U8:
-            fmt = "U8";
-            break;
-
-        case PA_SAMPLE_ALAW:
-            fmt = "ALAW";
-            break;
-
-        case PA_SAMPLE_ULAW:
-            fmt = "ULAW";
-            break;
-
-        case PA_SAMPLE_S16LE:
-            fmt = "S16LE";
-            break;
-
-        case PA_SAMPLE_S16BE:
-            fmt = "S16BE";
-            break;
-
-        case PA_SAMPLE_FLOAT32LE:
-            fmt = "FLOAT32LE";
-            break;
-
-        case PA_SAMPLE_FLOAT32BE:
-            fmt = "FLOAT32BE";
-            break;
-
-        case PA_SAMPLE_S32LE:
-            fmt = "S32LE";
-            break;
-
-        case PA_SAMPLE_S32BE:
-            fmt = "S32BE";
-            break;
-
-        case PA_SAMPLE_S24LE:
-            fmt = "S24LE";
-            break;
-
-        case PA_SAMPLE_S24BE:
-            fmt = "S24BE";
-            break;
-
-        case PA_SAMPLE_S24_32LE:
-            fmt = "S24_32LE";
-            break;
-
-        case PA_SAMPLE_S24_32BE:
-            fmt = "S24_32BE";
-            break;
-
-        case PA_SAMPLE_MAX:
-            fmt = "MAX";
-            break;
-
-        case PA_SAMPLE_INVALID:
-            fmt = "INVALID";
-            break;
-
-        default:
-            fmt = "UNKNOWN";
-            break;
+        CASE(PA_SAMPLE_U8, fmt, "U8")
+        CASE(PA_SAMPLE_ALAW, fmt, "ALAW")
+        CASE(PA_SAMPLE_ULAW, fmt, "ULAW")
+        CASE(PA_SAMPLE_S16LE, fmt, "S16LE")
+        CASE(PA_SAMPLE_S16BE, fmt, "S16BE")
+        CASE(PA_SAMPLE_FLOAT32LE, fmt, "FLOAT32LE")
+        CASE(PA_SAMPLE_FLOAT32BE, fmt, "FLOAT32BE")
+        CASE(PA_SAMPLE_S32LE, fmt, "S32LE")
+        CASE(PA_SAMPLE_S32BE, fmt, "S32BE")
+        CASE(PA_SAMPLE_S24LE, fmt, "S24LE")
+        CASE(PA_SAMPLE_S24BE, fmt, "S24BE")
+        CASE(PA_SAMPLE_S24_32LE, fmt, "S24_32LE")
+        CASE(PA_SAMPLE_S24_32BE, fmt, "S24_32BE")
+        CASE(PA_SAMPLE_MAX, fmt, "MAX")
+        CASE(PA_SAMPLE_INVALID, fmt, "INVALID")
+        DEFAULT(fmt, "UNKNOWN")
     }
 
     return std::vformat("{}({})", std::make_format_args(fmt, sf));
