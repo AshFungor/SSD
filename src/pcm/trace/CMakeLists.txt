@@ -11,3 +11,4 @@ target_compile_definitions(trace PUBLIC LOG_TO_STD)
 target_compile_definitions(trace PUBLIC LOG_LEVEL=0)
 
 target_link_libraries(trace PRIVATE plog::plog)
+target_link_libraries(trace PRIVATE pulse-headers)
