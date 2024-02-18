@@ -157,7 +157,7 @@ std::string pcm_log::pa_channel_position_t_to_string(const pa_channel_position_t
         DEFAULT(result, "UNKNOWN")
     }
 
-    return std::vformat("{}({})", std::make_format_args(result, pos));
+    return std::vformat("{}({})", std::make_format_args(result, (int) pos));
 }
 
 std::string pcm_log::pa_channel_map_to_string(const pa_channel_map *m) {
@@ -201,7 +201,7 @@ std::string pcm_log::pa_sample_format_t_to_string(pa_sample_format_t sf) {
         DEFAULT(fmt, "UNKNOWN")
     }
 
-    return std::vformat("{}({})", std::make_format_args(fmt, sf));
+    return std::vformat("{}({})", std::make_format_args(fmt, (int) sf));
 }
 
 std::string trace_pa_sample_spec_as_string(const pa_sample_spec *ss) {

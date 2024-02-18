@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package NSound;
+
+import "protos/channel/channel-map.proto";
+
+message TClientMessage {
+
+    message TStreamConfiguration {
+
+    }
+
+
+}
