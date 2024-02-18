@@ -6,3 +6,5 @@ set(SOURCES main.cpp)
 set(HEADERS )
 
 add_executable(sound-server-daemon ${HEADERS} ${SOURCES})
+
+target_link_libraries(sound-server-daemon PRIVATE asio::asio)
