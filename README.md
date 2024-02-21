@@ -37,8 +37,16 @@ os=Linux
 
 I sincerely hope it works for other setups as well.
 
-## Task
+## Progress
 
-Main job right now is to provide definitions for headers in pulse-audio-headers.
+### 20, Feb 
+After glimpsing API of pulseaudio I have found out that it supports simple
+transmission of recording/output for its clients, which is perfect because
+this sounds fairly easy. So, for next sprint (till mid of March) my task is:
+
+- setup thread pool on server and make it handle simple requests
+- allow pcm to correctly handle simple.h
+
+This is all for now.
 
 
