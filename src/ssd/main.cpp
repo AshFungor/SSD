@@ -1,8 +1,11 @@
 #include <iostream>
 
+// util
+#include <thread-pool.hpp>
+
 int main() {
 
-    std::cout << "Hello, world!\n";
+    auto& threadPool = util::ThreadPool::getInstance();
 
     return 0;
 }
