@@ -1,3 +1,6 @@
+// Pulse
+#include <pulse/sample.h>
+
 // STD
 #include <chrono>
 #include <cstdint>
@@ -5,7 +8,6 @@
 #include <format>
 #include <iomanip>
 #include <mutex>
-#include <pulse/sample.h>
 #include <sstream>
 #include <string>
 
@@ -44,7 +46,7 @@ std::ostream& __pcm_trace_internal::warning(std::ostream& os) {
 
 void logError(const std::string& fmt, std::format_args args) {
     #if defined(LOG_LEVEL) && LOG_LEVEL <= 3
-    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock}; 
+    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
     __pcm_trace_internal::error(s_err) << std::vformat(fmt, args);
     __pcm_trace_internal::error(s_out) << std::vformat(fmt, args);
     #endif
@@ -210,6 +212,6 @@ std::string trace_pa_sample_spec_as_string(const pa_sample_spec *ss) {
     }
 
     const auto format = pa_sample_format_t_to_string(ss->format);
-    return std::vformat("{format = {}, rate = {}, channels = {}}", 
+    return std::vformat("{format = {}, rate = {}, channels = {}}",
                         std::make_format_args(format, ss->rate, ss->channels));
 }

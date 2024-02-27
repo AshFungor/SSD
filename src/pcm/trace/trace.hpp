@@ -1,8 +1,8 @@
 #pragma once
 
 // pulse
-#include <def.h>
-#include <volume.h>
+#include <pulse/def.h>
+#include <pulse/volume.h>
 
 #include <ostream>
 #include <string>

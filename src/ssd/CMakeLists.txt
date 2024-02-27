@@ -8,6 +8,7 @@ set(HEADERS )
 add_executable(sound-server-daemon ${HEADERS} ${SOURCES})
 
 add_subdirectory(util)
+add_subdirectory(network)
 
-target_link_libraries(sound-server-daemon PRIVATE asio::asio)
+target_link_libraries(sound-server-daemon PRIVATE server)
 target_link_libraries(sound-server-daemon PRIVATE server-util)
