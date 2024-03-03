@@ -7,8 +7,12 @@ set(HEADERS )
 
 add_executable(sound-server-daemon ${HEADERS} ${SOURCES})
 
+set(SRC_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_subdirectory(util)
 add_subdirectory(network)
 
 target_link_libraries(sound-server-daemon PRIVATE server)
 target_link_libraries(sound-server-daemon PRIVATE server-util)
+target_link_libraries(sound-server-daemon PRIVATE sockpp)
+target_link_libraries(sound-server-daemon PRIVATE protos)

@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.15)
 
 project(protos VERSION 0.0)
 
-add_subdirectory(channel)
 add_subdirectory(client)
 
 add_library(protos OBJECT ${PROTOS})
