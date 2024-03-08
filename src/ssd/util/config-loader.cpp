@@ -1,4 +1,6 @@
 // nlohmann_json
+#include "util/config-loader.hpp"
+#include <memory>
 #include <nlohmann/json_fwd.hpp>
 #include <nlohmann/json.hpp>
 
@@ -15,6 +17,22 @@
 #include <common/callback-queue.hpp>
 
 using namespace laar;
+
+
+std::shared_ptr<ConfigHandler> ConfigHandler::configure(
+    std::string_view configRootDirectory,
+    std::shared_ptr<laar::CallbackQueue> cbQueue)
+{
+    return std::make_shared<ConfigHandler>(configRootDirectory, cbQueue, Private());
+}
+
+ConfigHandler::ConfigHandler(
+    std::string_view configRootDirectory, 
+    std::shared_ptr<laar::CallbackQueue> cbQueue,
+    Private access)
+    : configRootDirectory_(configRootDirectory)
+    , cbQueue_(cbQueue)
+{}
 
 
 // std::shared_ptr<ConfigHandler> configure(

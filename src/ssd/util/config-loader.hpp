@@ -16,17 +16,23 @@
 // common
 #include <common/callback-queue.hpp>
 
-namespace util {
+namespace laar {
 
     using namespace std::filesystem;
 
     class ConfigHandler
         : public std::enable_shared_from_this<ConfigHandler> 
     {
+    private: struct Private { };
     public:
+        ConfigHandler(
+            std::string_view configRootDirectory, 
+            std::shared_ptr<laar::CallbackQueue> cbQueue,
+            Private access
+        );
         ~ConfigHandler();
 
-        std::shared_ptr<ConfigHandler> configure(
+        static std::shared_ptr<ConfigHandler> configure(
             std::string_view configRootDirectory, /* root directory to look for configs */
             std::shared_ptr<laar::CallbackQueue> cbQueue /* callback queue for syncing async API */
         );
@@ -38,7 +44,6 @@ namespace util {
         void subscribeOnDynamicConfig(std::string section, std::function<void()> callback, std::weak_ptr<void> lifetime);
 
     private:
-        ConfigHandler();
 
         void schedule();
         void notifyDefaultSubscribers();

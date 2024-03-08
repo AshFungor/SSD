@@ -23,9 +23,9 @@
 using namespace laar;
 
 CallbackQueue::CallbackQueue(CallbackQueueSettings settings, Private access)
-: settings_(std::move(settings))
-, abort_(false)
-, initiated_(false)
+    : settings_(std::move(settings))
+    , abort_(false)
+    , initiated_(false)
 {}
 
 std::shared_ptr<CallbackQueue> CallbackQueue::configure(CallbackQueueSettings settings) {
