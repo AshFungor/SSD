@@ -30,6 +30,7 @@ namespace srv {
         void onStreamConfigMessage(const NSound::TClientMessage::TStreamConfiguration& message);
         void onClientMessage(const NSound::TClientMessage& message);
         void error(const std::string& errorMessage);
+        void handleErrorState(sockpp::result<std::size_t> requestState);
         void reply(/* server message */);
 
     private:

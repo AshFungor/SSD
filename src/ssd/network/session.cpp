@@ -65,25 +65,21 @@ void ClientSession::update() {
             // retrieve more data
             lastMessageBytesRead_ += result.value(); 
         } else {
-            if (result.error().value() == EWOULDBLOCK) {
-                // no data on this cycle, skip
-                return;
-            } else {
-                error("Error on socket read: " + result.error_message());
-            }
+            handleErrorState(result);
         }
     } else {
         result = sock_.read(&lastMessageLen_ + lastMessageLenBytesRead_, sizeof lastMessageLen_ - lastMessageLenBytesRead_);
         if (result.is_ok()) {
             lastMessageLenBytesRead_ += result.value(); 
         } else {
-            if (result.error().value() == EWOULDBLOCK) {
-                // no data on this cycle, skip
-                return;
-            } else {
-                error("Error on socket read: " + result.error_message());
-            }
+            handleErrorState(result);
         }
+    }
+}
+
+void ClientSession::handleErrorState(sockpp::result<std::size_t> requestState) {
+    if (requestState.error().value() != EWOULDBLOCK) {
+        error("Error on socket read: " + requestState.error_message());
     }
 }
 

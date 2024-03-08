@@ -1,6 +1,7 @@
 #pragma once
 
 // nlohmann_json
+#include <memory>
 #include <nlohmann/json_fwd.hpp>
 #include <nlohmann/json.hpp>
 
@@ -12,67 +13,59 @@
 #include <array>
 #include <vector>
 
-// local
-#include "callback-queue.hpp"
+// common
+#include <common/callback-queue.hpp>
 
 namespace util {
 
     using namespace std::filesystem;
 
-    constexpr std::size_t ConfigTypesNumber = 2;
-
-    enum class cfg : std::size_t {
-        BASE, 
-        DYNAMIC /* support for renewing config will be added later */
-    };
-
-    class ConfigHandler {
+    class ConfigHandler
+        : public std::enable_shared_from_this<ConfigHandler> 
+    {
     public:
-        ConfigHandler(std::string_view configRootDirectory, bool handling, std::shared_ptr<CallbackQueue> cbQueue);
         ~ConfigHandler();
 
+        std::shared_ptr<ConfigHandler> configure(
+            std::string_view configRootDirectory, /* root directory to look for configs */
+            std::shared_ptr<laar::CallbackQueue> cbQueue /* callback queue for syncing async API */
+        );
+
         void init();
-        void flush();
-        void update(bool force = false);
-        // callback must be thread-safe.
-        void subscribeOnConfig(cfg target, std::function<void()> callback);
+        void forceUpdate();
 
-        const nlohmann::json& get(cfg type) const;
-        const nlohmann::json& operator[](cfg type) const;
-
-        // this is not thread aware, must be synced by caller 
-        nlohmann::json& modify(cfg type);
-
-        bool isSupported(cfg type) const;
+        void subscribeOnDefaultConfig(std::string section, std::function<void()> callback, std::weak_ptr<void> lifetime);
+        void subscribeOnDynamicConfig(std::string section, std::function<void()> callback, std::weak_ptr<void> lifetime);
 
     private:
-        bool isModified(cfg target);
-        bool write(cfg target);
-        void notify(cfg target);
-        bool parse(cfg target);
+        ConfigHandler();
+
+        void schedule();
+        void notifyDefaultSubscribers();
+        void notifyDynamicSubscribers();
+        bool parseDefault();
+        bool parseDynamic();
 
     private:
-        bool handling; 
-        const std::string configRootDirectory_;
-        std::shared_ptr<CallbackQueue> cbQueue_;
-        std::array<bool, ConfigTypesNumber> supportedConfigs_ = {
-            true, /* default config */
-            false /* dynamic config */
-        };
-        std::array<nlohmann::json, ConfigTypesNumber> configs_;
-
+        const std::string_view configRootDirectory_;
+        std::shared_ptr<laar::CallbackQueue> cbQueue_;
+        
         struct ConfigFile {
             path filepath;
-            file_time_type ts;
+            file_time_type lastUpdatedTs;
+            nlohmann::json contents;
         };
 
-        std::array<ConfigFile, ConfigTypesNumber> paths_ {
-            ConfigFile{.filepath = configRootDirectory_ + "default.cfg"},
-            ConfigFile{.filepath = configRootDirectory_ + "dynamic.cfg"}
+        struct Subscriber {
+            std::function<void()> callback;
+            std::weak_ptr<void> lifetime;
         };
 
-        using Endpoints = std::vector<std::function<void()>>;
-        std::array<Endpoints, ConfigTypesNumber> endpoints_;
+        ConfigFile default_;
+        ConfigFile dynamic_;
+
+        std::vector<Subscriber> defaultDefaultSubscribers_;
+        std::vector<Subscriber> dynamicDefaultSubscribers_;
     };
 
 } // namespace util
