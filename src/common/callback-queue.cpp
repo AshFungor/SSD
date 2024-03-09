@@ -28,6 +28,7 @@ std::shared_ptr<CallbackQueue> CallbackQueue::configure(CallbackQueueSettings se
 }
 
 CallbackQueue::~CallbackQueue() {
+    if (!initiated_) return;
     { 
         std::unique_lock<std::mutex> queueLock(queueLock_), schedulerLock(schedulerLock_);
         if (settings_.discardQueueOnAbort) tasks_ = {};
@@ -94,6 +95,7 @@ void CallbackQueue::schedule() {
             next = std::move(const_cast<timedCallback_t&>(scheduled_.top()));
             scheduled_.pop();
         }
+
         std::this_thread::sleep_for(next->goesOff() - std::chrono::high_resolution_clock::now());
         {
             std::unique_lock<std::mutex> queueLock (queueLock_);

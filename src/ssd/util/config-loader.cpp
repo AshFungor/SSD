@@ -6,6 +6,7 @@
 #include <string_view>
 #include <filesystem>
 #include <functional>
+#include <iostream>
 #include <fstream>
 #include <chrono>
 #include <memory>
@@ -32,14 +33,14 @@ std::shared_ptr<ConfigHandler> ConfigHandler::configure(
     std::string_view configRootDirectory,
     std::shared_ptr<laar::CallbackQueue> cbQueue)
 {
-    return std::make_shared<ConfigHandler>(configRootDirectory, cbQueue, Private());
+    return std::make_shared<ConfigHandler>(configRootDirectory, std::move(cbQueue), Private());
 }
 
 ConfigHandler::ConfigHandler(
     std::string_view configRootDirectory, 
     std::shared_ptr<laar::CallbackQueue> cbQueue,
     Private access)
-    : cbQueue_(cbQueue)
+    : cbQueue_(std::move(cbQueue))
     , isDefaultAvailable_(false)
     , isDynamicAvailable_(false)
     , default_(ConfigFile{
@@ -67,11 +68,14 @@ void ConfigHandler::init() {
 }
 
 void ConfigHandler::update() {
-    if (auto newTs = last_write_time(dynamic_.filepath); newTs > dynamic_.lastUpdatedTs) {
-        dynamic_.lastUpdatedTs = newTs;
-        isDynamicAvailable_ = parseDynamic();
-        if (isDynamicAvailable_) notifyDynamicSubscribers();
-    }
+    cbQueue_->query([this]() {
+        if (auto newTs = last_write_time(dynamic_.filepath); newTs > dynamic_.lastUpdatedTs) {
+            dynamic_.lastUpdatedTs = newTs;
+            isDynamicAvailable_ = parseDynamic();
+            if (isDynamicAvailable_) notifyDynamicSubscribers();
+        }
+        schedule();
+    });
 }
 
 void ConfigHandler::schedule() {
@@ -130,12 +134,16 @@ void ConfigHandler::subscribeOnDefaultConfig(
     std::function<void(const nlohmann::json&)> callback, 
     std::weak_ptr<void> lifetime) 
 {
-    defaultConfigSubscribers_.push_back(Subscriber{
-        .section = section,
-        .callback = std::move(callback),
-        .lifetime = std::move(lifetime)
+    cbQueue_->query([ptr = weak_from_this(), section, callback, lifetime]() {
+        if (auto handler = ptr.lock()) {
+            handler->defaultConfigSubscribers_.push_back(Subscriber{
+                .section = section,
+                .callback = std::move(callback),
+                .lifetime = std::move(lifetime)
+            });
+            handler->notify(handler->defaultConfigSubscribers_.back(), handler->default_.contents);
+        }
     });
-    notify(defaultConfigSubscribers_.back(), default_.contents);
 }
 
 void ConfigHandler::subscribeOnDynamicConfig(
@@ -143,10 +151,14 @@ void ConfigHandler::subscribeOnDynamicConfig(
     std::function<void(const nlohmann::json&)> callback, 
     std::weak_ptr<void> lifetime)
 {
-    dynamicConfigSubscribers_.push_back(Subscriber{
-        .section = section,
-        .callback = std::move(callback),
-        .lifetime = std::move(lifetime)
+    cbQueue_->query([ptr = weak_from_this(), section, callback, lifetime]() {
+        if (auto handler = ptr.lock()) {
+            handler->dynamicConfigSubscribers_.push_back(Subscriber{
+                .section = section,
+                .callback = std::move(callback),
+                .lifetime = std::move(lifetime)
+            });
+            handler->notify(handler->dynamicConfigSubscribers_.back(), handler->dynamic_.contents);
+        }
     });
-    notify(dynamicConfigSubscribers_.back(), dynamic_.contents);
 }

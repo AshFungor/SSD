@@ -1,4 +1,5 @@
 // nlohmann 
+#include <mutex>
 #include <nlohmann/json_fwd.hpp>
 #include <nlohmann/json.hpp>
 
@@ -6,12 +7,11 @@
 #include <gtest/gtest.h>
 
 // standard
+#include <condition_variable>
 #include <iostream>
 #include <fstream>
 #include <memory>
 #include <string>
-#include <chrono>
-#include <thread>
 
 // laar
 #include <common/callback-queue.hpp>
@@ -25,10 +25,10 @@ using namespace laar;
 namespace {
     void write(std::string path, const nlohmann::json& config) {
         std::ofstream ofs {path, std::ios::out | std::ios::binary};
-        GTEST_COUT("Writing json to file: " << path);
+        GTEST_COUT("writing json to file: " << path);
 
         std::string dumped = config.dump(4);
-        GTEST_COUT("Json data: " << dumped);
+        GTEST_COUT("json data: " << dumped);
 
         ofs.write(dumped.data(), dumped.size());
         ofs.close();
@@ -54,25 +54,69 @@ protected:
             {"dynamic", {{"dynamic", "dynamic"}}}
         });
 
+        cbQueue->init();
         handler->init();
     }
 };
 
 TEST_F(ConfigLoaderTest, SubscribeAndListen) {
     auto lifetime = std::make_shared<int>(1);
+    std::mutex defaultLock, dynamicLock;
+    std::condition_variable cv;
+
     handler->subscribeOnDefaultConfig(
         "default", 
-        [this](const nlohmann::json& config) {
+        [&](const nlohmann::json& config) {
+            GTEST_COUT("config received: " << config);
             EXPECT_EQ(config.value<std::string>("default", "Not found!"), "default");
+            cv.notify_one();
         }, 
         lifetime);
     handler->subscribeOnDynamicConfig(
         "dynamic", 
-        [this](const nlohmann::json& config) {
+        [&](const nlohmann::json& config) {
+            GTEST_COUT("config received: " << config);
             EXPECT_EQ(config.value<std::string>("dynamic", "Not found!"), "dynamic");
+            cv.notify_one();
         }, 
         lifetime);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    std::unique_lock<std::mutex> lock_1(defaultLock), lock_2(dynamicLock);
+    cv.wait(lock_1);
+    cv.wait(lock_2);
 }
 
-// Add more tests for dynamic config in the future
+TEST_F(ConfigLoaderTest, ReadUpdateToDynamicConfig) {
+    auto lifetime = std::make_shared<int>(1);
+    std::mutex dynamicLock;
+    std::condition_variable cv;
+
+    int runNum = 0;
+
+    handler->subscribeOnDynamicConfig(
+        "dynamic", 
+        [&](const nlohmann::json& config) {
+            std::lock_guard<std::mutex> lock(dynamicLock);
+            if (runNum == 0) {
+                GTEST_COUT("initial config received: " << config);
+                EXPECT_EQ(config.value<std::string>("dynamic", "Not found!"), "dynamic");
+                cv.notify_one();
+            } else if (runNum == 1) {
+                GTEST_COUT("new config received: " << config);
+                EXPECT_EQ(config.value<std::string>("dynamic", "Not found!"), "new_value!");
+                cv.notify_one();
+            }
+            ++runNum;
+        }, 
+        lifetime);
+
+    cbQueue->query([&]() {
+        write(testingConfigDir + "dynamic.cfg", {
+            {"dynamic", {{"dynamic", "new_value!"}}}
+        });
+    });
+
+    std::unique_lock<std::mutex> lock_1(dynamicLock);
+    cv.wait(lock_1);
+    cv.wait(lock_1);
+}
