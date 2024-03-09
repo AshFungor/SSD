@@ -1,7 +1,6 @@
 #pragma once
 
 // nlohmann_json
-#include <memory>
 #include <nlohmann/json_fwd.hpp>
 #include <nlohmann/json.hpp>
 
@@ -9,9 +8,8 @@
 #include <functional>
 #include <filesystem>
 #include <string_view>
-#include <cstdint>
-#include <array>
 #include <vector>
+#include <memory>
 
 // common
 #include <common/callback-queue.hpp>
@@ -38,21 +36,22 @@ namespace laar {
         );
 
         void init();
-        void forceUpdate();
+        void update();
 
-        void subscribeOnDefaultConfig(std::string section, std::function<void()> callback, std::weak_ptr<void> lifetime);
-        void subscribeOnDynamicConfig(std::string section, std::function<void()> callback, std::weak_ptr<void> lifetime);
+        void subscribeOnDefaultConfig(const std::string& section, std::function<void(const nlohmann::json&)> callback, std::weak_ptr<void> lifetime);
+        void subscribeOnDynamicConfig(const std::string& section, std::function<void(const nlohmann::json&)> callback, std::weak_ptr<void> lifetime);
 
     private:
+        struct Subscriber;
 
         void schedule();
+        void notify(const Subscriber& sub, const nlohmann::json& config);
         void notifyDefaultSubscribers();
         void notifyDynamicSubscribers();
         bool parseDefault();
         bool parseDynamic();
 
     private:
-        const std::string_view configRootDirectory_;
         std::shared_ptr<laar::CallbackQueue> cbQueue_;
         
         struct ConfigFile {
@@ -62,15 +61,19 @@ namespace laar {
         };
 
         struct Subscriber {
-            std::function<void()> callback;
+            std::string section;
+            std::function<void(const nlohmann::json&)> callback;
             std::weak_ptr<void> lifetime;
         };
 
         ConfigFile default_;
         ConfigFile dynamic_;
 
-        std::vector<Subscriber> defaultDefaultSubscribers_;
-        std::vector<Subscriber> dynamicDefaultSubscribers_;
+        bool isDynamicAvailable_;
+        bool isDefaultAvailable_;
+
+        std::vector<Subscriber> defaultConfigSubscribers_;
+        std::vector<Subscriber> dynamicConfigSubscribers_;
     };
 
 } // namespace util

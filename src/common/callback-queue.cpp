@@ -1,12 +1,7 @@
 // standard
-#include <bits/chrono.h>
 #include <condition_variable>
 #include <functional>
-#include <iostream>
-#include <iterator>
-#include <cstddef>
 #include <chrono>
-#include <vector>
 #include <thread>
 #include <memory>
 #include <mutex>
@@ -34,7 +29,8 @@ std::shared_ptr<CallbackQueue> CallbackQueue::configure(CallbackQueueSettings se
 
 CallbackQueue::~CallbackQueue() {
     { 
-        std::unique_lock<std::mutex> queueLock(queueLock_), schedulerLock(schedulerLock_); 
+        std::unique_lock<std::mutex> queueLock(queueLock_), schedulerLock(schedulerLock_);
+        if (settings_.discardQueueOnAbort) tasks_ = {};
         abort_ = true;
     }
     queueCv_.notify_one();

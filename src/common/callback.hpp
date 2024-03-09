@@ -14,8 +14,19 @@ namespace laar {
         virtual bool validate() const = 0;
         virtual bool locked() const = 0;
         virtual void execute() = 0;
-
         virtual void operator()() = 0;
+    };
+
+    class PersistentCallback : public ICallback {
+    public:
+        PersistentCallback(std::function<void()> task);
+        PersistentCallback(const PersistentCallback&) = delete;
+        virtual bool validate() const override;
+        virtual bool locked() const override;
+        virtual void execute() override;
+        virtual void operator()() override;
+    private:
+        std::function<void()> task_;
     };
 
     class Callback : public ICallback {

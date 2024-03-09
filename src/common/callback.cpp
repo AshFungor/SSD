@@ -10,6 +10,7 @@ using namespace laar;
 
 
 Callback::Callback(std::function<void()> task) : task_(std::move(task)) {}
+PersistentCallback::PersistentCallback(std::function<void()> task) : task_(std::move(task)) {}
 
 TimedCallback::TimedCallback(
     std::function<void()> task, 
@@ -36,6 +37,11 @@ void Callback::execute() {
 bool Callback::locked() const { return !valid_; }
 bool Callback::validate() const { return valid_; }
 void Callback::operator()() { execute(); }
+
+bool PersistentCallback::locked() const { return false; }
+bool PersistentCallback::validate() const { return true; }
+void PersistentCallback::operator()() { execute(); }
+void PersistentCallback::execute() { task_(); }
 
 bool TimedCallback::validate() const { 
     return hs_clock::now() - startTs_ > timeout_ && valid_;

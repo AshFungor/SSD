@@ -1,6 +1,4 @@
 // nlohmann_json
-#include "util/config-loader.hpp"
-#include <memory>
 #include <nlohmann/json_fwd.hpp>
 #include <nlohmann/json.hpp>
 
@@ -9,14 +7,25 @@
 #include <filesystem>
 #include <functional>
 #include <fstream>
-#include <cstdint>
-#include <vector>
-#include <array>
+#include <chrono>
+#include <memory>
 
 // laar
 #include <common/callback-queue.hpp>
 
+// local
+#include "util/config-loader.hpp"
+
 using namespace laar;
+
+namespace {
+    std::string makeDefaultConfigPath(std::string_view directory) {
+        return directory.data() + std::string("default.cfg");
+    }
+    std::string makeDynamicConfigPath(std::string_view directory) {
+        return directory.data() + std::string("dynamic.cfg");
+    }
+}
 
 
 std::shared_ptr<ConfigHandler> ConfigHandler::configure(
@@ -30,132 +39,114 @@ ConfigHandler::ConfigHandler(
     std::string_view configRootDirectory, 
     std::shared_ptr<laar::CallbackQueue> cbQueue,
     Private access)
-    : configRootDirectory_(configRootDirectory)
-    , cbQueue_(cbQueue)
+    : cbQueue_(cbQueue)
+    , isDefaultAvailable_(false)
+    , isDynamicAvailable_(false)
+    , default_(ConfigFile{
+        .filepath = makeDefaultConfigPath(configRootDirectory),
+        .lastUpdatedTs = {},
+        .contents = {}
+    })
+    , dynamic_(ConfigFile{
+        .filepath = makeDynamicConfigPath(configRootDirectory),
+        .lastUpdatedTs = {},
+        .contents = {}
+    })
 {}
 
+ConfigHandler::~ConfigHandler() {}
 
-// std::shared_ptr<ConfigHandler> configure(
-//     std::string_view configRootDirectory,
-//     std::shared_ptr<CallbackQueue> cbQueue) 
-// {
-    
-// }
+void ConfigHandler::init() {
+    isDefaultAvailable_ = parseDefault();
+    isDynamicAvailable_ = parseDynamic();
 
-// ConfigHandler::ConfigHandler(std::string_view configRootDirectory, bool handling, std::shared_ptr<CallbackQueue> cbQueue)
-// : configRootDirectory_(configRootDirectory)
-// , handling(handling)
-// , cbQueue_(std::move(cbQueue))
-// {}
+    dynamic_.lastUpdatedTs = last_write_time(dynamic_.filepath);
+    default_.lastUpdatedTs - last_write_time(default_.filepath);
 
-// ConfigHandler::~ConfigHandler() {
-//     if (handling) { flush(); }
-// }
+    schedule();
+}
 
-// void ConfigHandler::init() {
-//     update(true);
+void ConfigHandler::update() {
+    if (auto newTs = last_write_time(dynamic_.filepath); newTs > dynamic_.lastUpdatedTs) {
+        dynamic_.lastUpdatedTs = newTs;
+        isDynamicAvailable_ = parseDynamic();
+        if (isDynamicAvailable_) notifyDynamicSubscribers();
+    }
+}
 
-//     for (std::size_t numeric = 0; numeric < ConfigTypesNumber; ++numeric) {
-//         auto& file = paths_[numeric];
-//         if (supportedConfigs_[numeric]) {
-//             file.ts = last_write_time(file.filepath);
-//         }
-//     }
-// }
+void ConfigHandler::schedule() {
+    cbQueue_->query([ptr = weak_from_this()]() {
+        if (auto handler = ptr.lock()) handler->update();
+    }, std::chrono::milliseconds(500));
+}
 
-// void ConfigHandler::flush() {
-//     cbQueue_->query([this]() mutable {
-//         for (std::size_t numeric = 0; numeric < ConfigTypesNumber; ++numeric) {
-//             if (supportedConfigs_[numeric]) { 
-//                 auto result = write(static_cast<cfg>(numeric)); 
-//                 if (!result) {
-//                     supportedConfigs_[numeric] = false;
-//                 }
-//             }
-//         }
-//     });
-// }
+bool ConfigHandler::parseDefault() {
+    std::ifstream ifs {default_.filepath, std::ios::in | std::ios::binary};
+    std::string jsonString;
+    std::size_t configFileSize = file_size(default_.filepath);
+    jsonString.resize(configFileSize);
+    if (!ifs || ifs.read(jsonString.data(), configFileSize).gcount() < configFileSize) {
+        return false;
+    }
 
-// void ConfigHandler::update(bool force) {
-//     for (std::size_t numeric = 0; numeric < ConfigTypesNumber; ++numeric) {
-//         if (supportedConfigs_[numeric]) {
-//             if (!isModified(static_cast<cfg>(numeric)) && !force) {
-//                 continue;
-//             }
-//             auto result = parse(static_cast<cfg>(numeric));
-//             if (!result) {
-//                 supportedConfigs_[numeric] = false;
-//             }
-//             notify(static_cast<cfg>(numeric));
-//         }
-//     }
-// }
+    default_.contents = nlohmann::json::parse(jsonString);
+    return true;
+}
 
-// void ConfigHandler::notify(cfg target) {
-//     for (const auto& callback : endpoints_[static_cast<std::size_t>(target)]) {
-//         callback();
-//     }
-// }
+bool ConfigHandler::parseDynamic() {
+    std::ifstream ifs {dynamic_.filepath, std::ios::in | std::ios::binary};
+    std::string jsonString;
+    std::size_t configFileSize = file_size(dynamic_.filepath);
+    jsonString.resize(configFileSize);
+    if (!ifs || ifs.read(jsonString.data(), configFileSize).gcount() < configFileSize) {
+        return false;
+    }
 
-// bool ConfigHandler::isModified(cfg target) {
-//     auto& configFile = paths_[static_cast<std::size_t>(target)];
-//     auto newTs = last_write_time(configFile.filepath);
-//     if (newTs > configFile.ts) {
-//         configFile.ts = newTs;
-//         return true;
-//     }
-//     return false;
-// }
+    dynamic_.contents = nlohmann::json::parse(jsonString);
+    return true;
+}
 
-// bool ConfigHandler::parse(cfg target) {
-//     auto& configFile = paths_[static_cast<std::size_t>(target)];
-//     auto& config = configs_[static_cast<std::size_t>(target)];
+void ConfigHandler::notify(const Subscriber& sub, const nlohmann::json& config) {
+    if (!config[sub.section].is_null()) {
+        if (!sub.lifetime.lock()) return;
+        sub.callback(config[sub.section]);
+    }
+}
 
-//     if (!exists(configFile.filepath)) {
-//         return false;
-//     } 
+void ConfigHandler::notifyDefaultSubscribers() {
+    for (const auto& sub : defaultConfigSubscribers_) {
+        notify(sub, default_.contents);
+    }
+}
 
-//     std::ifstream ifs {configFile.filepath, std::ios::in | std::ios::binary};
-//     std::string jsonString;
-//     std::size_t configFileSize = file_size(configFile.filepath);
-//     jsonString.resize(configFileSize);
-//     if (!ifs || ifs.read(jsonString.data(), configFileSize).gcount() < configFileSize) {
-//         return false;
-//     }
+void ConfigHandler::notifyDynamicSubscribers() {
+    for (const auto& sub : dynamicConfigSubscribers_) {
+        notify(sub, dynamic_.contents);
+    }
+}
 
-//     config = nlohmann::json::parse(jsonString);
-//     return true;
-// }
+void ConfigHandler::subscribeOnDefaultConfig(
+    const std::string& section, 
+    std::function<void(const nlohmann::json&)> callback, 
+    std::weak_ptr<void> lifetime) 
+{
+    defaultConfigSubscribers_.push_back(Subscriber{
+        .section = section,
+        .callback = std::move(callback),
+        .lifetime = std::move(lifetime)
+    });
+    notify(defaultConfigSubscribers_.back(), default_.contents);
+}
 
-// bool ConfigHandler::write(cfg target) {
-//     auto& configFile = paths_[static_cast<std::size_t>(target)];
-//     auto& config = configs_[static_cast<std::size_t>(target)];
-
-//     if (!exists(configFile.filepath)) {
-//         return false;
-//     } 
-
-//     std::ofstream ofs {configFile.filepath, std::ios::out | std::ios::binary};
-//     std::string jsonString = config.dump();
-//     if (!ofs || !ofs.write(jsonString.data(), jsonString.size())) {
-//         return false;
-//     }
-
-//     return true;
-// }
-
-// bool ConfigHandler::isSupported(cfg type) const {
-//     return supportedConfigs_[static_cast<std::size_t>(type)];
-// }
-
-// const nlohmann::json& ConfigHandler::get(cfg type) const {
-//     return configs_[static_cast<std::size_t>(type)];
-// }
-
-// const nlohmann::json& ConfigHandler::operator[](cfg type) const {
-//     return get(type);
-// }
-
-// void ConfigHandler::subscribeOnConfig(cfg target, std::function<void()> callback) {
-//     endpoints_[static_cast<std::size_t>(target)].push_back(callback);
-// }
+void ConfigHandler::subscribeOnDynamicConfig(
+    const std::string& section, 
+    std::function<void(const nlohmann::json&)> callback, 
+    std::weak_ptr<void> lifetime)
+{
+    dynamicConfigSubscribers_.push_back(Subscriber{
+        .section = section,
+        .callback = std::move(callback),
+        .lifetime = std::move(lifetime)
+    });
+    notify(dynamicConfigSubscribers_.back(), dynamic_.contents);
+}

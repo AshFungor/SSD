@@ -4,7 +4,6 @@
 #include <condition_variable>
 #include <functional>
 #include <cstddef>
-#include <iterator>
 #include <vector>
 #include <thread>
 #include <memory>

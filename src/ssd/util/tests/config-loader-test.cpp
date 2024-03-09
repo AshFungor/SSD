@@ -1,77 +1,78 @@
-// // nlohmann 
-// #include <nlohmann/json_fwd.hpp>
-// #include <nlohmann/json.hpp>
+// nlohmann 
+#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
-// // GTest
-// #include <gtest/gtest.h>
+// GTest
+#include <gtest/gtest.h>
 
-// // standard
-// #include <filesystem>
-// #include <iostream>
-// #include <fstream>
-// #include <memory>
-// #include <string>
+// standard
+#include <iostream>
+#include <fstream>
+#include <memory>
+#include <string>
+#include <chrono>
+#include <thread>
 
-// // testing target
-// #define private public
-// #include <util/config-loader.hpp>
-// #undef private
+// laar
+#include <common/callback-queue.hpp>
+#include <util/config-loader.hpp>
 
-// using namespace util;
+using namespace laar;
 
-// #define GTEST_COUT(chain) \
-//     std::cerr << "[INFO      ] " << chain << '\n';
+#define GTEST_COUT(chain) \
+    std::cerr << "[INFO      ] " << chain << '\n';
 
-// class CallbackQueueTest : public testing::Test {
-// protected:
+namespace {
+    void write(std::string path, const nlohmann::json& config) {
+        std::ofstream ofs {path, std::ios::out | std::ios::binary};
+        GTEST_COUT("Writing json to file: " << path);
 
-//     std::shared_ptr<CallbackQueue> cbQueue;
-//     std::string testingConfigDir = BINARY_DIR;
-//     std::string pathToDefault = testingConfigDir + "default.cfg";
-//     std::unique_ptr<ConfigHandler> handler;
+        std::string dumped = config.dump(4);
+        GTEST_COUT("Json data: " << dumped);
 
-//     void SetUp() override {
-//         cbQueue = std::make_shared<CallbackQueue>(100);
-//         cbQueue->init();
-//         handler = std::make_unique<ConfigHandler>(testingConfigDir, true, cbQueue);
+        ofs.write(dumped.data(), dumped.size());
+        ofs.close();
+    }
+}
 
-//         std::ofstream ofs {pathToDefault, std::ios::out | std::ios::binary};
-//         GTEST_COUT("Writing json to file: " << pathToDefault);
+class ConfigLoaderTest : public testing::Test {
+protected:
 
-//         nlohmann::json json {
-//             {"string", "example"},
-//             {"integer", 12}
-//         };
-//         std::string dumped = json.dump(4);
-//         GTEST_COUT("Json data: " << dumped);
+    std::shared_ptr<CallbackQueue> cbQueue;
+    std::string testingConfigDir = BINARY_DIR;
+    std::shared_ptr<ConfigHandler> handler;
 
-//         ofs.write(dumped.data(), dumped.size());
-//         ofs.close();
+    void SetUp() override {
+        cbQueue = laar::CallbackQueue::configure({});
+        handler = laar::ConfigHandler::configure(testingConfigDir, cbQueue);
 
-//         handler->init();
-//     }
+        GTEST_COUT("Writing testing configs...")
+        write(testingConfigDir + "default.cfg", {
+            {"default", {{"default", "default"}}}
+        });
+        write(testingConfigDir + "dynamic.cfg", {
+            {"dynamic", {{"dynamic", "dynamic"}}}
+        });
 
-//     void TearDown() override {
-//         cbQueue->query([this]() {
-//             std::filesystem::remove(pathToDefault);
-//         });
-//         cbQueue->sync();
-//     }
-// };
+        handler->init();
+    }
+};
 
-// TEST_F(CallbackQueueTest, ReadAndWriteTest) {
-//     EXPECT_EQ(handler->get(cfg::BASE).value<std::string>("string", "No string found!"), "example");
-//     EXPECT_EQ(handler->get(cfg::BASE).value<int>("integer", 0), 12);
-
-//     handler->modify(cfg::BASE)["newValue"] = "hello!";
-//     EXPECT_EQ((*handler)[cfg::BASE].value<std::string>("newValue", "No string found!"), "hello!");
-
-//     handler->flush();
-//     cbQueue->query([this]() {
-//         EXPECT_EQ(handler->isSupported(cfg::DYNAMIC), false);
-//         EXPECT_EQ(handler->isSupported(cfg::BASE), true);
-//     });
-//     cbQueue->sync();
-// }
+TEST_F(ConfigLoaderTest, SubscribeAndListen) {
+    auto lifetime = std::make_shared<int>(1);
+    handler->subscribeOnDefaultConfig(
+        "default", 
+        [this](const nlohmann::json& config) {
+            EXPECT_EQ(config.value<std::string>("default", "Not found!"), "default");
+        }, 
+        lifetime);
+    handler->subscribeOnDynamicConfig(
+        "dynamic", 
+        [this](const nlohmann::json& config) {
+            EXPECT_EQ(config.value<std::string>("dynamic", "Not found!"), "dynamic");
+        }, 
+        lifetime);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
 
 // Add more tests for dynamic config in the future

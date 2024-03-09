@@ -6,6 +6,7 @@ set(SOURCES config-loader.cpp)
 set(HEADERS config-loader.hpp)
 
 add_library(server-util STATIC ${SOURCES} ${HEADERS})
+add_dependencies(server-util common)
 
 target_include_directories(server-util PUBLIC ${SRC_ROOT})
 

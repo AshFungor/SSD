@@ -3,7 +3,6 @@
 // standard
 #include <condition_variable>
 #include <functional>
-#include <iterator>
 #include <cstddef>
 #include <chrono>
 #include <vector>
@@ -30,11 +29,10 @@ namespace laar {
         using genericCallback_t = std::unique_ptr<ICallback>;
 
         struct CallbackQueueSettings {
-            std::size_t maxSize;
-            std::size_t maxScheduled;
+            std::size_t maxSize = 1024;
+            std::size_t maxScheduled = 256;
 
-            bool discardQueueOnAbort;
-            bool discardScheduledOnAbort;
+            bool discardQueueOnAbort = false;
         };
 
         CallbackQueue(CallbackQueueSettings settings, Private access);
