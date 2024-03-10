@@ -8,6 +8,7 @@
 
 // local
 #include "thread-pool.hpp"
+#include "common/callback.hpp"
 
 using namespace laar;
 
@@ -20,60 +21,72 @@ ThreadPool::ThreadPool(Settings settings, Private access)
 : settings_(std::move(settings))
 {}
 
-void ThreadPool::init() {
-    
+ThreadPool::~ThreadPool() {
+    { 
+        std::unique_lock<std::mutex> lock(queueMutex_); 
+        abort_ = true; 
+    }
+    cv_.notify_all(); 
+    for (auto& thread : threads_) { 
+        thread.join(); 
+    }
 }
 
-// util::ThreadPool::ThreadPool(std::size_t threads) {
-//     threads = std::min<std::size_t>(threads, std::thread::hardware_concurrency());
+void ThreadPool::init() {
+    if (initiated_) {
+        throw laar::LaarBadInit();
+    }
+    for (std::size_t thread = 0; thread < settings_.size; ++thread) {
+        threads_.emplace_back(std::thread(&ThreadPool::run, this));
+    }
+}
 
-//     for (std::size_t i = 0; i < threads; ++i) {
-//         threads_.emplace_back([this] () {
-//             while (true) {
-//                 std::function<void()> currentTask;
-//                 {
-//                     std::unique_lock<std::mutex> lock (queue_mutex_);
-//                     cv_.wait(lock, [this] () {
-//                         return !tasks_.empty() || abort_;
-//                     });
+void ThreadPool::run() {
+    genericCallback_t currentTask;
+    while (true) {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex_);
+            cv_.wait(lock, [this]() {
+                return !tasks_.empty() || abort_;
+            });
 
-//                     if (abort_ && tasks_.empty()) {
-//                         return;
-//                     }
+            if (abort_ && tasks_.empty()) {
+                return;
+            }
 
-//                     currentTask = std::move(tasks_.front());
-//                     tasks_.pop();
-//                 }
+            auto currentTask = std::move(tasks_.front());
+            tasks_.pop();
+        }
+        if (isCastDownPossible<OptionalCallback>(currentTask)) {
+            handleRegularCallback(specifyCallback<Callback>(std::move(currentTask)));
+        }
+        if (isCastDownPossible<Callback>(currentTask)) {
+            handleOptionalCallback(specifyCallback<OptionalCallback>(std::move(currentTask)));
+        }
+    }
+}
 
-//                 currentTask();
-//             }
-//         });
-//     }
-// }
+void ThreadPool::query(std::function<void()> task, std::weak_ptr<void> lifetime) {
+    query(makeCallback<OptionalCallback>(std::move(task), lifetime));
+}
 
-// util::ThreadPool::~ThreadPool() {
-//     { 
-//         std::unique_lock<std::mutex> lock(queue_mutex_); 
-//         abort_ = true; 
-//     }
-//     cv_.notify_all(); 
-//     for (auto& thread : threads_) { 
-//         thread.join(); 
-//     }
-// }
+void ThreadPool::query(std::function<void()> task) {
+    query(makeCallback<Callback>(task));
+}
 
-// void util::ThreadPool::query(std::function<void()> task) {
-//     { 
-//         std::unique_lock<std::mutex> lock(queue_mutex_); 
-//         tasks_.emplace(std::move(task)); 
-//     } 
-//     cv_.notify_one();
-// }
+void ThreadPool::query(genericCallback_t callback) {
+    {
+        std::unique_lock<std::mutex> lock;
+        if (tasks_.size() >= settings_.maxSize) return;
+        tasks_.emplace(std::move(callback));
+    }
+    cv_.notify_one();
+}
 
-// util::ThreadPool& util::ThreadPool::getInstance() {
-//     if (instance_) {
-//         return *instance_;
-//     }
-//     instance_.reset(new ThreadPool(std::thread::hardware_concurrency()));
-//     return *instance_;
-// }
+void ThreadPool::handleOptionalCallback(optionalCallback_t callback) {
+    if (callback->validate()) callback->execute();
+}
+
+void ThreadPool::handleRegularCallback(regularCallback_t callback) {
+    if (callback->validate()) callback->execute();
+}
