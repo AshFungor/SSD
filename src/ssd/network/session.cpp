@@ -51,6 +51,15 @@ void ClientSession::update() {
     // try to read message, return if transmission is not completed yet
     if (isMessageBeingReceived_) {
         auto res = sock_.recv(buffer_.data(), std::min(laar::Message::wantMore(), buffer_.size()));
+
+        if (res.is_error()) {
+            if (res.error().value() == EWOULDBLOCK) {
+                return;
+            } else {
+                error("Error with recv(), message " + res.error_message());
+            }
+        }
+
         laar::Message::dispatch(laar::PartialReceive(buffer_.data(), res.value()));
 
         if (laar::Message::is_in_state<laar::EndChunk>()) {
