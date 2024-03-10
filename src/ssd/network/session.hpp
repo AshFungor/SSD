@@ -15,7 +15,6 @@
 namespace srv {
 
     using byte = std::uint8_t;
-    constexpr std::size_t MaxBufferSize = 1024;
 
     class ClientSession {
     public:

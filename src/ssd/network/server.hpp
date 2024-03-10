@@ -20,25 +20,17 @@ namespace srv {
     class Server {
     public:
         // Singleton
-        static Server& getInstance();
-        Server(const Server&) = delete;
-        Server(const Server&&) = delete;
+        Server();
         ~Server();
 
         void init();
         void run();
 
     private:
-        // Singleton
-        Server();
-
         // Event Handlers
         void onNewEndpointConnected();
 
     private:
-        // Singleton
-        inline static std::unique_ptr<Server> instance_;
-
         sockpp::tcp_acceptor acc_;
         std::vector<ClientSession> sessions_;
     };

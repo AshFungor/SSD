@@ -14,3 +14,4 @@ add_subdirectory(trace)
 add_executable(pulse-calls-mapper ${HEADERS} ${SOURCES})
 
 target_link_libraries(pulse-calls-mapper PRIVATE protos)
+target_link_libraries(pulse-calls-mapper PRIVATE sockpp)

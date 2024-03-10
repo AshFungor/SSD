@@ -53,11 +53,7 @@ void ClientSession::update() {
         auto res = sock_.recv(buffer_.data(), std::min(laar::Message::wantMore(), buffer_.size()));
 
         if (res.is_error()) {
-            if (res.error().value() == EWOULDBLOCK) {
-                return;
-            } else {
-                error("Error with recv(), message " + res.error_message());
-            }
+            handleErrorState(std::move(res));
         }
 
         laar::Message::dispatch(laar::PartialReceive(buffer_.data(), res.value()));
@@ -87,6 +83,7 @@ void ClientSession::onClientMessage(const NSound::TClientMessage& message) {
 }
 
 void ClientSession::onStreamConfigMessage(const NSound::TClientMessage::TStreamConfiguration& message) {
+    // handle double config on same stream
     sessionConfig_ = message;
 }
 

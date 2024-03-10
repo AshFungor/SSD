@@ -10,41 +10,41 @@
 #include <mutex>
 #include <queue>
 
-namespace util {
+// laar
+#include <common/callback.hpp>
+#include <common/exceptions.hpp>
 
-    template<typename Signature>
-    std::function<void()> wrap(Signature target);
 
-    class ThreadPool {
+namespace laar {
+
+    class ThreadPool
+    : std::enable_shared_from_this<ThreadPool>
+    {
+    private: struct Private { };
     public:
-        static ThreadPool& getInstance();
-        void query(std::function<void()> task);
+        struct Settings {
+            std::size_t size = std::thread::hardware_concurrency();
+        };
+
+        static std::shared_ptr<ThreadPool> configure(Settings settings);
+        ThreadPool(Settings settings, Private access);
         ~ThreadPool();
 
-    private:
-        ThreadPool() = delete;
-        ThreadPool(const ThreadPool&) = delete;
-        ThreadPool(const ThreadPool&&) = delete;
-        // open thread pool API
-        ThreadPool(std::size_t threads);
+        void init();
+        void query(std::function<void()> task, std::weak_ptr<void> lifetime);
+        void query(std::function<void()> task);
 
     private:
-        // Singleton
-        inline static std::unique_ptr<ThreadPool> instance_;  
+        void query(ICallback callback);
+
+    private:
+        bool abort_;
+        Settings settings_;
+
         std::vector<std::thread> threads_;
-        std::queue<std::function<void()>> tasks_;
+        std::queue<ICallback> tasks_;
         std::condition_variable cv_;
         std::mutex queue_mutex_;
-        bool abort_;
-
     };
 
-} // namespace util
-
-template<typename Signature>
-std::function<void()> util::wrap(Signature target) {
-    std::function<void()> wrapped {[&target]() {
-        target();
-    }};
-    return std::move(wrapped);
-}
+} // namespace laar
