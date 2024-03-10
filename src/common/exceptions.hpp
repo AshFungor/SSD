@@ -18,4 +18,11 @@ namespace laar {
         }
     };
 
+    class LaarOverrun : std::exception {
+    public:
+        virtual const char* what() const noexcept override {
+            return "chunk received too much data, buffer is overrun";
+        }
+    };
+
 }

@@ -2,11 +2,10 @@
 #include <asm-generic/errno.h>
 #include <sockpp/tcp_connector.h>
 #include <sockpp/tcp_acceptor.h>
-#include "sockpp/result.h"
+#include <sockpp/result.h>
 
 // standard
 #include <stdexcept>
-
 
 // plog
 #include <plog/Severity.h>
@@ -16,6 +15,7 @@
 #include <protos/client/client-message.pb.h>
 
 // local
+#include "message.hpp"
 #include "session.hpp"
 
 using namespace srv;
@@ -23,8 +23,7 @@ using namespace srv;
 
 ClientSession::ClientSession(sockpp::tcp_socket&& sock) 
 : sock_(std::move(sock))
-, lastMessageLen_(0)
-, lastMessageBytesRead_(0)
+, isMessageBeingReceived_(false)
 {}
 
 ClientSession::~ClientSession() {
@@ -50,30 +49,18 @@ void ClientSession::terminate() {
 
 void ClientSession::update() {
     // try to read message, return if transmission is not completed yet
-    sockpp::result<std::size_t> result;
-    if (lastMessageLen_ && lastMessageLenBytesRead_ == sizeof lastMessageLen_) {
-        // message len received, now goes protobuf
-        result = sock_.read(buffer.data() + lastMessageBytesRead_, lastMessageLen_ - lastMessageBytesRead_);
-        if (result.value() == lastMessageLen_) {
-            // protobuf received, now session can parse it
-            NSound::TClientMessage message;
-            message.ParseFromArray(buffer.data(), lastMessageLen_);
-            onClientMessage(std::move(message));
-            lastMessageLen_ = lastMessageBytesRead_ = lastMessageLenBytesRead_ = 0;
-        } else if (result.is_ok() && result.value() < lastMessageLen_) {
-            // partial receive, skip this cycle and go to next one to
-            // retrieve more data
-            lastMessageBytesRead_ += result.value(); 
-        } else {
-            handleErrorState(result);
+    if (isMessageBeingReceived_) {
+        auto res = sock_.recv(buffer_.data(), std::min(laar::Message::wantMore(), buffer_.size()));
+        laar::Message::dispatch(laar::PartialReceive(buffer_.data(), res.value()));
+
+        if (laar::Message::is_in_state<laar::EndChunk>()) {
+            auto msg = laar::Message::get();
+            onClientMessage(std::move(msg));
+            isMessageBeingReceived_ = false;
         }
     } else {
-        result = sock_.read(&lastMessageLen_ + lastMessageLenBytesRead_, sizeof lastMessageLen_ - lastMessageLenBytesRead_);
-        if (result.is_ok()) {
-            lastMessageLenBytesRead_ += result.value(); 
-        } else {
-            handleErrorState(result);
-        }
+        laar::Message::reset();
+        isMessageBeingReceived_ = true;
     }
 }
 

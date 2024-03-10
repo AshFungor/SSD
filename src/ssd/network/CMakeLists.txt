@@ -8,7 +8,9 @@ set(HEADERS server.hpp session.hpp)
 add_library(server STATIC ${SOURCES} ${HEADERS})
 
 target_include_directories(server PUBLIC ${SRC_ROOT})
+
 target_link_libraries(server PRIVATE server-util)
+target_link_libraries(server PRIVATE tiny-fsm)
 target_link_libraries(server PRIVATE common)
 target_link_libraries(server PRIVATE sockpp)
 target_link_libraries(server PRIVATE protos)

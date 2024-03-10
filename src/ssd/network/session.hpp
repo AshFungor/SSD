@@ -34,11 +34,9 @@ namespace srv {
         void reply(/* server message */);
 
     private:
+        bool isMessageBeingReceived_;
+        std::array<char, 1024> buffer_;
         NSound::TClientMessage::TStreamConfiguration sessionConfig_;
-        std::array<byte, MaxBufferSize> buffer;
-        std::size_t lastMessageLenBytesRead_;
-        std::size_t lastMessageBytesRead_;
-        std::size_t lastMessageLen_;
         sockpp::tcp_socket sock_;
     };
 
