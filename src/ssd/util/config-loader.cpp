@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 // standard
+#include <plog/Severity.h>
 #include <string_view>
 #include <filesystem>
 #include <functional>
@@ -10,6 +11,9 @@
 #include <fstream>
 #include <chrono>
 #include <memory>
+
+// plog
+#include <plog/Log.h>
 
 // laar
 #include <common/callback-queue.hpp>
@@ -61,8 +65,11 @@ void ConfigHandler::init() {
     isDefaultAvailable_ = parseDefault();
     isDynamicAvailable_ = parseDynamic();
 
+    PLOG(plog::debug) << "default config received: " << default_.contents.dump();
+    PLOG(plog::debug) << "dynamic config received: " << dynamic_.contents.dump();
+
     dynamic_.lastUpdatedTs = last_write_time(dynamic_.filepath);
-    default_.lastUpdatedTs - last_write_time(default_.filepath);
+    default_.lastUpdatedTs = last_write_time(default_.filepath);
 
     schedule();
 }
@@ -111,7 +118,7 @@ bool ConfigHandler::parseDynamic() {
 }
 
 void ConfigHandler::notify(const Subscriber& sub, const nlohmann::json& config) {
-    if (!config[sub.section].is_null()) {
+    if (!config.contains(sub.section)) {
         if (!sub.lifetime.lock()) return;
         sub.callback(config[sub.section]);
     }

@@ -15,7 +15,7 @@ int main() {
     plog::init(plog::Severity::debug, "server.log", 1024 * 8, 2);
 
     auto cbQueue = laar::CallbackQueue::configure({});
-    auto configHandler = laar::ConfigHandler::configure("./", cbQueue);
+    auto configHandler = laar::ConfigHandler::configure("", cbQueue);
 
     cbQueue->init();
     configHandler->init();

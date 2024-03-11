@@ -21,47 +21,48 @@ using namespace laar;
 FSM_INITIAL_STATE(laar::Message, laar::SizeChunk);
 
 void Message::entry() {}
+void Message::exit() {}
 void Message::react(const tinyfsm::Event& event) {}
 void Message::react(const laar::PartialReceive& event) {}
 
-std::size_t Message::wantMore() { return needs - received; }
-NSound::TClientMessage Message::get() { return message; }
+std::size_t Message::wantMore() { return shared.needs - shared.received; }
+NSound::TClientMessage Message::get() { return shared.message; }
 
 void SizeChunk::react(const laar::PartialReceive& event) {
-    if (received + event.size > needs) {
+    if (shared.received + event.size > shared.needs) {
         throw laar::LaarOverrun();
     }
 
-    memcpy((char*) size + received, event.buffer, event.size);
-    received += event.size;
+    memcpy((char*) shared.size + shared.received, event.buffer, event.size);
+    shared.received += event.size;
 
-    if (received == needs) {
+    if (shared.received == shared.needs) {
         transit<DataChunk>();
     }
 }
 
 void SizeChunk::entry() {
-    received = size = 0;
-    needs = sizeof size;
+    shared.received = shared.size = 0;
+    shared.needs = sizeof shared.size;
 }
 
 void DataChunk::react(const laar::PartialReceive& event) {
-    if (received + event.size > needs) {
+    if (shared.received + event.size > shared.needs) {
         throw laar::LaarOverrun();
     }
 
-    memcpy(buffer.get() + received, event.buffer, event.size);
-    received += event.size;
+    memcpy(shared.buffer.get() + shared.received, event.buffer, event.size);
+    shared.received += event.size;
 
-    if (received == needs) {
+    if (shared.received == shared.needs) {
         transit<EndChunk>();
     }
 }
 
 void DataChunk::entry() {
-    received = 0;
-    needs = size;
-    buffer = std::make_unique<char[]>(size);
+    shared.received = 0;
+    shared.needs = shared.size;
+    shared.buffer = std::make_unique<char[]>(shared.size);
 }
 
 void EndChunk::react(const laar::PartialReceive& event) {
@@ -69,6 +70,6 @@ void EndChunk::react(const laar::PartialReceive& event) {
 }
 
 void EndChunk::entry() {
-    received = needs = 0;
-    message.ParseFromArray(buffer.get(), size);
+    shared.received = shared.needs = 0;
+    shared.message.ParseFromArray(shared.buffer.get(), shared.size);
 }

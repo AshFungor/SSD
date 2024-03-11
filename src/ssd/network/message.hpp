@@ -24,16 +24,23 @@ namespace laar {
     class Message : public tinyfsm::Fsm<Message> {
     public:
         void react(const tinyfsm::Event& event);
-        virtual void entry(); 
+        virtual void entry();
+        void exit();
         virtual void react(const laar::PartialReceive& event);
         static std::size_t wantMore();
         static NSound::TClientMessage get();
     protected:
-        static std::size_t size;
-        static std::size_t needs;
-        static std::size_t received;
-        static std::unique_ptr<char[]> buffer;
-        static NSound::TClientMessage message;
+        struct Shared {
+            std::size_t size;
+            std::size_t needs;
+            std::size_t received;
+            std::unique_ptr<char[]> buffer;
+            NSound::TClientMessage message;
+        } inline static shared {
+            .size = 0,
+            .needs = 0,
+            .received = 0
+        };
     };
 
     class SizeChunk : public Message {
