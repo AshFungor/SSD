@@ -5,6 +5,7 @@
 #include <nlohmann/json_fwd.hpp>
 #include <sockpp/tcp_connector.h>
 #include "sockpp/inet_address.h"
+#include "sockpp/tcp_acceptor.h"
 #include "sockpp/tcp_socket.h"
 
 // util
@@ -73,7 +74,7 @@ void Server::parseDynamicConfig(const nlohmann::json& config) {
     // Do nothing
 }
 
-void Server::run() {
+void Server::init() {
     {
         std::unique_lock<std::mutex> lock(settingsLock_);
         // wait until settings are available 
@@ -81,6 +82,11 @@ void Server::run() {
             return settings_.init;
         });
     }
+
+    acc_ = sockpp::tcp_acceptor(settings_.address);
+}
+
+void Server::run() {
     while (true) {
         // Accept a new client connection
         auto result = acc_.accept();
@@ -92,14 +98,13 @@ void Server::run() {
         }
         else {
             sockpp::tcp_socket sock = result.release();
-            // FIXME
-            ClientSession session (std::move(sock));
-            session.init();
+            sessions_.emplace_back(srv::ClientSession::instance(std::move(sock)));
+            sessions_.back()->init();
         }
 
         for (auto& session : sessions_) {
             threadPool_->query([&]() {
-                session.update();
+                session->update();
             });
         }
     }   
@@ -107,6 +112,6 @@ void Server::run() {
 
 Server::~Server() {
     for (auto& session : sessions_) {
-        session.terminate();
+        session->terminate();
     }
 }

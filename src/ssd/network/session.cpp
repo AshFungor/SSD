@@ -1,5 +1,6 @@
 // sockpp
 #include <asm-generic/errno.h>
+#include <memory>
 #include <sockpp/tcp_connector.h>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/result.h>
@@ -21,13 +22,17 @@
 using namespace srv;
 
 
-ClientSession::ClientSession(sockpp::tcp_socket&& sock) 
+ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access) 
 : sock_(std::move(sock))
 , isMessageBeingReceived_(false)
 {}
 
 ClientSession::~ClientSession() {
     terminate();
+}
+
+std::shared_ptr<ClientSession> ClientSession::instance(sockpp::tcp_socket&& sock) {
+    return std::make_shared<ClientSession>(std::move(sock), Private());
 }
 
 void ClientSession::init() {

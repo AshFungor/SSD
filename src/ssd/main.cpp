@@ -1,4 +1,5 @@
 // server
+#include "common/thread-pool.hpp"
 #include <network/server.hpp>
 
 // plog
@@ -19,9 +20,11 @@ int main() {
     cbQueue->init();
     configHandler->init();
 
-    auto& server = srv::Server::getInstance();
-    server.init();
-    server.run();
+    auto threadPool = laar::ThreadPool::configure({});
+
+    auto server = srv::Server::configure(cbQueue, threadPool, configHandler);
+    server->init();
+    server->run();
 
     return 0;
 }

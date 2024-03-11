@@ -66,7 +66,7 @@ namespace srv {
         std::condition_variable cv_;
 
         sockpp::tcp_acceptor acc_;
-        std::vector<ClientSession> sessions_;
+        std::vector<std::shared_ptr<ClientSession>> sessions_;
     };
 
 }

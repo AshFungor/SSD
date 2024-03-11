@@ -1,4 +1,5 @@
 // sockpp
+#include <memory>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/tcp_socket.h>
 
@@ -16,9 +17,13 @@ namespace srv {
 
     using byte = std::uint8_t;
 
-    class ClientSession {
+    class ClientSession 
+    : std::enable_shared_from_this<ClientSession>
+    {
+    private: struct Private { };
     public:
-        ClientSession(sockpp::tcp_socket&& sock);
+        static std::shared_ptr<ClientSession> instance(sockpp::tcp_socket&& sock);
+        ClientSession(sockpp::tcp_socket&& sock, Private access);
         ~ClientSession();
 
         void terminate();
