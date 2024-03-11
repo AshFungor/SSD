@@ -9,7 +9,7 @@ add_library(server-util STATIC ${SOURCES} ${HEADERS})
 
 target_include_directories(server-util PUBLIC ${SRC_ROOT})
 
-target_link_libraries(server-util PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(server-util PRIVATE common)
+target_link_libraries(server-util PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(server-util PUBLIC common)
 
 add_subdirectory(tests)
