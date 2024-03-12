@@ -41,7 +41,9 @@ Server::Server(
     : threadPool_(std::move(threadPool))
     , configHandler_(std::move(configHandler))
     , cbQueue_(std::move(cbQueue))
-{
+{}
+
+void Server::subscribeOnConfigs() {
     configHandler_->subscribeOnDefaultConfig(
         SERVER_CONFIG,
         [this](const nlohmann::json& config) {
@@ -65,6 +67,10 @@ void Server::parseDefaultConfig(const nlohmann::json& config) {
         std::uint32_t port = config.value<std::uint32_t>("port", 5050);
         settings_.address = sockpp::inet_address(hostname, port);
 
+        PLOG(plog::debug) 
+            << "default config for server received, running "
+            << "server on " << settings_.address.to_string();
+
         settings_.init = true;
         cv_.notify_one();
     }, weak_from_this());
@@ -75,8 +81,10 @@ void Server::parseDynamicConfig(const nlohmann::json& config) {
 }
 
 void Server::init() {
-    {
+    subscribeOnConfigs();
+    if (!settings_.init) {
         std::unique_lock<std::mutex> lock(settingsLock_);
+        PLOG(plog::debug) << "locking settings, waiting for config to init() server";
         // wait until settings are available 
         cv_.wait(lock, [this]() {
             return settings_.init;
@@ -84,6 +92,7 @@ void Server::init() {
     }
 
     acc_ = sockpp::tcp_acceptor(settings_.address);
+    PLOG(plog::info) << "running server with address = " << acc_.address().to_string();
 }
 
 void Server::run() {

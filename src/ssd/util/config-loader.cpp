@@ -3,7 +3,6 @@
 #include <nlohmann/json.hpp>
 
 // standard
-#include <plog/Severity.h>
 #include <string_view>
 #include <filesystem>
 #include <functional>
@@ -13,6 +12,7 @@
 #include <memory>
 
 // plog
+#include <plog/Severity.h>
 #include <plog/Log.h>
 
 // laar
@@ -118,10 +118,8 @@ bool ConfigHandler::parseDynamic() {
 }
 
 void ConfigHandler::notify(const Subscriber& sub, const nlohmann::json& config) {
-    if (!config.contains(sub.section)) {
-        if (!sub.lifetime.lock()) return;
-        sub.callback(config[sub.section]);
-    }
+    if (!sub.lifetime.lock()) return;
+    sub.callback((config.contains(sub.section)) ? config[sub.section] : nlohmann::json({}));
 }
 
 void ConfigHandler::notifyDefaultSubscribers() {
@@ -143,7 +141,7 @@ void ConfigHandler::subscribeOnDefaultConfig(
 {
     cbQueue_->query([ptr = weak_from_this(), section, callback, lifetime]() {
         if (auto handler = ptr.lock()) {
-            handler->defaultConfigSubscribers_.push_back(Subscriber{
+            handler->defaultConfigSubscribers_.emplace_back(Subscriber{
                 .section = section,
                 .callback = std::move(callback),
                 .lifetime = std::move(lifetime)
@@ -160,7 +158,7 @@ void ConfigHandler::subscribeOnDynamicConfig(
 {
     cbQueue_->query([ptr = weak_from_this(), section, callback, lifetime]() {
         if (auto handler = ptr.lock()) {
-            handler->dynamicConfigSubscribers_.push_back(Subscriber{
+            handler->dynamicConfigSubscribers_.emplace_back(Subscriber{
                 .section = section,
                 .callback = std::move(callback),
                 .lifetime = std::move(lifetime)

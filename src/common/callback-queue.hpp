@@ -19,7 +19,7 @@
 namespace laar {
 
     class CallbackQueue 
-        : std::enable_shared_from_this<CallbackQueue>
+        : public std::enable_shared_from_this<CallbackQueue>
     {
     private: struct Private{ };
     public:

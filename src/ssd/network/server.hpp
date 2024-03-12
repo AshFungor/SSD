@@ -26,7 +26,7 @@
 namespace srv {
 
     class Server 
-    : std::enable_shared_from_this<Server>
+        : public std::enable_shared_from_this<Server>
     {
     private: struct Private { };
     public:
@@ -47,6 +47,7 @@ namespace srv {
         void run();
 
     private:
+        void subscribeOnConfigs(); 
         void parseDefaultConfig(const nlohmann::json& config);
         void parseDynamicConfig(const nlohmann::json& config); 
         // Event Handlers

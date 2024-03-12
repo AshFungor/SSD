@@ -18,7 +18,7 @@
 namespace laar {
 
     class ThreadPool
-    : std::enable_shared_from_this<ThreadPool>
+        : public std::enable_shared_from_this<ThreadPool>
     {
     private: struct Private { };
     public:
