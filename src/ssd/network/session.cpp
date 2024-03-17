@@ -99,13 +99,16 @@ void ClientSession::handleErrorState(sockpp::result<std::size_t> requestState) {
 }
 
 void ClientSession::onClientMessage(const NSound::TClientMessage& message) {
-    if (message.has_stream_config()) {
-        PLOG(plog::debug) << "Received message: TStreamConfig";
-        onStreamConfigMessage(message.stream_config());
+    if (message.has_simple_message()) {
+        const auto& simple = message.simple_message();
+        if (simple.has_stream_config()) {
+            PLOG(plog::debug) << "Received message: TStreamConfig";
+            onStreamConfigMessage(simple.stream_config());
+        }
     }
 }
 
-void ClientSession::onStreamConfigMessage(const NSound::TClientMessage::TStreamConfiguration& message) {
+void ClientSession::onStreamConfigMessage(const NSound::NSimple::TSimpleMessage::TStreamConfiguration& message) {
     // handle double config on same stream
     PLOG(plog::debug) 
         << "config for peer: " << sock_.peer_address()

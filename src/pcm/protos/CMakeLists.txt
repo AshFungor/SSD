@@ -5,6 +5,7 @@ project(protos VERSION 0.0)
 add_subdirectory(client)
 
 add_library(protos OBJECT ${PROTOS})
+
 protobuf_generate(TARGET protos IMPORT_DIRS ${PROTOS_SOURCE_ROOT})
 
 foreach(proto-hdr IN ITEMS ${HEADERS})

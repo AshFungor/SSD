@@ -1,4 +1,5 @@
 // sockpp
+#include "protos/client/simple/simple.pb.h"
 #include <memory>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/tcp_socket.h>
@@ -33,7 +34,7 @@ namespace srv {
         void init();
 
     private:
-        void onStreamConfigMessage(const NSound::TClientMessage::TStreamConfiguration& message);
+        void onStreamConfigMessage(const NSound::NSimple::TSimpleMessage::TStreamConfiguration& message);
         void onClientMessage(const NSound::TClientMessage& message);
         void error(const std::string& errorMessage);
         void handleErrorState(sockpp::result<std::size_t> requestState);
@@ -44,7 +45,7 @@ namespace srv {
         std::atomic_bool isBeingUpdated_;
 
         std::array<char, 1024> buffer_;
-        NSound::TClientMessage::TStreamConfiguration sessionConfig_;
+        NSound::NSimple::TSimpleMessage::TStreamConfiguration sessionConfig_;
         sockpp::tcp_socket sock_;
     };
 

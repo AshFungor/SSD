@@ -2,100 +2,11 @@ syntax = "proto3";
 
 package NSound;
 
+import "protos/client/simple/simple.proto"; 
+
 message TClientMessage {
 
-    message TStreamConfiguration {
-        // Stream type
-        enum TStreamDirection {
-            PLAYBACK = 0;
-            RECORD = 1;
-            UPLOAD = 2;
-        }
-
-        message TSampleSpecification {
-            
-            enum TFormat {
-                UNSIGNED_8 = 0;
-                UNSIGNED_8_ALAW = 1;
-                UNSIGNED_8_ULAW = 2;
-                SIGNED_16_LITTLE_ENDIAN = 3;
-                SIGNED_16_BIG_ENDIAN = 4;
-                FLOAT_32_LITTLE_ENDIAN = 5;
-                FLOAT_32_BIG_ENDIAN = 6;
-                SIGNED_32_LITTLE_ENDIAN = 7;
-                SIGNED_32_BIG_ENDIAN = 8;
-                SIGNED_24_LITTLE_ENDIAN = 9;
-                SIGNED_24_BIG_ENDIAN = 10;
-                SIGNED_24_LSB_LITTLE_ENDIAN = 11;
-                SIGNED_24_LSB_BIG_ENDIAN = 12;
-            }
-
-            TFormat format = 1;
-
-            uint32 sample_rate = 2;
-            uint32 channels = 3; 
-        }
-
-        message TChannelMap {
-
-            enum TLabeledPosition {
-                MONO = 0;
-                LEFT = 1;
-                RIGHT = 2;
-                CENTER = 3;
-            }
-
-            message TMapValue {
-                oneof label {
-                    TLabeledPosition position = 1;
-                    // from 0 to 31 inclusive
-                    int32 aux = 2;
-                }
-            }
-
-            repeated TMapValue mapped_channel = 1;
-        }
-
-        message TBufferConfiguration {
-            uint32 size = 1;
-            uint32 prebuffing_size = 2;
-            uint32 min_request_size = 3;
-            uint32 fragment_size = 4;
-        }
-
-        // descripive name for stream user
-        optional string client_name = 1;
-        // descriptive name for stream
-        optional string stream_name = 2;
-        // direction of the stream
-        TStreamDirection direction = 3;
-        // channel map
-        TChannelMap channel_map = 4;
-        // sample config
-        TSampleSpecification sample_spec = 5;
-        // buffer config
-        TBufferConfiguration buffer_config = 6;
-    }
-
-    message TPush {
-        uint32 size = 1;
-        bytes pushed = 2; 
-    }
-
-    message TDrain {}
-
-    message TFlush {}
-
-    message TPull {
-        uint32 size = 1;
-        bytes pulled = 2;
-    }
-
     oneof request {
-        TPush push = 1;
-        TPull pull = 2;
-        TDrain drain = 3;
-        TFlush flush = 4;
-        TStreamConfiguration stream_config = 5;
+        NSimple.TSimpleMessage simple_message = 1;
     }
 }
