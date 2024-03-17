@@ -92,6 +92,8 @@ void Server::init() {
     }
 
     acc_ = sockpp::tcp_acceptor(settings_.address);
+    acc_.set_non_blocking();
+
     PLOG(plog::info) << "running server with address = " << acc_.address().to_string();
 }
 
@@ -102,11 +104,12 @@ void Server::run() {
 
         if (result.is_error()) {
             if (result.error().value() != EWOULDBLOCK) {
-                PLOG(plog::debug) << "Error accepting message: " << result.error_message();
+                PLOG(plog::error) << "Error accepting peer: " << result.error_message();
             }
         }
         else {
             sockpp::tcp_socket sock = result.release();
+            PLOG(plog::info) << "accepting new client " << sock.peer_address();
             sessions_.emplace_back(srv::ClientSession::instance(std::move(sock)));
             sessions_.back()->init();
         }
@@ -114,7 +117,11 @@ void Server::run() {
         for (auto& session : sessions_) {
             threadPool_->query([&]() {
                 session->update();
-            });
+            }, weak_from_this());
+            if (!session->open()) {
+                std::swap(session, sessions_.back());
+                sessions_.pop_back();
+            }
         }
     }   
 }

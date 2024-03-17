@@ -24,6 +24,8 @@ int main() {
     configHandler->init();
 
     auto threadPool = laar::ThreadPool::configure({});
+    threadPool->init();
+    
     PLOG(plog::debug) << "module created: " << "ThreadPool; instance: " << threadPool.get();
 
     auto server = srv::Server::configure(cbQueue, threadPool, configHandler);

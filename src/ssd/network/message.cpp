@@ -33,7 +33,7 @@ void SizeChunk::react(const laar::PartialReceive& event) {
         throw laar::LaarOverrun();
     }
 
-    memcpy((char*) shared.size + shared.received, event.buffer, event.size);
+    std::memcpy(&shared.size + shared.received, event.buffer, event.size);
     shared.received += event.size;
 
     if (shared.received == shared.needs) {

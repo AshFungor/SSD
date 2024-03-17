@@ -1,12 +1,12 @@
 // sockpp
 #include <asm-generic/errno.h>
-#include <memory>
 #include <sockpp/tcp_connector.h>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/result.h>
 
 // standard
 #include <stdexcept>
+#include <memory>
 
 // plog
 #include <plog/Severity.h>
@@ -25,6 +25,7 @@ using namespace srv;
 ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access) 
 : sock_(std::move(sock))
 , isMessageBeingReceived_(false)
+, isBeingUpdated_(false)
 {}
 
 ClientSession::~ClientSession() {
@@ -42,6 +43,8 @@ void ClientSession::init() {
         error("Peer is not connected, passed socket is invalid");
     }
     sock_.set_non_blocking();
+
+    laar::Message::start();
 }
 
 void ClientSession::terminate() {
@@ -54,11 +57,24 @@ void ClientSession::terminate() {
 
 void ClientSession::update() {
     // try to read message, return if transmission is not completed yet
+    if (isBeingUpdated_) {
+        return;
+    }
+    isBeingUpdated_ = true;
+
+    if (!sock_.is_open()) {
+        PLOG(plog::debug) << "Socket " << sock_.address() << " was closed by peer";
+        return;
+    }
     if (isMessageBeingReceived_) {
         auto res = sock_.recv(buffer_.data(), std::min(laar::Message::wantMore(), buffer_.size()));
 
         if (res.is_error()) {
             handleErrorState(std::move(res));
+        }
+
+        if (!res.value()) {
+            return;
         }
 
         laar::Message::dispatch(laar::PartialReceive(buffer_.data(), res.value()));
@@ -72,6 +88,8 @@ void ClientSession::update() {
         laar::Message::reset();
         isMessageBeingReceived_ = true;
     }
+
+    isBeingUpdated_ = false;
 }
 
 void ClientSession::handleErrorState(sockpp::result<std::size_t> requestState) {
@@ -89,7 +107,18 @@ void ClientSession::onClientMessage(const NSound::TClientMessage& message) {
 
 void ClientSession::onStreamConfigMessage(const NSound::TClientMessage::TStreamConfiguration& message) {
     // handle double config on same stream
+    PLOG(plog::debug) 
+        << "config for peer: " << sock_.peer_address()
+        << " is " << message.DebugString();
     sessionConfig_ = message;
+}
+
+bool ClientSession::open() {
+    return sock_.is_open();
+}
+
+bool ClientSession::updating() {
+    return isBeingUpdated_;
 }
 
 void ClientSession::error(const std::string& errorMessage) {

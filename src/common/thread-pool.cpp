@@ -1,6 +1,5 @@
 // standard
 #include <functional>
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <thread>
@@ -39,6 +38,8 @@ void ThreadPool::init() {
     for (std::size_t thread = 0; thread < settings_.size; ++thread) {
         threads_.emplace_back(std::thread(&ThreadPool::run, this));
     }
+
+    initiated_ = true;
 }
 
 void ThreadPool::run() {
@@ -54,14 +55,14 @@ void ThreadPool::run() {
                 return;
             }
 
-            auto currentTask = std::move(tasks_.front());
+            currentTask = std::move(tasks_.front());
             tasks_.pop();
         }
         if (isCastDownPossible<OptionalCallback>(currentTask)) {
-            handleRegularCallback(specifyCallback<Callback>(std::move(currentTask)));
+            handleOptionalCallback(specifyCallback<OptionalCallback>(std::move(currentTask)));
         }
         if (isCastDownPossible<Callback>(currentTask)) {
-            handleOptionalCallback(specifyCallback<OptionalCallback>(std::move(currentTask)));
+            handleRegularCallback(specifyCallback<Callback>(std::move(currentTask)));
         }
     }
 }
@@ -76,7 +77,7 @@ void ThreadPool::query(std::function<void()> task) {
 
 void ThreadPool::query(genericCallback_t callback) {
     {
-        std::unique_lock<std::mutex> lock;
+        std::unique_lock<std::mutex> lock (queueMutex_);
         if (tasks_.size() >= settings_.maxSize) return;
         tasks_.emplace(std::move(callback));
     }

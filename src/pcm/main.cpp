@@ -12,12 +12,13 @@ int main() {
     std::cout << "starting PCM";
 
     sockpp::tcp_connector conn;
-    int16_t port = 12345;
+    int16_t port = 5050;
 
     if (auto res = conn.connect(sockpp::inet_address("localhost", port)))
         std::cout << "error: " << res.error_message();
 
     NSound::TClientMessage message = NSound::TClientMessage::default_instance();
+    *message.mutable_stream_config() = NSound::TClientMessage::TStreamConfiguration::default_instance();
     std::size_t len = message.ByteSizeLong();
 
     auto buffer = std::make_unique<char[]>(len);

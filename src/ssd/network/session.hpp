@@ -5,7 +5,7 @@
 
 // standard
 #include <array>
-
+#include <atomic>
 
 // plog
 #include <plog/Log.h>
@@ -27,7 +27,9 @@ namespace srv {
         ~ClientSession();
 
         void terminate();
+        bool updating();
         void update();
+        bool open();
         void init();
 
     private:
@@ -39,6 +41,8 @@ namespace srv {
 
     private:
         bool isMessageBeingReceived_;
+        std::atomic_bool isBeingUpdated_;
+
         std::array<char, 1024> buffer_;
         NSound::TClientMessage::TStreamConfiguration sessionConfig_;
         sockpp::tcp_socket sock_;

@@ -1,3 +1,5 @@
+#pragma once
+
 // standard
 #include <exception>
 

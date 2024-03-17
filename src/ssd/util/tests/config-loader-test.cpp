@@ -35,7 +35,7 @@ namespace {
     }
 }
 
-class ConfigLoaderTest : public testing::Test {
+class CallbackQueueTest : public testing::Test {
 protected:
 
     std::shared_ptr<CallbackQueue> cbQueue;
@@ -59,7 +59,7 @@ protected:
     }
 };
 
-TEST_F(ConfigLoaderTest, SubscribeAndListen) {
+TEST_F(CallbackQueueTest, SubscribeAndListen) {
     auto lifetime = std::make_shared<int>(1);
     std::mutex defaultLock, dynamicLock;
     std::condition_variable cv;
@@ -86,7 +86,7 @@ TEST_F(ConfigLoaderTest, SubscribeAndListen) {
     cv.wait(lock_2);
 }
 
-TEST_F(ConfigLoaderTest, ReadUpdateToDynamicConfig) {
+TEST_F(CallbackQueueTest, ReadUpdateToDynamicConfig) {
     auto lifetime = std::make_shared<int>(1);
     std::mutex dynamicLock;
     std::condition_variable cv;

@@ -18,7 +18,7 @@ using namespace std::chrono;
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
 
-class ConfigLoaderTest : public testing::Test {
+class CallbackQueueTest : public testing::Test {
 protected:
     std::shared_ptr<laar::CallbackQueue> cbQueue;
     std::vector<int> sharedResource;
@@ -29,7 +29,7 @@ protected:
     }
 };
 
-TEST_F(ConfigLoaderTest, RegularSyncExecution) {
+TEST_F(CallbackQueueTest, RegularSyncExecution) {
     std::vector<int> nums = {1, 2, 3};
     for (const auto& num : nums) {
         cbQueue->query([this, num = num]() {
@@ -44,7 +44,7 @@ TEST_F(ConfigLoaderTest, RegularSyncExecution) {
     });
 }
 
-TEST_F(ConfigLoaderTest, TimedCallbackTest) {
+TEST_F(CallbackQueueTest, TimedCallbackTest) {
     auto ts = high_resolution_clock::now();
     std::vector<milliseconds> durations = {10ms, 20ms, 100ms};
     for (const auto& duration : durations) {
@@ -59,7 +59,7 @@ TEST_F(ConfigLoaderTest, TimedCallbackTest) {
     std::this_thread::sleep_for(hold);
 }
 
-TEST_F(ConfigLoaderTest, OptionalCallbackTest) {
+TEST_F(CallbackQueueTest, OptionalCallbackTest) {
     auto danglingResourse = std::make_shared<int>(1);
     cbQueue->query([&danglingResourse]() mutable {
         EXPECT_EQ(*danglingResourse, 1);
@@ -70,6 +70,6 @@ TEST_F(ConfigLoaderTest, OptionalCallbackTest) {
     }, danglingResourse);
 }
 
-TEST_F(ConfigLoaderTest, RestrictedDoubleInit) {
+TEST_F(CallbackQueueTest, RestrictedDoubleInit) {
     EXPECT_THROW(cbQueue->init(), laar::LaarBadInit);
 }
