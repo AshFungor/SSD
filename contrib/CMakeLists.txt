@@ -7,4 +7,4 @@ add_subdirectory(tiny-fsm)
 add_subdirectory(msfsm)
 
 target_link_libraries(sockpp PUBLIC Boost::boost)
-target_link_libraries(msfsm PUBLIC Boost::boost)
+target_link_libraries(msfsm INTERFACE Boost::boost)
