@@ -23,7 +23,21 @@ namespace laar {
     class LaarOverrun : std::exception {
     public:
         virtual const char* what() const noexcept override {
-            return "chunk received too much data, buffer is overrun";
+            return "received too much data, buffer is overrun";
+        }
+    };
+
+    class LaarBadGet : std::exception {
+    public:
+        virtual const char* what() const noexcept override {
+            return "data requested by getter cannot be accessed";
+        }
+    };
+
+    class LaarBadReceive : std::exception {
+    public:
+        virtual const char* what() const noexcept override {
+            return "data contains less bytes than expected";
         }
     };
 

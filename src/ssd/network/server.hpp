@@ -11,6 +11,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <chrono>
 
 // proto
 #include <protos/client/client-message.pb.h>
@@ -61,7 +62,11 @@ namespace srv {
         struct Settings {
             bool init = false;
             sockpp::inet_address address;
+            std::vector<std::chrono::milliseconds> timeouts;
         } settings_;
+
+        std::atomic<bool> hasWork_;
+        std::vector<std::chrono::milliseconds>::const_iterator currentTimeout_;
 
         std::mutex settingsLock_;
         std::condition_variable cv_;

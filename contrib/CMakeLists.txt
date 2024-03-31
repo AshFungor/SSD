@@ -5,3 +5,5 @@ project(contrib LANGUAGES CXX C VERSION 0.0)
 add_subdirectory(sockpp)
 add_subdirectory(tiny-fsm)
 add_subdirectory(msfsm)
+
+target_link_libraries(sockpp PUBLIC Boost::boost)

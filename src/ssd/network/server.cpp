@@ -1,12 +1,19 @@
 // sockcpp
-#include <cstdint>
-#include <memory>
-#include <mutex>
-#include <nlohmann/json_fwd.hpp>
+#include <iterator>
 #include <sockpp/tcp_connector.h>
-#include "sockpp/inet_address.h"
-#include "sockpp/tcp_acceptor.h"
-#include "sockpp/tcp_socket.h"
+#include <sockpp/inet_address.h>
+#include <sockpp/tcp_acceptor.h>
+#include <sockpp/tcp_socket.h>
+
+// json
+#include <nlohmann/json_fwd.hpp>
+
+// standard
+#include <cstdint>
+#include <cerrno>
+#include <memory>
+#include <chrono>
+#include <mutex>
 
 // util
 #include <plog/Severity.h>
@@ -14,11 +21,13 @@
 
 // plog
 #include <plog/Log.h>
+#include <thread>
 
 // local
 #include "server.hpp"
 
 using namespace srv;
+using namespace std::chrono;
 
 
 namespace {
@@ -63,8 +72,26 @@ void Server::subscribeOnConfigs() {
 void Server::parseDefaultConfig(const nlohmann::json& config) {
     cbQueue_->query([this, config = config]() {
         std::unique_lock<std::mutex> lock(settingsLock_);
+
         std::string hostname = config.value<std::string>("hostname", "localhost");
         std::uint32_t port = config.value<std::uint32_t>("port", 5050);
+
+        // parse timeouts for server read
+        if (config.contains("timeouts") && config["timeouts"].is_array()) {
+            settings_.timeouts.reserve(config["timeouts"].size());
+            for (const auto& value : config["timeouts"]) {
+                if (!value.is_number_unsigned()) {
+                    settings_.timeouts.clear();
+                    break;
+                }
+                settings_.timeouts.push_back(std::chrono::milliseconds(value.get<std::size_t>()));
+            }
+        }
+
+        if (settings_.timeouts.empty()) {
+            settings_.timeouts = {1ms, 10ms, 100ms, 200ms, 500ms};
+        }
+
         settings_.address = sockpp::inet_address(hostname, port);
 
         PLOG(plog::debug) 
@@ -105,6 +132,13 @@ void Server::run() {
         if (result.is_error()) {
             if (result.error().value() != EWOULDBLOCK) {
                 PLOG(plog::error) << "Error accepting peer: " << result.error_message();
+            }
+            // FIXME: check for work on all sessions
+            if (result.error().value() == EWOULDBLOCK) {
+                std::this_thread::sleep_for(*currentTimeout_);
+                if (settings_.timeouts.end() - currentTimeout_ > 1) {
+                    std::advance(currentTimeout_, 1);
+                }
             }
         }
         else {

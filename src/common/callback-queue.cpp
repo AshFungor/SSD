@@ -142,7 +142,7 @@ void CallbackQueue::query(std::function<void()> task, std::weak_ptr<void> lifeti
 
 void CallbackQueue::query(genericCallback_t callback) {
     {
-        std::unique_lock<std::mutex> lock;
+        std::unique_lock<std::mutex> lock (queueLock_);
         if (tasks_.size() >= settings_.maxSize) return;
         tasks_.emplace(std::move(callback));
     }

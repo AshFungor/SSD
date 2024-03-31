@@ -2,6 +2,7 @@
 #include <memory>
 
 // protos
+#include <protos/client/simple/simple.pb.h>
 #include <protos/client/client-message.pb.h>
 
 // sockpp
@@ -17,8 +18,8 @@ int main() {
     if (auto res = conn.connect(sockpp::inet_address("localhost", port)))
         std::cout << "error: " << res.error_message();
 
-    NSound::TClientMessage message = NSound::TClientMessage::default_instance();
-    *message.mutable_stream_config() = NSound::TClientMessage::TStreamConfiguration::default_instance();
+    NSound::NSimple::TSimpleMessage message = NSound::NSimple::TSimpleMessage::default_instance();
+    *message.mutable_stream_config() = NSound::NSimple::TSimpleMessage::TStreamConfiguration::default_instance();
     std::size_t len = message.ByteSizeLong();
 
     auto buffer = std::make_unique<char[]>(len);

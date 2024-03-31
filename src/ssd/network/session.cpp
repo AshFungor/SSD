@@ -1,5 +1,6 @@
 // sockpp
 #include <asm-generic/errno.h>
+#include <mutex>
 #include <sockpp/tcp_connector.h>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/result.h>
@@ -16,16 +17,21 @@
 #include <protos/client/client-message.pb.h>
 
 // local
+#include "common/exceptions.hpp"
+#include "common/shared-buffer.hpp"
 #include "message.hpp"
+#include "protos/client/simple/simple.pb.h"
 #include "session.hpp"
 
 using namespace srv;
 
 
-ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access) 
+ClientSession::ClientSession(sockpp::tcp_socket&& sock, std::shared_ptr<laar::SharedBuffer> buffer, Private access) 
 : sock_(std::move(sock))
 , isMessageBeingReceived_(false)
-, isBeingUpdated_(false)
+, isUpdating_(false)
+, buffer_(buffer)
+, message_(buffer)
 {}
 
 ClientSession::~ClientSession() {
@@ -33,21 +39,27 @@ ClientSession::~ClientSession() {
 }
 
 std::shared_ptr<ClientSession> ClientSession::instance(sockpp::tcp_socket&& sock) {
-    return std::make_shared<ClientSession>(std::move(sock), Private());
+    return std::make_shared<ClientSession>(std::move(sock), std::make_shared<laar::SharedBuffer>(1024), Private());
 }
 
 void ClientSession::init() {
+    std::unique_lock<std::mutex> locked (sessionLock_);
+
+    if (open()) {
+        throw laar::LaarBadInit();
+    }
+    
     PLOG(plog::debug) << "Checking connection on client: "
                       << sock_.peer_address();
     if (!sock_.peer_address().is_set()) {
         error("Peer is not connected, passed socket is invalid");
     }
     sock_.set_non_blocking();
-
-    laar::Message::start();
+    message_.start();
 }
 
 void ClientSession::terminate() {
+    std::unique_lock<std::mutex> locked (sessionLock_);
     auto result = sock_.close();
     if (result.is_ok()) {
         return;
@@ -55,47 +67,49 @@ void ClientSession::terminate() {
     PLOG(plog::error) << "Error closing the socket: close() returned " << result.error_message();
 }
 
-void ClientSession::update() {
+bool ClientSession::update() {
     // try to read message, return if transmission is not completed yet
-    if (isBeingUpdated_) {
-        return;
+    if (isUpdating_) {
+        return true;
     }
-    isBeingUpdated_ = true;
+
+    std::unique_lock<std::mutex> locked (sessionLock_);
+    isUpdating_ = true;
 
     if (!sock_.is_open()) {
         PLOG(plog::debug) << "Socket " << sock_.address() << " was closed by peer";
-        return;
+        return false;
     }
     if (isMessageBeingReceived_) {
-        auto res = sock_.recv(buffer_.data(), std::min(laar::Message::wantMore(), buffer_.size()));
+        auto requestedBytes = message_.requestedBytes();
+        auto res = sock_.recv(buffer_->getRawWriteCursor(0), requestedBytes);
 
         if (res.is_error()) {
-            handleErrorState(std::move(res));
+            if (res.error().value() != EWOULDBLOCK) {
+                handleErrorState(std::move(res));
+            } else {
+                return false;
+            }
         }
 
-        if (!res.value()) {
-            return;
-        }
+        laar::Receive event (res.value());
+        buffer_->getRawWriteCursor(event.size);
+        message_.handle(event);
 
-        laar::Message::dispatch(laar::PartialReceive(buffer_.data(), res.value()));
-
-        if (laar::Message::is_in_state<laar::EndChunk>()) {
-            auto msg = laar::Message::get();
-            onClientMessage(std::move(msg));
-            isMessageBeingReceived_ = false;
+        if (message_.isInMessageTrailState()) {
+            NSound::TClientMessage clientMessage;
+            *clientMessage.mutable_simple_message() = message_.getPayload();
+            onClientMessage(clientMessage);
         }
+        
     } else {
-        laar::Message::reset();
+        message_.reset();
         isMessageBeingReceived_ = true;
     }
-
-    isBeingUpdated_ = false;
 }
 
 void ClientSession::handleErrorState(sockpp::result<std::size_t> requestState) {
-    if (requestState.error().value() != EWOULDBLOCK) {
-        error("Error on socket read: " + requestState.error_message());
-    }
+    error("Error on socket read: " + requestState.error_message());
 }
 
 void ClientSession::onClientMessage(const NSound::TClientMessage& message) {
@@ -117,11 +131,12 @@ void ClientSession::onStreamConfigMessage(const NSound::NSimple::TSimpleMessage:
 }
 
 bool ClientSession::open() {
+    std::unique_lock<std::mutex> locked (sessionLock_);
     return sock_.is_open();
 }
 
 bool ClientSession::updating() {
-    return isBeingUpdated_;
+    return isUpdating_;
 }
 
 void ClientSession::error(const std::string& errorMessage) {
