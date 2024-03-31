@@ -1,6 +1,4 @@
 // sockpp
-#include <asm-generic/errno.h>
-#include <mutex>
 #include <sockpp/tcp_connector.h>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/result.h>
@@ -8,6 +6,8 @@
 // standard
 #include <stdexcept>
 #include <memory>
+#include <cerrno>
+#include <mutex>
 
 // plog
 #include <plog/Severity.h>
@@ -15,12 +15,14 @@
 
 // protos
 #include <protos/client/client-message.pb.h>
+#include <protos/client/simple/simple.pb.h>
+
+// laar
+#include <common/exceptions.hpp>
+#include <common/shared-buffer.hpp>
+#include <network/message.hpp>
 
 // local
-#include "common/exceptions.hpp"
-#include "common/shared-buffer.hpp"
-#include "message.hpp"
-#include "protos/client/simple/simple.pb.h"
 #include "session.hpp"
 
 using namespace srv;

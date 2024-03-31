@@ -1,17 +1,16 @@
 // sockpp
-#include "network/message.hpp"
-#include <memory>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/tcp_socket.h>
 
 // standard
-#include <array>
+#include <memory>
 #include <atomic>
 
 // plog
 #include <plog/Log.h>
 
 // laar
+#include <network/message.hpp>
 #include <common/shared-buffer.hpp>
 
 // protos
