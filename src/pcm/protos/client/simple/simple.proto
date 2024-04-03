@@ -86,6 +86,8 @@ message TSimpleMessage {
 
     message TFlush {}
 
+    message TClose {}
+
     message TPull {
         uint32 size = 1;
         bytes pulled = 2;
@@ -97,5 +99,6 @@ message TSimpleMessage {
         TDrain drain = 3;
         TFlush flush = 4;
         TStreamConfiguration stream_config = 5;
+        TClose close = 6;
     }
 }

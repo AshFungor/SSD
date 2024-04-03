@@ -11,3 +11,4 @@ target_include_directories(protocol-simple PUBLIC ${SRC_ROOT})
 
 target_link_libraries(protocol-simple PUBLIC msfsm)
 target_link_libraries(protocol-simple PUBLIC protos)
+target_link_libraries(protocol-simple PUBLIC common)
