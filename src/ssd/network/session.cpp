@@ -108,6 +108,8 @@ bool ClientSession::update() {
         message_.reset();
         isMessageBeingReceived_ = true;
     }
+
+    return true;
 }
 
 void ClientSession::handleErrorState(sockpp::result<std::size_t> requestState) {

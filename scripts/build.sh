@@ -28,16 +28,18 @@ configure() {
     if [ "$ARCH" = "system" ]; then
         PROFILE=""
         COMPILER=""
-    elif [ "$ARCH" = "x86_64" ]; then 
-        PROFILE="$ROOT_FOLDER/data/x86_64-profile.txt"
-        COMPILER_C="gcc"
-        COMPILER_CXX="g++"
-        SYSTEM="x86_64"
+    elif [ "$ARCH" = "x86_64" ]; then
+        PROFILE=""
+        COMPILER=""
+        # PROFILE="$ROOT_FOLDER/data/x86_64-profile.txt"
+        # COMPILER_C="gcc"
+        # COMPILER_CXX="g++"
+        # SYSTEM="x86_64"
     elif [ "$ARCH" = "arm64" ]; then
         PROFILE="$ROOT_FOLDER/data/arm64-profile.txt"
         COMPILER_C="aarch64-linux-gnu-gcc"
         COMPILER_CXX="aarch64-linux-gnu-g++"
-        SYSTEM="arm64"
+        SYSTEM="arm"
     fi
 
     test -n "$PROFILE" \
@@ -49,8 +51,9 @@ configure() {
             "$ROOT_FOLDER" -G                                           \
             "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug                   \
             -DCMAKE_TOOLCHAIN_FILE="$BUILD_DIR/conan_toolchain.cmake"   \
-            -DCMAKE_CROSSCOMPILING=TRUE                                 \
+            -DCMAKE_SYSTEM_NAME=Generic                                 \
             -DCMAKE_SYSTEM_PROCESSOR="$SYSTEM"                          \
+            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY              \
         || cmake                                                        \
             "$ROOT_FOLDER" -G                                           \
             "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug                   \
@@ -72,7 +75,7 @@ while getopts "hcba:" arg; do
     elif [ "$arg" = "h" ]; then
         help
     elif [ "$arg" = "c" ]; then
-        BUILD_DIR="$BUILD_DIR"_"$ARCH"
+        test "$ARCH" = "system" && BUILD_DIR="$BUILD_DIR" || BUILD_DIR="$BUILD_DIR"_"$ARCH"
         configure
     else
         return 1

@@ -1,3 +1,7 @@
+[buildenv]
+CC=aarch64-linux-gnu-gcc
+CXX=aarch64-linux-gnu-g++
+
 [settings]
 arch=armv8
 build_type=Debug
