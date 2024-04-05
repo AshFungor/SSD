@@ -12,7 +12,7 @@ namespace laar {
 
     struct IEvent {
         // holder for payload
-        virtual ~IEvent();
+        virtual ~IEvent() {}
     };
 
     template<typename TDerivedMessage>
@@ -22,7 +22,7 @@ namespace laar {
         class IMessageState {
         public:
             virtual ~IMessageState() = default;
-            IMessageState(IMessage* message);
+            IMessageState(TDerivedMessage* message);
             IMessageState(const IMessageState&) = delete;
             IMessageState(IMessageState&&) = default;
             // generic state interface
@@ -39,7 +39,7 @@ namespace laar {
             TDerivedMessage* const fsm_;
         };
 
-        IMessage(std::initializer_list<IMessageState*> states, IMessageState* initial);
+        IMessage(std::initializer_list<const IMessageState*> states, IMessageState* initial);
         virtual ~IMessage() = default;
 
         virtual void reset();
@@ -56,7 +56,7 @@ namespace laar {
         const State* getStateOrThrow() const;
 
     protected:
-        void addStates(std::initializer_list<IMessageState> states);
+        void addStates(std::initializer_list<const IMessageState*> states);
 
     protected:
         IMessageState* current_ = nullptr;
@@ -66,8 +66,8 @@ namespace laar {
         class StateValidator {
         public:
             bool present(const IMessageState* state) const;
-            void addState(IMessageState* state);
-            void removeState(IMessageState* state);
+            void addState(const IMessageState* state);
+            void removeState(const IMessageState* state);
 
         private:
             std::set<const IMessageState*> states_;
@@ -95,6 +95,21 @@ namespace laar {
         }
         throw laar::LaarBadGet();
     }
+
+    template<typename TDerivedMessage>
+    IMessage<TDerivedMessage>::IMessage(std::initializer_list<const IMessageState*> states, IMessageState* initial) {
+        addStates(std::move(states));
+        if (stateValidator_.present(initial)) {
+            current_ = initial;
+        } else {
+            throw laar::LaarValidatorError();
+        }
+    }
+
+    template<typename TDerivedMessage>
+    IMessage<TDerivedMessage>::IMessageState::IMessageState(TDerivedMessage* message) 
+    : fsm_(message)
+    {}
 
     template<typename TDerivedMessage>
     void IMessage<TDerivedMessage>::IMessageState::entry() {}
@@ -136,17 +151,17 @@ namespace laar {
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::StateValidator::addState(IMessageState* state) {
+    void IMessage<TDerivedMessage>::StateValidator::addState(const IMessageState* state) {
         states_.insert(state);
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::StateValidator::removeState(IMessageState* state) {
+    void IMessage<TDerivedMessage>::StateValidator::removeState(const IMessageState* state) {
         states_.erase(state);
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::addStates(std::initializer_list<IMessageState> states) {
+    void IMessage<TDerivedMessage>::addStates(std::initializer_list<const IMessageState*> states) {
         for (auto& state : states) {
             stateValidator_.addState(state);
         }

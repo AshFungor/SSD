@@ -22,6 +22,8 @@ namespace laar {
     struct Receive : public IEvent {
         Receive(std::size_t size);
         std::size_t size;
+
+        virtual ~Receive() {}
     };
 
     template<typename Payload>
@@ -108,6 +110,7 @@ namespace laar {
 
     template<typename Payload>
     void SimpleMessage<Payload>::reset() {
+        this->data_ = std::make_unique<SimpleMessage<Payload>::MessageData>();
         this->current_ = &sizeState_;
         this->current_->entry();
     }
@@ -134,6 +137,14 @@ namespace laar {
     }
 
     template<typename Payload>
+    std::unique_ptr<typename SimpleMessage<Payload>::MessageData> SimpleMessage<Payload>::result() {
+        if (constructed()) {
+            return std::move(this->data_);
+        }
+        throw laar::LaarBadGet();
+    }
+
+    template<typename Payload>
     void SimpleMessage<Payload>::Size::event(Receive event) {
         if (event.size > bytes_) {
             throw laar::LaarOverrun();
@@ -144,8 +155,9 @@ namespace laar {
             std::memcpy(
                 &this->fsm_->data_->size, 
                 this->fsm_->buffer_->getRawReadCursor(), 
-                this->fsm_->data_->size
+                sizeof this->fsm_->data_->size
             );
+            this->fsm_->buffer_->advanceReadCursor(sizeof this->fsm_->data_->size);
             this->transition(&this->fsm_->dataState_);
         }
     }
@@ -159,6 +171,7 @@ namespace laar {
         bytes_ -= event.size;
         if (!bytes_) {
             this->fsm_->data_->payload.ParseFromArray(this->fsm_->buffer_->getRawReadCursor(), this->fsm_->data_->size);
+            this->fsm_->buffer_->advanceReadCursor(this->fsm_->data_->size);
             this->transition(&this->fsm_->dataState_);
         }
     }
