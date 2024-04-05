@@ -2,9 +2,11 @@
 
 // standard
 #include <cstddef>
+#include <initializer_list>
 #include <memory>
 
 // laar
+#include <network/interfaces/i-message.hpp>
 #include <common/shared-buffer.hpp>
 #include <common/exceptions.hpp>
 #include <common/macros.hpp>
@@ -14,14 +16,7 @@
 #include <protos/client/client-message.pb.h>
 #include <protos/client/simple/simple.pb.h>
 
-// msfsm
-#include <msfsm.hpp>
-
 namespace laar {
-
-    struct IEvent {
-        // holder for payload
-    };
 
     // Size must be equal requestedBytes() byte count
     struct Receive : public IEvent {
@@ -29,216 +24,147 @@ namespace laar {
         std::size_t size;
     };
 
-    class IMessage {
-    public:
-        class IMessageState : msfsm::noncopyable {
-        public:
-            IMessageState(IMessage* message);
-            // generic state interface
-            virtual void entry();
-            virtual void exit();
-            virtual void event(IEvent event);
-            virtual std::size_t bytes() const;
-            // transition function is always the same
-            void transition(IMessageState& next);
-
-        protected:
-            IMessage* const fsm;
-        };
-
-        virtual void reset() = 0;
-        virtual void start() = 0;
-        void handle(IEvent event);
-        const IMessageState* state() const;
-
-        template<typename State>
-        bool isInState();
-    };
-
     template<typename Payload>
-    class SimpleMessage : public IMessage {
+    class SimpleMessage : public IMessage<SimpleMessage<Payload>> {
     public:
-        // concepts
-        static_assert(std::derived_from<Payload, google::protobuf::Message> == true);
+
+        // IMessage implementation
+        virtual void reset() override;
+        virtual void start() override;
+
+        // supported events
+        void handle(Receive event);
 
         SimpleMessage(std::shared_ptr<laar::SharedBuffer> buffer);
 
-        // IMessage implementation
-        void reset();
-        void start();
+        struct MessageData {
+            std::size_t size;
+            Payload payload;
+        };
 
-        // getters
-        Payload getPayload();
-        std::size_t requestedBytes();
-        std::size_t getSize();
+        bool constructed();
+        std::unique_ptr<MessageData> result();
 
-        // checkers
-        bool hasSize();
-        bool hasPayload();
-        bool isInMessageSizeState();
-        bool isInMessagePayloadState();
-        bool isInMessageTrailState();
+        class Size : IMessage<SimpleMessage<Payload>>::IMessageState {
+        public:
+            Size(SimpleMessage<Payload>* data)          : IMessage<SimpleMessage<Payload>>::IMessageState(data) {}
+            // IMessageState implementation
+            virtual void entry() override               { bytes_ = sizeof this->fsm_->data_->size; }
+            virtual void exit() override                {}
+            virtual void event(IEvent event) override   { this->event(*static_cast<Receive*>(&event)); }
+            virtual std::size_t bytes() const override  { return bytes_; }
 
-    private:
-        // message data
-        std::size_t size_;
-        Payload payload_;
+            virtual void event(Receive event);
+
+            friend SimpleMessage<Payload>;
+
+        private:
+            std::size_t bytes_;
+        };
+
+        class Data : IMessage<SimpleMessage<Payload>>::IMessageState {
+        public:
+            Data(SimpleMessage<Payload>* data)          : IMessage<SimpleMessage<Payload>>::IMessageState(data) {}
+            // IMessageState implementation
+            virtual void entry() override               { bytes_ = this->fsm_->data_->size; }
+            virtual void exit() override                {}
+            virtual void event(IEvent event) override   { this->event(*static_cast<Receive*>(&event)); }
+            virtual std::size_t bytes() const override  { return bytes_; }
+
+            virtual void event(Receive event);
+
+            friend SimpleMessage<Payload>;
+
+        private:
+            std::size_t bytes_;
+        };
+
+        class Trail : IMessage<SimpleMessage<Payload>>::IMessageState {
+        public:
+            Trail(SimpleMessage<Payload>* data)         : IMessage<SimpleMessage<Payload>>::IMessageState(data) {}
+            // IMessageState implementation
+            virtual void entry() override               { bytes_ = 0; }
+            virtual void exit() override                {}
+            virtual void event(IEvent event) override   { this->event(*static_cast<Receive*>(&event)); }
+            virtual std::size_t bytes() const override  { return bytes_; }
+
+            virtual void event(Receive event);
+
+            friend SimpleMessage<Payload>;
+
+        private:
+            std::size_t bytes_;
+
+        };
+        
+    private:     
+        std::unique_ptr<MessageData> data_;
         std::shared_ptr<laar::SharedBuffer> buffer_;
 
-        class MessageSize : public IMessage<SimpleMessage<Payload>>::IMessageState {
-        public:
-            MessageSize(SimpleMessage<Payload>* message);
-            void entry();
-            // ISimpleMessageState implementation
-            virtual void event(Receive event) override;
-            virtual std::size_t requestedBytes() const override;
-
-            friend SimpleMessage<Payload>;
-
-        private:
-            std::size_t needs_;
-
-        } messageSize_{this};
-
-        class MessagePayload : public IMessage<SimpleMessage<Payload>>::IMessageState {
-        public:
-            MessagePayload(SimpleMessage<Payload>* message);
-            void entry();
-            // ISimpleMessageState implementation
-            virtual void event(Receive event) override;
-            virtual std::size_t requestedBytes() const override;
-
-            friend SimpleMessage<Payload>;
-        
-        private:
-            std::size_t needs_;
-
-        } messagePayload_{this};
-
-        class MessageTrail : public IMessage<SimpleMessage<Payload>>::IMessageState {
-        public:
-            MessageTrail(SimpleMessage<Payload>* message);
-            // ISimpleMessageState implementation
-            virtual void event(Receive event) override;
-            virtual std::size_t requestedBytes() const override;
-
-            friend SimpleMessage<Payload>;
-
-        } messageTrail_{this};
+        Size sizeState_     {this};
+        Data dataState_     {this};
+        Trail trailState_   {this};
     };
 
-    template<typename MessageProtobufPayload>
-    SimpleMessage<MessageProtobufPayload>::MessageSize::MessageSize(SimpleMessage<MessageProtobufPayload>* message)
-    : SimpleMessage<MessageProtobufPayload>::State(message)
-    {}
-
-    template<typename MessageProtobufPayload>
-    SimpleMessage<MessageProtobufPayload>::MessagePayload::MessagePayload(SimpleMessage<MessageProtobufPayload>* message)
-    : SimpleMessage<MessageProtobufPayload>::State(message)
-    {}
-
-    template<typename MessageProtobufPayload>
-    SimpleMessage<MessageProtobufPayload>::MessageTrail::MessageTrail(SimpleMessage<MessageProtobufPayload>* message)
-    : SimpleMessage<MessageProtobufPayload>::State(message)
-    {}
-
-    template<typename MessageProtobufPayload>
-    void SimpleMessage<MessageProtobufPayload>::MessageSize::entry() {
-        needs_ = sizeof(std::size_t);
+    template<typename Payload>
+    void SimpleMessage<Payload>::reset() {
+        this->current_ = &sizeState_;
+        this->current_->entry();
     }
 
-    template<typename MessageProtobufPayload>
-    void SimpleMessage<MessageProtobufPayload>::MessagePayload::entry() {
-        needs_ = size_;
+    template<typename Payload>
+    void SimpleMessage<Payload>::start() {
+        this->current_->entry();
     }
 
-    template<typename MessageProtobufPayload>
-    void SimpleMessage<MessageProtobufPayload>::MessageSize::event(Receive event) {
-        needs_ = std::max<int>(static_cast<int>(needs_) - event.size, 0);
-        if (!needs_) {
-            std::memcpy(&size_, buffer_->getRawReadCursor(), sizeof(std::size_t));
-            buffer_->advanceReadCursor(sizeof(std::size_t));
-            transition(messagePayload_);
+    template<typename Payload>
+    void SimpleMessage<Payload>::handle(Receive event) {
+        this->current_->event(event);
+    }
+
+    template<typename Payload>
+    SimpleMessage<Payload>::SimpleMessage(std::shared_ptr<laar::SharedBuffer> buffer)
+    : IMessage<SimpleMessage<Payload>>({&sizeState_, &dataState_, &trailState_}, &sizeState_)
+    , buffer_(buffer)
+    {}
+
+    template<typename Payload>
+    bool SimpleMessage<Payload>::constructed() {
+        return this->template isInState<Trail>();
+    }
+
+    template<typename Payload>
+    void SimpleMessage<Payload>::Size::event(Receive event) {
+        if (event.size > bytes_) {
+            throw laar::LaarOverrun();
+        }
+
+        bytes_ -= event.size;
+        if (!bytes_) {
+            std::memcpy(
+                &this->fsm_->data_->size, 
+                this->fsm_->buffer_->getRawReadCursor(), 
+                this->fsm_->data_->size
+            );
+            this->transition(&this->fsm_->dataState_);
         }
     }
 
-    template<typename MessageProtobufPayload>
-    void SimpleMessage<MessageProtobufPayload>::MessagePayload::event(Receive event) {
-        needs_ = std::max<int>(static_cast<int>(needs_) - event.size, 0);
-        if (!needs_) {
-            payload_.ParseFromArray(buffer_->getRawReadCursor(), size_);
-            buffer_->advanceReadCursor(size_);
-            transition(messageTrail_);
+    template<typename Payload>
+    void SimpleMessage<Payload>::Data::event(Receive event) {
+        if (event.size > bytes_) {
+            throw laar::LaarOverrun();
+        }
+
+        bytes_ -= event.size;
+        if (!bytes_) {
+            this->fsm_->data_->payload.ParseFromArray(this->fsm_->buffer_->getRawReadCursor(), this->fsm_->data_->size);
+            this->transition(&this->fsm_->dataState_);
         }
     }
 
-    template<typename MessageProtobufPayload>
-    void SimpleMessage<MessageProtobufPayload>::MessageTrail::event(Receive event) {
+    template<typename Payload>
+    void SimpleMessage<Payload>::Trail::event(Receive event) {
         throw laar::LaarOverrun();
-    }
-
-    template<typename MessageProtobufPayload>
-    std::size_t SimpleMessage<MessageProtobufPayload>::MessageSize::requestedBytes() const {
-        return needs_;
-    }
-
-    template<typename MessageProtobufPayload>
-    std::size_t SimpleMessage<MessageProtobufPayload>::MessagePayload::requestedBytes() const {
-        return needs_;
-    }
-
-    template<typename MessageProtobufPayload>
-    std::size_t SimpleMessage<MessageProtobufPayload>::MessageTrail::requestedBytes() const {
-        return 0;
-    }
-
-    template<typename MessageProtobufPayload>
-    void SimpleMessage<MessageProtobufPayload>::reset() {
-        // payload proto shouldn't be cleared since it will be not
-        // accessible anyways, shared buffer is managed externally 
-        size_ = 0;
-        transition(messageSize_);
-    }
-
-    template<typename MessageProtobufPayload>
-    void SimpleMessage<MessageProtobufPayload>::start() {
-        transition(messageSize_);
-    }
-
-    template<typename MessageProtobufPayload>
-    SimpleMessage<MessageProtobufPayload>::SimpleMessage(std::shared_ptr<laar::SharedBuffer> buffer)
-    : buffer_(buffer)
-    , size_(0)
-    {}
-
-    template<typename MessageProtobufPayload>
-    MessageProtobufPayload SimpleMessage<MessageProtobufPayload>::getPayload() { 
-        if (hasPayload()) {
-            return std::move(payload_);
-        }
-        throw laar::LaarBadGet();
-    }
-
-    template<typename MessageProtobufPayload>
-    std::size_t SimpleMessage<MessageProtobufPayload>::getSize() { 
-        if (hasSize()) {
-            return fsm.size_;
-        }
-        throw laar::LaarBadGet();
-    }
-
-    template<typename MessageProtobufPayload>
-    bool SimpleMessage<MessageProtobufPayload>::hasPayload() {
-        return dynamic_cast<MessageTrail*>(state());
-    }
-
-    template<typename MessageProtobufPayload>
-    bool SimpleMessage<MessageProtobufPayload>::hasSize() {
-        return !dynamic_cast<MessageSize*>(state());
-    }
-
-    template<typename MessageProtobufPayload>
-    std::size_t SimpleMessage<MessageProtobufPayload>::requestedBytes() { 
-        return static_cast<ISimpleMessageState*>(state())->requestedBytes();
     }
 }

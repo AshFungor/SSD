@@ -41,4 +41,11 @@ namespace laar {
         }
     };
 
+    class LaarValidatorError : std::exception {
+    public:
+        virtual const char* what() const noexcept override {
+            return "state validation failed";
+        }
+    };
+
 }

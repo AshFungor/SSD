@@ -26,6 +26,8 @@ namespace srv {
     {
     private: struct Private { };
     public:
+        using message_t = laar::SimpleMessage<NSound::NSimple::TSimpleMessage>;
+
         static std::shared_ptr<ClientSession> instance(sockpp::tcp_socket&& sock);
         ClientSession(sockpp::tcp_socket&& sock, std::shared_ptr<laar::SharedBuffer> buffer, Private access);
         ~ClientSession();

@@ -83,7 +83,7 @@ bool ClientSession::update() {
         return false;
     }
     if (isMessageBeingReceived_) {
-        auto requestedBytes = message_.requestedBytes();
+        auto requestedBytes = message_.bytes();
         auto res = sock_.recv(buffer_->getRawWriteCursor(0), requestedBytes);
 
         if (res.is_error()) {
@@ -98,9 +98,10 @@ bool ClientSession::update() {
         buffer_->getRawWriteCursor(event.size);
         message_.handle(event);
 
-        if (message_.isInMessageTrailState()) {
+        if (message_.isInState<message_t::Trail>()) {
             NSound::TClientMessage clientMessage;
-            *clientMessage.mutable_simple_message() = message_.getPayload();
+            auto result = message_.result();
+            *clientMessage.mutable_simple_message() = std::move(result->payload);
             onClientMessage(clientMessage);
         }
         

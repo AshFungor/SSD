@@ -70,7 +70,7 @@ while getopts "hcba:" arg; do
     if [ "$arg" = "a" ]; then
         test -n "$(echo $ARCH_TARGETS | grep "$OPTARG")" && ARCH="$OPTARG"
     elif [ "$arg" = "b" ]; then
-        BUILD_DIR="$BUILD_DIR"_"$ARCH"
+        test "$ARCH" = "system" && BUILD_DIR="$BUILD_DIR" || BUILD_DIR="$BUILD_DIR"_"$ARCH"
         build
     elif [ "$arg" = "h" ]; then
         help

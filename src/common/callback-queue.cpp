@@ -92,11 +92,18 @@ void CallbackQueue::schedule() {
                 return;
             }
 
+            reschedule:
             next = std::move(const_cast<timedCallback_t&>(scheduled_.top()));
             scheduled_.pop();
+            
+            schedulerCv_.wait_for(schedulerLock, next->goesOff() - std::chrono::high_resolution_clock::now());
+            if (std::chrono::high_resolution_clock::now() < next->goesOff()) {
+                scheduled_.push(std::move(next));
+                goto reschedule;
+            }
         }
 
-        std::this_thread::sleep_for(next->goesOff() - std::chrono::high_resolution_clock::now());
+        
         {
             std::unique_lock<std::mutex> queueLock (queueLock_);
             tasks_.push(std::move(next));
