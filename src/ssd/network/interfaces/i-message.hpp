@@ -10,11 +10,6 @@
 
 namespace laar {
 
-    struct IEvent {
-        // holder for payload
-        virtual ~IEvent() {}
-    };
-
     template<typename TDerivedMessage>
     class IMessage {
     public:
@@ -28,7 +23,6 @@ namespace laar {
             // generic state interface
             virtual void entry();
             virtual void exit();
-            virtual void event(IEvent event);
             virtual std::size_t bytes() const;
             // transition function is always the same
             void transition(IMessageState* next);
@@ -46,7 +40,9 @@ namespace laar {
         virtual void start();
         virtual std::size_t bytes();
 
-        virtual void handle(IEvent event);
+        template<typename TEvent>
+        void handle(TEvent event);
+
         const IMessageState* state() const;
 
         template<typename State>
@@ -89,11 +85,7 @@ namespace laar {
     template<typename TDerivedMessage>
     template<typename State>
     const State* IMessage<TDerivedMessage>::getStateOrThrow() const {
-        const auto casted = dynamic_cast<State*>(current_);
-        if (casted) {
-            return casted;
-        }
-        throw laar::LaarBadGet();
+        return &dynamic_cast<State&>(current_);
     }
 
     template<typename TDerivedMessage>
@@ -116,9 +108,6 @@ namespace laar {
 
     template<typename TDerivedMessage>
     void IMessage<TDerivedMessage>::IMessageState::exit() {}
-
-    template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::IMessageState::event(IEvent /* event */) {}
 
     template<typename TDerivedMessage>
     std::size_t IMessage<TDerivedMessage>::IMessageState::bytes() const { return 0; }
@@ -168,7 +157,8 @@ namespace laar {
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::handle(IEvent event) {
-        current_->event(std::move(event));
+    template<typename TEvent>
+    void IMessage<TDerivedMessage>::handle(TEvent event) {
+        static_cast<typename TDerivedMessage::IEventStateHandle*>(current_)->event(std::move(static_cast<TEvent>(event)));
     }
 }

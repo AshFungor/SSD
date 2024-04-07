@@ -15,12 +15,16 @@ int main() {
     sockpp::tcp_connector conn;
     int16_t port = 5050;
 
-    if (auto res = conn.connect(sockpp::inet_address("localhost", port)))
-        std::cout << "error: " << res.error_message();
+    if (auto res = conn.connect(sockpp::inet_address("localhost", port))) {
+        std::cout << "result: " << res.error_message() << "\n";
+    }
 
     NSound::NSimple::TSimpleMessage message = NSound::NSimple::TSimpleMessage::default_instance();
     *message.mutable_stream_config() = NSound::NSimple::TSimpleMessage::TStreamConfiguration::default_instance();
+    message.mutable_stream_config()->mutable_buffer_config()->set_fragment_size(12);
     std::size_t len = message.ByteSizeLong();
+
+    std::cout << "sending message with " << len << " bytes\n";
 
     auto buffer = std::make_unique<char[]>(len);
     message.SerializeToArray(buffer.get(), len);

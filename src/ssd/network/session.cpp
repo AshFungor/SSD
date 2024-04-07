@@ -47,12 +47,13 @@ std::shared_ptr<ClientSession> ClientSession::instance(sockpp::tcp_socket&& sock
 void ClientSession::init() {
     std::unique_lock<std::mutex> locked (sessionLock_);
 
-    if (open()) {
+    if (!sock_.is_open()) {
         throw laar::LaarBadInit();
     }
     
-    PLOG(plog::debug) << "Checking connection on client: "
-                      << sock_.peer_address();
+    PLOG(plog::debug) 
+        << "Checking connection on client: "
+        << sock_.peer_address();
     if (!sock_.peer_address().is_set()) {
         error("Peer is not connected, passed socket is invalid");
     }
@@ -72,7 +73,7 @@ void ClientSession::terminate() {
 bool ClientSession::update() {
     // try to read message, return if transmission is not completed yet
     if (isUpdating_) {
-        return true;
+        return false;
     }
 
     std::unique_lock<std::mutex> locked (sessionLock_);
@@ -82,32 +83,31 @@ bool ClientSession::update() {
         PLOG(plog::debug) << "Socket " << sock_.address() << " was closed by peer";
         return false;
     }
-    if (isMessageBeingReceived_) {
-        auto requestedBytes = message_.bytes();
-        auto res = sock_.recv(buffer_->getRawWriteCursor(0), requestedBytes);
 
-        if (res.is_error()) {
-            if (res.error().value() != EWOULDBLOCK) {
-                handleErrorState(std::move(res));
-            } else {
-                return false;
-            }
+    auto requestedBytes = message_.bytes();
+    auto res = sock_.recv(buffer_->getRawWriteCursor(0), requestedBytes);
+    
+    if (res.is_error()) {
+        if (res.error().value() != EWOULDBLOCK) {
+            handleErrorState(std::move(res));
+        } else {
+            return false;
         }
+    }
 
-        laar::Receive event (res.value());
-        buffer_->getRawWriteCursor(event.size);
-        message_.handle(event);
+    PLOG(plog::debug) << "size " << res.value();
+    laar::Receive event (res.value());
+    buffer_->getRawWriteCursor(event.size);
+    message_.handle<laar::Receive>(event);
 
-        if (message_.isInState<message_t::Trail>()) {
-            NSound::TClientMessage clientMessage;
-            auto result = message_.result();
-            *clientMessage.mutable_simple_message() = std::move(result->payload);
-            onClientMessage(clientMessage);
-        }
-        
-    } else {
+    if (message_.isInState<message_t::Trail>()) {
+        NSound::TClientMessage clientMessage;
+        auto result = message_.result();
+        *clientMessage.mutable_simple_message() = std::move(result->payload);
+        onClientMessage(clientMessage);
+        buffer_->clear();
+
         message_.reset();
-        isMessageBeingReceived_ = true;
     }
 
     return true;

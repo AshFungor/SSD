@@ -11,6 +11,7 @@ using namespace laar;
 SharedBuffer::SharedBuffer(std::size_t bufferSize)
     : buffer_(bufferSize)
     , writeCursor_(0)
+    , readCursor_(0)
     , size_(0)
 {}
 

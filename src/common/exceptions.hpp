@@ -2,6 +2,8 @@
 
 // standard
 #include <exception>
+#include <optional>
+#include <string>
 
 
 namespace laar {
@@ -22,9 +24,22 @@ namespace laar {
 
     class LaarOverrun : std::exception {
     public:
+
+        LaarOverrun() = default;
+        LaarOverrun(std::size_t by) : by_(by) {}
+
         virtual const char* what() const noexcept override {
-            return "received too much data, buffer is overrun";
+            return errorMessage_.c_str();
         }
+    
+    protected:
+        void init() {
+            errorMessage_ = std::string("received too much data, buffer is overrun by ") + std::to_string((by_.has_value()) ? by_.value() : 0);
+        }
+
+    protected:
+        std::string errorMessage_;
+        std::optional<size_t> by_;
     };
 
     class LaarBadGet : std::exception {

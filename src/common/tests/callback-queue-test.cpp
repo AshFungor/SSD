@@ -46,7 +46,7 @@ TEST_F(CallbackQueueTest, RegularSyncExecution) {
 
 TEST_F(CallbackQueueTest, TimedCallbackTest) {
     auto ts = high_resolution_clock::now();
-    std::vector<milliseconds> durations = {10ms, 20ms, 100ms};
+    std::vector<milliseconds> durations = {10ms, 200ms, 100ms};
     for (const auto& duration : durations) {
         cbQueue->query([this, ts = ts, duration = duration]() {
             auto actualDuration = high_resolution_clock::now() - ts;

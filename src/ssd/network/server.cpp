@@ -50,6 +50,7 @@ Server::Server(
     : threadPool_(std::move(threadPool))
     , configHandler_(std::move(configHandler))
     , cbQueue_(std::move(cbQueue))
+    , hasWork_(true)
 {}
 
 void Server::subscribeOnConfigs() {
@@ -89,8 +90,10 @@ void Server::parseDefaultConfig(const nlohmann::json& config) {
         }
 
         if (settings_.timeouts.empty()) {
-            settings_.timeouts = {1ms, 10ms, 100ms, 200ms, 500ms};
+            settings_.timeouts = {1ms, 2ms, 3ms, 5ms, 10ms};
         }
+
+        currentTimeout_ = settings_.timeouts.begin();
 
         settings_.address = sockpp::inet_address(hostname, port);
 
@@ -133,6 +136,9 @@ void Server::run() {
             if (result.error().value() != EWOULDBLOCK) {
                 PLOG(plog::error) << "Error accepting peer: " << result.error_message();
             }
+            if (hasWork_) {
+                goto update;
+            }
             // FIXME: check for work on all sessions
             if (result.error().value() == EWOULDBLOCK) {
                 std::this_thread::sleep_for(*currentTimeout_);
@@ -146,16 +152,20 @@ void Server::run() {
             PLOG(plog::info) << "accepting new client " << sock.peer_address();
             sessions_.emplace_back(srv::ClientSession::instance(std::move(sock)));
             sessions_.back()->init();
+
+            currentTimeout_ = settings_.timeouts.begin();
         }
 
+        update:
+        hasWork_ = true;
         for (auto& session : sessions_) {
-            threadPool_->query([&]() {
-                session->update();
-            }, weak_from_this());
             if (!session->open()) {
                 std::swap(session, sessions_.back());
                 sessions_.pop_back();
             }
+            threadPool_->query([&]() {
+                hasWork_ = hasWork_ && session->update();
+            }, weak_from_this());
         }
     }   
 }

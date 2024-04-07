@@ -13,17 +13,19 @@
 
 // proto
 #include <google/protobuf/message.h>
+#include <plog/Severity.h>
 #include <protos/client/client-message.pb.h>
 #include <protos/client/simple/simple.pb.h>
+
+// plog
+#include <plog/Log.h>
 
 namespace laar {
 
     // Size must be equal requestedBytes() byte count
-    struct Receive : public IEvent {
+    struct Receive {
         Receive(std::size_t size);
         std::size_t size;
-
-        virtual ~Receive() {}
     };
 
     template<typename Payload>
@@ -33,9 +35,6 @@ namespace laar {
         // IMessage implementation
         virtual void reset() override;
         virtual void start() override;
-
-        // supported events
-        void handle(Receive event);
 
         SimpleMessage(std::shared_ptr<laar::SharedBuffer> buffer);
 
@@ -47,16 +46,21 @@ namespace laar {
         bool constructed();
         std::unique_ptr<MessageData> result();
 
-        class Size : IMessage<SimpleMessage<Payload>>::IMessageState {
+        class IEventStateHandle : public IMessage<SimpleMessage<Payload>>::IMessageState {
         public:
-            Size(SimpleMessage<Payload>* data)          : IMessage<SimpleMessage<Payload>>::IMessageState(data) {}
+            IEventStateHandle(SimpleMessage<Payload>* data) : IMessage<SimpleMessage<Payload>>::IMessageState(data) {}
+            virtual void event(Receive event) {}
+        };
+
+        class Size : IEventStateHandle {
+        public:
+            Size(SimpleMessage<Payload>* data)          : IEventStateHandle(data) {}
             // IMessageState implementation
             virtual void entry() override               { bytes_ = sizeof this->fsm_->data_->size; }
             virtual void exit() override                {}
-            virtual void event(IEvent event) override   { this->event(*static_cast<Receive*>(&event)); }
             virtual std::size_t bytes() const override  { return bytes_; }
 
-            virtual void event(Receive event);
+            void event(Receive event) override;
 
             friend SimpleMessage<Payload>;
 
@@ -64,16 +68,15 @@ namespace laar {
             std::size_t bytes_;
         };
 
-        class Data : IMessage<SimpleMessage<Payload>>::IMessageState {
+        class Data : IEventStateHandle {
         public:
-            Data(SimpleMessage<Payload>* data)          : IMessage<SimpleMessage<Payload>>::IMessageState(data) {}
+            Data(SimpleMessage<Payload>* data)          : IEventStateHandle(data) {}
             // IMessageState implementation
             virtual void entry() override               { bytes_ = this->fsm_->data_->size; }
             virtual void exit() override                {}
-            virtual void event(IEvent event) override   { this->event(*static_cast<Receive*>(&event)); }
             virtual std::size_t bytes() const override  { return bytes_; }
 
-            virtual void event(Receive event);
+            virtual void event(Receive event) override;
 
             friend SimpleMessage<Payload>;
 
@@ -81,16 +84,15 @@ namespace laar {
             std::size_t bytes_;
         };
 
-        class Trail : IMessage<SimpleMessage<Payload>>::IMessageState {
+        class Trail : IEventStateHandle {
         public:
-            Trail(SimpleMessage<Payload>* data)         : IMessage<SimpleMessage<Payload>>::IMessageState(data) {}
+            Trail(SimpleMessage<Payload>* data)         : IEventStateHandle(data) {}
             // IMessageState implementation
             virtual void entry() override               { bytes_ = 0; }
             virtual void exit() override                {}
-            virtual void event(IEvent event) override   { this->event(*static_cast<Receive*>(&event)); }
             virtual std::size_t bytes() const override  { return bytes_; }
 
-            virtual void event(Receive event);
+            virtual void event(Receive event) override;
 
             friend SimpleMessage<Payload>;
 
@@ -117,12 +119,7 @@ namespace laar {
 
     template<typename Payload>
     void SimpleMessage<Payload>::start() {
-        this->current_->entry();
-    }
-
-    template<typename Payload>
-    void SimpleMessage<Payload>::handle(Receive event) {
-        this->current_->event(event);
+        reset();
     }
 
     template<typename Payload>
@@ -147,7 +144,7 @@ namespace laar {
     template<typename Payload>
     void SimpleMessage<Payload>::Size::event(Receive event) {
         if (event.size > bytes_) {
-            throw laar::LaarOverrun();
+            throw laar::LaarOverrun(event.size - bytes_);
         }
 
         bytes_ -= event.size;
@@ -158,6 +155,7 @@ namespace laar {
                 sizeof this->fsm_->data_->size
             );
             this->fsm_->buffer_->advanceReadCursor(sizeof this->fsm_->data_->size);
+            PLOG(plog::debug) << "received size: " << this->fsm_->data_->size;
             this->transition(&this->fsm_->dataState_);
         }
     }
@@ -170,8 +168,9 @@ namespace laar {
 
         bytes_ -= event.size;
         if (!bytes_) {
-            this->fsm_->data_->payload.ParseFromArray(this->fsm_->buffer_->getRawReadCursor(), this->fsm_->data_->size);
+            auto res = this->fsm_->data_->payload.ParseFromArray(this->fsm_->buffer_->getRawReadCursor(), this->fsm_->data_->size);
             this->fsm_->buffer_->advanceReadCursor(this->fsm_->data_->size);
+            PLOG(plog::debug) << "received proto: " << res;
             this->transition(&this->fsm_->dataState_);
         }
     }
