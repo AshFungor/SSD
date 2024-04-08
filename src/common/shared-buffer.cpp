@@ -21,7 +21,7 @@ char* SharedBuffer::getRawWriteCursor(std::size_t writeSize) {
 }
 
 char* SharedBuffer::getRawReadCursor() {
-    return buffer_.data();
+    return buffer_.data() + readCursor_;
 }
 
 void SharedBuffer::clear() {

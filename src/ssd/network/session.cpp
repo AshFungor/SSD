@@ -4,6 +4,7 @@
 #include <sockpp/result.h>
 
 // standard
+#include <sstream>
 #include <stdexcept>
 #include <memory>
 #include <cerrno>
@@ -27,6 +28,60 @@
 
 using namespace srv;
 
+namespace {
+
+    std::string dumpStreamConfig(const NSound::NSimple::TSimpleMessage::TStreamConfiguration& message) {
+        std::stringstream ss;
+        ss << "Message parsed: NSound::NSimple::TSimpleMessage::TStreamConfiguration\n";
+        if (message.has_buffer_config()) {
+            const auto& msg = message.buffer_config();
+            ss << "- TBufferConfig: present\n";
+            ss << "  size: " << msg.size() << "\n";
+            ss << "  prebuffing_size: " << msg.prebuffing_size() << "\n";
+            ss << "  min_request_size: " << msg.min_request_size() << "\n";
+            ss << "  fragment_size: " << msg.fragment_size() << "\n";
+        } else {
+            ss << "- TBufferConfig: missing\n";
+        }
+        if (message.has_channel_map()) {
+            ss << "- TChannelMap: present\n";
+            for (const auto& channel : message.channel_map().mapped_channel()) {
+                ss << "  Channel value:\n";
+                if (channel.has_position()) {
+                    ss << "  Position: " << channel.position() << "\n";
+                }
+                if (channel.has_aux()) {
+                    ss << "  AUX: " << channel.aux() << "\n"; 
+                }
+            }
+        } else {
+            ss << "- TChannelMap: missing\n";
+        }
+        if (message.has_client_name()) {
+            ss << "- ClientName: " << message.client_name() << "\n";
+        } else {
+            ss << "- ClientName: missing\n"; 
+        }
+        if (message.has_stream_name()) {
+            ss << "- StreamName: " << message.has_stream_name() << "\n";
+        } else {
+            ss << "- StreamName: missing\n"; 
+        }
+        if (message.has_sample_spec()) {
+            const auto& msg = message.sample_spec();
+            ss << "- TSampleSpec: present\n";
+            ss << "  Format: " << msg.format() << "\n";
+            ss << "  SampleRate: " << msg.sample_rate() << "\n";
+            ss << "  Channels: " << msg.channels() << "\n";
+        } else {
+            ss << "- TSampleSpec: missing\n";
+        }
+        ss << "- Direction: " << message.direction() << "\n";
+        ss << "Parsing ended.";
+        return ss.str();
+    }
+
+} // anonymous namespace
 
 ClientSession::ClientSession(sockpp::tcp_socket&& sock, std::shared_ptr<laar::SharedBuffer> buffer, Private access) 
 : sock_(std::move(sock))
@@ -87,7 +142,10 @@ bool ClientSession::update() {
     auto requestedBytes = message_.bytes();
     auto res = sock_.recv(buffer_->getRawWriteCursor(0), requestedBytes);
     
-    if (res.is_error()) {
+    if (res.is_error() || !res.value()) {
+        if (!res.value()) {
+            return false;
+        }
         if (res.error().value() != EWOULDBLOCK) {
             handleErrorState(std::move(res));
         } else {
@@ -95,20 +153,20 @@ bool ClientSession::update() {
         }
     }
 
-    PLOG(plog::debug) << "size " << res.value();
     laar::Receive event (res.value());
     buffer_->getRawWriteCursor(event.size);
     message_.handle<laar::Receive>(event);
+    buffer_->advanceReadCursor(event.size);
 
-    if (message_.isInState<message_t::Trail>()) {
-        NSound::TClientMessage clientMessage;
+    if (message_.isInTrail()) {
         auto result = message_.result();
-        *clientMessage.mutable_simple_message() = std::move(result->payload);
-        onClientMessage(clientMessage);
+        onClientMessage(std::move(result->payload));
         buffer_->clear();
 
         message_.reset();
     }
+
+    isUpdating_ = false;
 
     return true;
 }
@@ -129,9 +187,8 @@ void ClientSession::onClientMessage(const NSound::TClientMessage& message) {
 
 void ClientSession::onStreamConfigMessage(const NSound::NSimple::TSimpleMessage::TStreamConfiguration& message) {
     // handle double config on same stream
-    PLOG(plog::debug) 
-        << "config for peer: " << sock_.peer_address()
-        << " is " << message.DebugString();
+    PLOG(plog::debug) << "config for peer: " << sock_.peer_address() << " received, dumping it to logs";
+    PLOG(plog::debug) << dumpStreamConfig(message);
     sessionConfig_ = message;
 }
 

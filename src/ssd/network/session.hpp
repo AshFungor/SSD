@@ -26,7 +26,6 @@ namespace srv {
     {
     private: struct Private { };
     public:
-        using message_t = laar::SimpleMessage<NSound::NSimple::TSimpleMessage>;
 
         static std::shared_ptr<ClientSession> instance(sockpp::tcp_socket&& sock);
         ClientSession(sockpp::tcp_socket&& sock, std::shared_ptr<laar::SharedBuffer> buffer, Private access);
@@ -52,7 +51,7 @@ namespace srv {
         std::atomic<bool> isUpdating_;
 
         std::shared_ptr<laar::SharedBuffer> buffer_;
-        laar::SimpleMessage<NSound::NSimple::TSimpleMessage> message_;
+        laar::ClientMessageBuilder message_;
 
         NSound::NSimple::TSimpleMessage::TStreamConfiguration sessionConfig_;
         sockpp::tcp_socket sock_;

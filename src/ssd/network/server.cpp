@@ -90,7 +90,7 @@ void Server::parseDefaultConfig(const nlohmann::json& config) {
         }
 
         if (settings_.timeouts.empty()) {
-            settings_.timeouts = {1ms, 2ms, 3ms, 5ms, 10ms};
+            settings_.timeouts = {1ms, 2ms, 3ms, 50ms, 100ms};
         }
 
         currentTimeout_ = settings_.timeouts.begin();

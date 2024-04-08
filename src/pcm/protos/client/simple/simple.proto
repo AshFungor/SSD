@@ -53,7 +53,7 @@ message TSimpleMessage {
                 }
             }
 
-            repeated TMapValue MappedChannel = 1;
+            repeated TMapValue mapped_channel = 1;
         }
 
         message TBufferConfiguration {

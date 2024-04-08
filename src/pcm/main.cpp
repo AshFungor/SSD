@@ -19,9 +19,9 @@ int main() {
         std::cout << "result: " << res.error_message() << "\n";
     }
 
-    NSound::NSimple::TSimpleMessage message = NSound::NSimple::TSimpleMessage::default_instance();
-    *message.mutable_stream_config() = NSound::NSimple::TSimpleMessage::TStreamConfiguration::default_instance();
-    message.mutable_stream_config()->mutable_buffer_config()->set_fragment_size(12);
+    NSound::TClientMessage message;
+    *message.mutable_simple_message()->mutable_stream_config() = NSound::NSimple::TSimpleMessage::TStreamConfiguration::default_instance();
+    message.mutable_simple_message()->mutable_stream_config()->mutable_buffer_config()->set_fragment_size(12);
     std::size_t len = message.ByteSizeLong();
 
     std::cout << "sending message with " << len << " bytes\n";

@@ -45,12 +45,6 @@ namespace laar {
 
         const IMessageState* state() const;
 
-        template<typename State>
-        bool isInState();
-
-        template<typename State>
-        const State* getStateOrThrow() const;
-
     protected:
         void addStates(std::initializer_list<const IMessageState*> states);
 
@@ -74,18 +68,6 @@ namespace laar {
     template<typename TDerivedMessage>
     const IMessage<TDerivedMessage>::IMessageState* IMessage<TDerivedMessage>::state() const {
         return current_;
-    }
-
-    template<typename TDerivedMessage>
-    template<typename State>
-    bool IMessage<TDerivedMessage>::isInState() {
-        return dynamic_cast<State*>(current_);
-    }
-
-    template<typename TDerivedMessage>
-    template<typename State>
-    const State* IMessage<TDerivedMessage>::getStateOrThrow() const {
-        return &dynamic_cast<State&>(current_);
     }
 
     template<typename TDerivedMessage>
