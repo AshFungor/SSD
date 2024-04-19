@@ -182,6 +182,18 @@ void ClientSession::onClientMessage(const NSound::TClientMessage& message) {
             PLOG(plog::debug) << "Received message: TStreamConfig";
             onStreamConfigMessage(simple.stream_config());
         }
+        if (simple.has_close()) {
+            // close connection and terminate session
+        }
+        if (simple.has_push()) {
+            // push data to buffer
+        }
+        if (simple.has_pull()) {
+            // send data to user
+        }
+        if (simple.has_drain()) {
+            // lock till buffer is free
+        }
     }
 }
 

@@ -15,19 +15,20 @@ message TSimpleMessage {
         message TSampleSpecification {
             
             enum TFormat {
-                UNSIGNED_8 = 0;
-                UNSIGNED_8_ALAW = 1;
-                UNSIGNED_8_ULAW = 2;
-                SIGNED_16_LITTLE_ENDIAN = 3;
-                SIGNED_16_BIG_ENDIAN = 4;
-                FLOAT_32_LITTLE_ENDIAN = 5;
-                FLOAT_32_BIG_ENDIAN = 6;
-                SIGNED_32_LITTLE_ENDIAN = 7;
-                SIGNED_32_BIG_ENDIAN = 8;
-                SIGNED_24_LITTLE_ENDIAN = 9;
-                SIGNED_24_BIG_ENDIAN = 10;
-                SIGNED_24_LSB_LITTLE_ENDIAN = 11;
-                SIGNED_24_LSB_BIG_ENDIAN = 12;
+                UNKNOWN = 0
+                UNSIGNED_8 = 1;
+                UNSIGNED_8_ALAW = 2;
+                UNSIGNED_8_ULAW = 3;
+                SIGNED_16_LITTLE_ENDIAN = 4;
+                SIGNED_16_BIG_ENDIAN = 5;
+                FLOAT_32_LITTLE_ENDIAN = 6;
+                FLOAT_32_BIG_ENDIAN = 7;
+                SIGNED_32_LITTLE_ENDIAN = 8;
+                SIGNED_32_BIG_ENDIAN = 9;
+                SIGNED_24_LITTLE_ENDIAN = 10;
+                SIGNED_24_BIG_ENDIAN = 11;
+                SIGNED_24_LSB_LITTLE_ENDIAN = 12;
+                SIGNED_24_LSB_BIG_ENDIAN = 13;
             }
 
             TFormat Format = 1;

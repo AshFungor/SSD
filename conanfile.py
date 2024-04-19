@@ -10,5 +10,5 @@ class SoundServer(ConanFile):
         "protobuf/3.21.12",
         "nlohmann_json/3.11.3",
         "boost/1.84.0",
-        "gstreamer/1.22.6"]
+        "libalsa/1.2.10"]
     tool_requires = ["protobuf/3.21.12"]

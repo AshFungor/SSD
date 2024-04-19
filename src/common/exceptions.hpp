@@ -25,8 +25,8 @@ namespace laar {
     class LaarOverrun : std::exception {
     public:
 
-        LaarOverrun() = default;
-        LaarOverrun(std::size_t by) : by_(by) {}
+        LaarOverrun() { init(); }
+        LaarOverrun(std::size_t by) : by_(by) { init(); }
 
         virtual const char* what() const noexcept override {
             return errorMessage_.c_str();
@@ -61,6 +61,14 @@ namespace laar {
         virtual const char* what() const noexcept override {
             return "state validation failed";
         }
+    };
+
+    class LaarSoundHandlerError : std::exception {
+    public:
+        LaarSoundHandlerError(std::string message) : message_(std::move(message)) {}
+
+    protected:
+        std::string message_;
     };
 
 }
