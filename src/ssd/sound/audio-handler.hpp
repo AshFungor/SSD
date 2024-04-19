@@ -7,9 +7,15 @@
 #include <alsa/pcm.h>
 
 // std
+#include <format>
 #include <memory>
 
+// plog
+#include <plog/Severity.h>
+#include <plog/Log.h>
+
 // proto
+#include <plog/Severity.h>
 #include <protos/client/simple/simple.pb.h>
 
 
@@ -31,8 +37,8 @@ namespace sound {
         );
 
         void init();
-        void pushSome(char* buffer, std::size_t n);
-        void pullSome(char* buffer, std::size_t n);
+        void push(char* buffer, std::size_t frames);
+        void pull(char* buffer, std::size_t frames);
         void drain();
 
         ~SoundHandler();
@@ -40,13 +46,18 @@ namespace sound {
     private:
 
         template<typename... FormatArgs>
-        void onError(std::string format, FormatArgs... args);
+        void onFatalError(std::string format, FormatArgs... args);
+
+        template<typename... FormatArgs>
+        void onRecoveribleError(int error, std::string format, FormatArgs... args);
 
         void hwInit();
         void swInit();
 
         snd_pcm_stream_t getStreamDir();
         snd_pcm_format_t getFormat();
+
+        void xrunRecovery(int error);
 
     private:
 
@@ -64,4 +75,15 @@ namespace sound {
 
     };
 
+}
+
+template<typename... FormatArgs>
+void sound::SoundHandler::onFatalError(std::string format, FormatArgs... args) {
+    throw laar::LaarSoundHandlerError(std::vformat(format, std::make_format_args(args...)));
+}
+
+template<typename... FormatArgs>
+void sound::SoundHandler::onRecoveribleError(int error, std::string format, FormatArgs... args) {
+    PLOG(plog::warning) << std::vformat(format, std::make_format_args(args...));
+    xrunRecovery(error);
 }

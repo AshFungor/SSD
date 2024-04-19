@@ -50,6 +50,27 @@ void CallbackQueue::init() {
     initiated_ = true;
 }
 
+bool CallbackQueue::isWorkerThread() {
+    return std::this_thread::get_id() == workerThread_.get_id();
+}
+
+void CallbackQueue::hang() {
+    std::condition_variable cv;
+    std::mutex callingLock;
+    std::unique_lock<std::mutex> locked(callingLock);
+
+    bool isReached = false;
+
+    query([&cv, &isReached]() {
+        isReached = true;
+        cv.notify_one();
+    });
+
+    cv.wait(locked, [&isReached]() {
+        return !isReached;
+    });
+}
+
 void CallbackQueue::run() {
     genericCallback_t task;
     

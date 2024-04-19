@@ -45,6 +45,10 @@ namespace laar {
         void query(std::function<void()> task, std::chrono::milliseconds timeout);
         void query(std::function<void()> task, std::weak_ptr<void> lifetime);
 
+        void hang();
+
+        bool isWorkerThread();
+
     private:
         void query(genericCallback_t callback);
 

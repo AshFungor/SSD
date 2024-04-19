@@ -15,7 +15,7 @@ message TSimpleMessage {
         message TSampleSpecification {
             
             enum TFormat {
-                UNKNOWN = 0
+                UNKNOWN = 0;
                 UNSIGNED_8 = 1;
                 UNSIGNED_8_ALAW = 2;
                 UNSIGNED_8_ULAW = 3;
