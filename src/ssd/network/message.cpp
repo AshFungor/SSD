@@ -23,7 +23,7 @@ void ClientMessageBuilder::start() {
 }
 
 ClientMessageBuilder::ClientMessageBuilder(std::shared_ptr<laar::SharedBuffer> buffer)
-: IMessage<ClientMessageBuilder>({&sizeState_, &dataState_, &trailState_}, &sizeState_)
+: MessageBase<ClientMessageBuilder>({&sizeState_, &dataState_, &trailState_}, &sizeState_)
 , buffer_(buffer)
 {}
 

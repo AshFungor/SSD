@@ -1,5 +1,4 @@
 // server
-#include "common/thread-pool.hpp"
 #include <network/server.hpp>
 
 // plog
@@ -9,18 +8,20 @@
 
 // laar
 #include <common/callback-queue.hpp>
+#include <sounds/audio-handler.hpp>
+#include <common/thread-pool.hpp>
 #include <util/config-loader.hpp>
 
 int main() {
 
     plog::init(plog::Severity::debug, "server.log", 1024 * 8, 2);
 
-    auto cbQueue = laar::CallbackQueue::configure({});
-    PLOG(plog::debug) << "module created: " << "CallbackQueue; instance: " << cbQueue.get();
-    auto configHandler = laar::ConfigHandler::configure("", cbQueue);
+    auto SharedCallbackQueue = laar::CallbackQueue::configure({});
+    PLOG(plog::debug) << "module created: " << "SharedCallbackQueue; instance: " << SharedCallbackQueue.get();
+    auto configHandler = laar::ConfigHandler::configure("", SharedCallbackQueue);
     PLOG(plog::debug) << "module created: " << "ConfigHandler; instance: " << configHandler.get();
 
-    cbQueue->init();
+    SharedCallbackQueue->init();
     configHandler->init();
 
     auto threadPool = laar::ThreadPool::configure({});
@@ -28,7 +29,7 @@ int main() {
     
     PLOG(plog::debug) << "module created: " << "ThreadPool; instance: " << threadPool.get();
 
-    auto server = srv::Server::configure(cbQueue, threadPool, configHandler);
+    auto server = srv::Server::configure(SharedCallbackQueue, threadPool, configHandler);
     PLOG(plog::debug) << "module created: " << "Server; instance: " << server.get();
 
     server->init();

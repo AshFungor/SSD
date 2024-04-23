@@ -27,7 +27,7 @@ namespace laar {
         std::size_t size;
     };
 
-    class ClientMessageBuilder : public IMessage<ClientMessageBuilder> {
+    class ClientMessageBuilder : public MessageBase<ClientMessageBuilder> {
     public:
 
         // IMessage implementation
@@ -48,9 +48,9 @@ namespace laar {
         bool isInData();
         bool isInTrail();
 
-        class IEventStateHandle : public IMessage<ClientMessageBuilder>::IMessageState {
+        class IEventStateHandle : public MessageBase<ClientMessageBuilder>::MessageStateBase {
         public:
-            IEventStateHandle(ClientMessageBuilder* data) : IMessageState(data) {}
+            IEventStateHandle(ClientMessageBuilder* data) : MessageStateBase(data) {}
             virtual void event(Receive event) {}
         };
 

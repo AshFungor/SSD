@@ -11,30 +11,30 @@
 namespace laar {
 
     template<typename TDerivedMessage>
-    class IMessage {
+    class MessageBase {
     public:
 
-        class IMessageState {
+        class MessageStateBase {
         public:
-            virtual ~IMessageState() = default;
-            IMessageState(TDerivedMessage* message);
-            IMessageState(const IMessageState&) = delete;
-            IMessageState(IMessageState&&) = default;
+            virtual ~MessageStateBase() = default;
+            MessageStateBase(TDerivedMessage* message);
+            MessageStateBase(const MessageStateBase&) = delete;
+            MessageStateBase(MessageStateBase&&) = default;
             // generic state interface
             virtual void entry();
             virtual void exit();
             virtual std::size_t bytes() const;
             // transition function is always the same
-            void transition(IMessageState* next);
+            void transition(MessageStateBase* next);
 
-            friend IMessage<TDerivedMessage>;
+            friend MessageBase<TDerivedMessage>;
 
         protected:
             TDerivedMessage* const fsm_;
         };
 
-        IMessage(std::initializer_list<const IMessageState*> states, IMessageState* initial);
-        virtual ~IMessage() = default;
+        MessageBase(std::initializer_list<const MessageStateBase*> states, MessageStateBase* initial);
+        virtual ~MessageBase() = default;
 
         virtual void reset();
         virtual void start();
@@ -43,35 +43,35 @@ namespace laar {
         template<typename TEvent>
         void handle(TEvent event);
 
-        const IMessageState* state() const;
+        const MessageStateBase* state() const;
 
     protected:
-        void addStates(std::initializer_list<const IMessageState*> states);
+        void addStates(std::initializer_list<const MessageStateBase*> states);
 
     protected:
-        IMessageState* current_ = nullptr;
+        MessageStateBase* current_ = nullptr;
 
     private:
 
         class StateValidator {
         public:
-            bool present(const IMessageState* state) const;
-            void addState(const IMessageState* state);
-            void removeState(const IMessageState* state);
+            bool present(const MessageStateBase* state) const;
+            void addState(const MessageStateBase* state);
+            void removeState(const MessageStateBase* state);
 
         private:
-            std::set<const IMessageState*> states_;
+            std::set<const MessageStateBase*> states_;
         } stateValidator_;
 
     };
 
     template<typename TDerivedMessage>
-    const IMessage<TDerivedMessage>::IMessageState* IMessage<TDerivedMessage>::state() const {
+    const MessageBase<TDerivedMessage>::MessageStateBase* MessageBase<TDerivedMessage>::state() const {
         return current_;
     }
 
     template<typename TDerivedMessage>
-    IMessage<TDerivedMessage>::IMessage(std::initializer_list<const IMessageState*> states, IMessageState* initial) {
+    MessageBase<TDerivedMessage>::MessageBase(std::initializer_list<const MessageStateBase*> states, MessageStateBase* initial) {
         addStates(std::move(states));
         if (stateValidator_.present(initial)) {
             current_ = initial;
@@ -81,32 +81,32 @@ namespace laar {
     }
 
     template<typename TDerivedMessage>
-    IMessage<TDerivedMessage>::IMessageState::IMessageState(TDerivedMessage* message) 
+    MessageBase<TDerivedMessage>::MessageStateBase::MessageStateBase(TDerivedMessage* message) 
     : fsm_(message)
     {}
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::IMessageState::entry() {}
+    void MessageBase<TDerivedMessage>::MessageStateBase::entry() {}
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::IMessageState::exit() {}
+    void MessageBase<TDerivedMessage>::MessageStateBase::exit() {}
 
     template<typename TDerivedMessage>
-    std::size_t IMessage<TDerivedMessage>::IMessageState::bytes() const { return 0; }
+    std::size_t MessageBase<TDerivedMessage>::MessageStateBase::bytes() const { return 0; }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::start() {}
+    void MessageBase<TDerivedMessage>::start() {}
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::reset() {}
+    void MessageBase<TDerivedMessage>::reset() {}
 
     template<typename TDerivedMessage>
-    std::size_t IMessage<TDerivedMessage>::bytes() {
+    std::size_t MessageBase<TDerivedMessage>::bytes() {
         return current_->bytes();
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::IMessageState::transition(IMessageState* next) {
+    void MessageBase<TDerivedMessage>::MessageStateBase::transition(MessageStateBase* next) {
         if (fsm_->stateValidator_.present(next)) {
             fsm_->current_->exit();
             fsm_->current_ = next;
@@ -117,22 +117,22 @@ namespace laar {
     }
 
     template<typename TDerivedMessage>
-    bool IMessage<TDerivedMessage>::StateValidator::present(const IMessageState* state) const {
+    bool MessageBase<TDerivedMessage>::StateValidator::present(const MessageStateBase* state) const {
         return states_.contains(state) && state;
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::StateValidator::addState(const IMessageState* state) {
+    void MessageBase<TDerivedMessage>::StateValidator::addState(const MessageStateBase* state) {
         states_.insert(state);
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::StateValidator::removeState(const IMessageState* state) {
+    void MessageBase<TDerivedMessage>::StateValidator::removeState(const MessageStateBase* state) {
         states_.erase(state);
     }
 
     template<typename TDerivedMessage>
-    void IMessage<TDerivedMessage>::addStates(std::initializer_list<const IMessageState*> states) {
+    void MessageBase<TDerivedMessage>::addStates(std::initializer_list<const MessageStateBase*> states) {
         for (auto& state : states) {
             stateValidator_.addState(state);
         }
@@ -140,7 +140,7 @@ namespace laar {
 
     template<typename TDerivedMessage>
     template<typename TEvent>
-    void IMessage<TDerivedMessage>::handle(TEvent event) {
+    void MessageBase<TDerivedMessage>::handle(TEvent event) {
         static_cast<typename TDerivedMessage::IEventStateHandle*>(current_)->event(std::move(static_cast<TEvent>(event)));
     }
 }

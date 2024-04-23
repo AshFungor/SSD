@@ -72,7 +72,8 @@ void CallbackQueue::hang() {
 }
 
 void CallbackQueue::run() {
-    genericCallback_t task;
+    CallbackPtr task;
+    TimedCallbackPtr timedTask;
     
     while (true) {
         {

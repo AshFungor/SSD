@@ -1,6 +1,7 @@
 // laar
 #include <common/callback-queue.hpp>
 #include <common/exceptions.hpp>
+#include <common/macros.hpp>
 
 // alsa
 #include <alsa/asoundlib.h>
@@ -24,7 +25,6 @@
 
 // local
 #include "audio-handler.hpp"
-#include "common/macros.hpp"
 
 using namespace sound;
 

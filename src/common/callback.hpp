@@ -1,78 +1,176 @@
 #pragma once
 
 // standard
+#include "common/exceptions.hpp"
+#include <concepts>
 #include <functional>
 #include <chrono>
 #include <memory>
+
+/* Callbacks are essential when there is a need for async execution.
+ * This file contains some generic interfaces and specifications for use
+ * within common threading primitives.
+ */
 
 namespace laar {
 
     using hs_clock = std::chrono::high_resolution_clock;
 
+    // Generic callback.
+    template<typename... Args>
     class ICallback {
     public:
-        virtual bool validate() const = 0;
-        virtual bool locked() const = 0;
-        virtual void execute() = 0;
-        virtual void operator()() = 0;
+        // Convenience method
+        template<typename TCallback, typename... TInitialArgs>
+        static std::unique_ptr<ICallback<Args...>> makeCallback(TInitialArgs... args) 
+            requires std::derived_from<TCallback, ICallback<Args...>>
+        {
+            return std::make_unique<TCallback>(args...);
+        }
+        // Calls underlying lambda or function
+        virtual void execute(Args... args) = 0;
+        // Same as execute(Args...)
+        virtual void operator()(Args... args) = 0;
+        virtual ~ICallback() = 0;
     };
 
-    class PersistentCallback : public ICallback {
+    // Conditional callbacks need additional validation
+    // before being called.
+    template<typename... Args>
+    class IConditionalCallback : public ICallback<Args...> {
+    public:
+        // additional method to validate callback
+        virtual bool isValid() const = 0;
+    };
+
+    // Persistent callback is always valid
+    template<typename... Args>
+    class PersistentCallback : public IConditionalCallback<Args...> {
     public:
         PersistentCallback(std::function<void()> task);
-        PersistentCallback(const PersistentCallback&) = delete;
-        virtual bool validate() const override;
-        virtual bool locked() const override;
-        virtual void execute() override;
-        virtual void operator()() override;
+        // IConditionalCallback implementation
+        virtual bool isValid() const override;
+        // ICallback implementation
+        virtual void execute(Args... args) override;
+        virtual void operator()(Args... args) override;
+
     private:
-        std::function<void()> task_;
+        std::function<void(Args...)> task_;
     };
 
-    class Callback : public ICallback {
-    public:
-        Callback(std::function<void()> task);
-        Callback(const Callback&) = delete;
-        virtual bool validate() const override;
-        virtual bool locked() const override;
-        virtual void execute() override;
-        virtual void operator()() override;
-    protected:
-        bool valid_ {true};
-        std::function<void()> task_;
-    };
-
-    class TimedCallback : public Callback {
+    // Timed callback needs to be called at or after desired ts
+    template<typename... Args>
+    class TimedCallback : public IConditionalCallback<Args...> {
     public:
         TimedCallback(std::function<void()> task, std::chrono::milliseconds timeout);
-        virtual bool validate() const override;
-        hs_clock::time_point goesOff() const;
+        TimedCallback(std::function<void()> task, hs_clock::time_point expirationTs);
+        // IConditionalCallback implementation
+        virtual bool isValid() const override;
+        // ICallback implementation
+        virtual void execute(Args... args) override;
+        virtual void operator()(Args... args) override;
+        // Get ts when this callback is valid
+        hs_clock::time_point expires() const;
+
     private:
-        std::chrono::milliseconds timeout_;
-        std::chrono::high_resolution_clock::time_point startTs_;
+        std::function<void(Args...)> task_;
+        hs_clock::time_point endTs_;
     };
 
-    class OptionalCallback : public Callback {
+    // Bound callback is linked to target resource and needs to check it existence first
+    template<typename... Args>
+    class BoundCallback : public IConditionalCallback<Args...> {
     public:
-        OptionalCallback(std::function<void()> task, std::weak_ptr<void> lifetime);
-        virtual bool validate() const override;
+        BoundCallback(std::function<void()> task, std::weak_ptr<void> binding);
+        // IConditionalCallback implementation
+        virtual bool isValid() const override;
+        // ICallback implementation
+        virtual void execute(Args... args) override;
+        virtual void operator()(Args... args) override;
+
     private:
-        std::weak_ptr<void> lifetime_;
+        std::function<void(Args...)> task_;
+        std::weak_ptr<void> binding_;
     };
 
-    template<typename Callback_t, typename... Args>
-    std::unique_ptr<ICallback> makeCallback(Args... args) {
-        return std::make_unique<Callback_t>(args...);
+
+    template<typename... Args>
+    PersistentCallback<Args...>::PersistentCallback(std::function<void()> task)
+    : task_(std::move(task))
+    {}
+
+    template<typename... Args>
+    TimedCallback<Args...>::TimedCallback(std::function<void()> task, std::chrono::milliseconds timeout) 
+    : task_(std::move(task))
+    , endTs_(hs_clock::now() + timeout)
+    {}
+
+    template<typename... Args>
+    TimedCallback<Args...>::TimedCallback(std::function<void()> task, hs_clock::time_point endTs) 
+    : task_(std::move(task))
+    , endTs_(std::move(endTs))
+    {}
+
+    template<typename... Args>
+    BoundCallback<Args...>::BoundCallback(std::function<void()> task, std::weak_ptr<void> binding) 
+    : task_(std::move(task))
+    , binding_(std::move(binding))
+    {}
+
+    template<typename... Args>
+    bool PersistentCallback<Args...>::isValid() const {
+        return true;
     }
 
-    template<typename Callback_t>
-    std::unique_ptr<Callback_t> specifyCallback(std::unique_ptr<ICallback> generic) {
-        return std::unique_ptr<Callback_t>(dynamic_cast<Callback_t*>(generic.release()));
+    template<typename... Args>
+    bool TimedCallback<Args...>::isValid() const {
+        return hs_clock::now() >= endTs_;
     }
 
-    template<typename Callback_t>
-    bool isCastDownPossible(const std::unique_ptr<ICallback>& generic) {
-        return dynamic_cast<Callback_t*>(generic.get());
+    template<typename... Args>
+    bool BoundCallback<Args...>::isValid() const {
+        return binding_.lock() != nullptr;
+    }
+
+    template<typename... Args>
+    void PersistentCallback<Args...>::execute(Args... args) {
+        task_(std::move(args...));
+    }
+
+    template<typename... Args>
+    void TimedCallback<Args...>::execute(Args... args) {
+        if (!isValid()) {
+            throw laar::LaarValidatorError();
+        }
+        task_(std::move(args...));
+    }
+
+    template<typename... Args>
+    void BoundCallback<Args...>::execute(Args... args) {
+        if (!isValid()) {
+            throw laar::LaarValidatorError();
+        }
+        task_(std::move(args...));
+    }
+
+    template<typename... Args>
+    void PersistentCallback<Args...>::operator()(Args... args) {
+        execute(std::move(args...));
+    }
+
+    template<typename... Args>
+    void TimedCallback<Args...>::operator()(Args... args) {
+        execute(std::move(args...));
+    }
+
+    template<typename... Args>
+    void BoundCallback<Args...>::operator()(Args... args) {
+        execute(std::move(args...));
+    }
+
+    template<typename... Args>
+    hs_clock::time_point TimedCallback<Args...>::expires() const {
+        return endTs_;
     }
 
 } // namespace laar

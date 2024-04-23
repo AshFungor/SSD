@@ -23,10 +23,17 @@ namespace laar {
     {
     private: struct Private{ };
     public:
-        using timedCallback_t = std::unique_ptr<TimedCallback>;
-        using optionalCallback_t = std::unique_ptr<OptionalCallback>;
-        using regularCallback_t = std::unique_ptr<Callback>;
-        using genericCallback_t = std::unique_ptr<ICallback>;
+
+        // callback uses simple tasks with no arguments
+        using IConditionalCallback = IConditionalCallback<>;
+        using Callback = PersistentCallback<>;
+        using TimedCallback = TimedCallback<>;
+        using BoundCallback = BoundCallback<>;
+        using ICallback = ICallback<>;
+
+        using TimedCallbackPtr = std::unique_ptr<TimedCallback>;
+        using BoundCallbackPtr = std::unique_ptr<BoundCallback>;
+        using CallbackPtr = std::unique_ptr<Callback>;
 
         struct CallbackQueueSettings {
             std::size_t maxSize = 1024;
@@ -50,11 +57,11 @@ namespace laar {
         bool isWorkerThread();
 
     private:
-        void query(genericCallback_t callback);
+        void query(Callback callback);
 
-        void handleRegularCallback(regularCallback_t callback);
-        void handleOptionalCallback(optionalCallback_t callback);
-        void handleTimedCallback(timedCallback_t callback);
+        void handleRegularCallback(Callback callback);
+        void handleOptionalCallback(BoundCallback callback);
+        void handleTimedCallback(TimedCallback callback);
 
         void schedule();
         void run();
@@ -74,15 +81,16 @@ namespace laar {
         std::thread workerThread_;
 
         std::queue<std::unique_ptr<ICallback>> tasks_;
+        std::queue<TimedCallbackPtr> timedTasks_;
 
         class Later {
         public:
-            bool operator()(const timedCallback_t& lhs, const timedCallback_t& rhs) {
-                return lhs->goesOff() > rhs->goesOff();
+            bool operator()(const TimedCallbackPtr& lhs, const TimedCallbackPtr& rhs) {
+                return lhs->expires() > rhs->expires();
             }
         };
 
-        std::priority_queue<timedCallback_t, std::vector<timedCallback_t>, Later> scheduled_;
+        std::priority_queue<TimedCallbackPtr, std::vector<TimedCallbackPtr>, Later> scheduled_;
     };
 
 } // namespace laar
