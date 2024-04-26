@@ -129,5 +129,13 @@ std::size_t RingBuffer::drop(std::size_t size) {
     return size;
 }
 
+char* RingBuffer::rdCursor() {
+    return buffer_->data() + rPos_;
+}
+
+char* RingBuffer::wrCursor() {
+    return buffer_->data() + wPos_;
+}
+
 
 

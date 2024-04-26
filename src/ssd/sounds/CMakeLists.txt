@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 
 project(sound LANGUAGES CXX VERSION 0.0)
 
-set(SOURCES audio-handler.cpp ring-buffer.cpp)
-set(HEADERS audio-handler.hpp ring-buffer.hpp)
+set(SOURCES audio-handler.cpp)
+set(HEADERS audio-handler.hpp)
 
 add_library(sound STATIC ${SOURCES} ${HEADERS})
 

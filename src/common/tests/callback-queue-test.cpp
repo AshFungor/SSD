@@ -1,4 +1,5 @@
 // GTest
+#include <atomic>
 #include <gtest/gtest.h>
 
 // standard
@@ -47,16 +48,19 @@ TEST_F(CallbackQueueTest, RegularSyncExecution) {
 TEST_F(CallbackQueueTest, TimedCallbackTest) {
     auto ts = high_resolution_clock::now();
     std::vector<milliseconds> durations = {10ms, 200ms, 100ms};
+    std::atomic_int callbackCount = 0;
     for (const auto& duration : durations) {
-        cbQueue->query([this, ts = ts, duration = duration]() {
+        cbQueue->query([this, ts = ts, duration = duration, &callbackCount]() {
             auto actualDuration = high_resolution_clock::now() - ts;
+            ++callbackCount;
             GTEST_COUT("Callback executed after: " << duration_cast<milliseconds>(actualDuration) << ", requested: " << duration_cast<milliseconds>(duration))
             EXPECT_TRUE(actualDuration >= duration) << "callback executed earlier by " << duration - actualDuration << " ms!";
         }, duration);
     }
-    auto hold = durations.back() * 2;
+    auto hold = *std::max(durations.begin(), durations.end()) * 2;
     GTEST_COUT("Waiting for " << duration_cast<milliseconds>(hold));
     std::this_thread::sleep_for(hold);
+    EXPECT_EQ(callbackCount, 3);
 }
 
 TEST_F(CallbackQueueTest, OptionalCallbackTest) {

@@ -1,13 +1,13 @@
 #pragma once
 
 // standard
-#include <cstddef>
 #include <initializer_list>
+#include <cstddef>
 #include <memory>
 
 // laar
 #include <network/interfaces/i-message.hpp>
-#include <common/shared-buffer.hpp>
+#include <common/ring-buffer.hpp>
 #include <common/exceptions.hpp>
 #include <common/macros.hpp>
 
@@ -34,7 +34,7 @@ namespace laar {
         virtual void reset() override;
         virtual void start() override;
 
-        ClientMessageBuilder(std::shared_ptr<laar::SharedBuffer> buffer);
+        ClientMessageBuilder(std::shared_ptr<laar::RingBuffer> buffer);
 
         struct MessageData {
             std::size_t size;
@@ -58,7 +58,7 @@ namespace laar {
         public:
             Size(ClientMessageBuilder* data)            : IEventStateHandle(data) {}
             // IMessageState implementation
-            virtual void entry() override               { bytes_ = sizeof this->fsm_->data_->size; }
+            virtual void entry() override               { bytes_ = sizeof this->message_->data_->size; }
             virtual void exit() override                {}
             virtual std::size_t bytes() const override  { return bytes_; }
 
@@ -74,7 +74,7 @@ namespace laar {
         public:
             Data(ClientMessageBuilder* data)            : IEventStateHandle(data) {}
             // IMessageState implementation
-            virtual void entry() override               { bytes_ = this->fsm_->data_->size; }
+            virtual void entry() override               { bytes_ = this->message_->data_->size; }
             virtual void exit() override                {}
             virtual std::size_t bytes() const override  { return bytes_; }
 
@@ -105,7 +105,7 @@ namespace laar {
         
     private:     
         std::unique_ptr<MessageData> data_;
-        std::shared_ptr<laar::SharedBuffer> buffer_;
+        std::shared_ptr<laar::RingBuffer> buffer_;
 
         Size sizeState_     {this};
         Data dataState_     {this};

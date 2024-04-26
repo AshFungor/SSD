@@ -2,13 +2,60 @@
 
 // standard
 #include <initializer_list>
+#include <exception>
 #include <cstddef>
 #include <set>
 
 // laar
+#include <common/ring-buffer.hpp>
 #include <common/exceptions.hpp>
 
 namespace laar {
+
+    // Controls construction of messages
+    template<typename FallbackHandle>
+    class IMessageBuilder {
+    public:
+
+        // Payload for state machine
+        struct Receive {
+            // Constructs payload
+            Receive(std::size_t size, laar::RingBuffer& buffer)
+            : size(size)
+            , buffer(buffer)
+            {}
+            
+            // Received size
+            std::size_t size;
+            // Buffer with data
+            laar::RingBuffer& buffer;
+        };
+
+        class IFallbackHandler {
+        public:
+            virtual void onError(IMessageBuilder* builder, std::exception error) = 0;
+            virtual ~IFallbackHandler() = default;
+        };
+
+        class IResult {
+
+        };
+
+        // resets construction process and puts initial state into ready
+        virtual void reset() = 0;
+        // inits builder, might be empty
+        virtual void init() = 0;
+        // check how many bytes of data needed for current chunk
+        virtual void poll() const = 0;
+        // handler for incoming data, returns true if construction is completed
+        virtual bool handle(Receive payload) = 0;
+        // checks if message is ready
+        virtual operator bool() const;
+        // same as above
+        virtual bool ready() const = 0;
+
+        virtual ~IMessageBuilder() = default;
+    };
 
     template<typename TDerivedMessage>
     class MessageBase {
@@ -30,7 +77,7 @@ namespace laar {
             friend MessageBase<TDerivedMessage>;
 
         protected:
-            TDerivedMessage* const fsm_;
+            TDerivedMessage* const message_;
         };
 
         MessageBase(std::initializer_list<const MessageStateBase*> states, MessageStateBase* initial);
@@ -82,7 +129,7 @@ namespace laar {
 
     template<typename TDerivedMessage>
     MessageBase<TDerivedMessage>::MessageStateBase::MessageStateBase(TDerivedMessage* message) 
-    : fsm_(message)
+    : message_(message)
     {}
 
     template<typename TDerivedMessage>
@@ -107,10 +154,10 @@ namespace laar {
 
     template<typename TDerivedMessage>
     void MessageBase<TDerivedMessage>::MessageStateBase::transition(MessageStateBase* next) {
-        if (fsm_->stateValidator_.present(next)) {
-            fsm_->current_->exit();
-            fsm_->current_ = next;
-            fsm_->current_->entry();
+        if (message_->stateValidator_.present(next)) {
+            message_->current_->exit();
+            message_->current_ = next;
+            message_->current_->entry();
         } else {
             throw laar::LaarValidatorError();
         }

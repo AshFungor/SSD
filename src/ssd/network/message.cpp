@@ -1,5 +1,7 @@
 // laar
 #include <common/exceptions.hpp>
+#include <plog/Log.h>
+#include <plog/Severity.h>
 
 // local
 #include "message.hpp"
@@ -22,7 +24,7 @@ void ClientMessageBuilder::start() {
     reset();
 }
 
-ClientMessageBuilder::ClientMessageBuilder(std::shared_ptr<laar::SharedBuffer> buffer)
+ClientMessageBuilder::ClientMessageBuilder(std::shared_ptr<laar::RingBuffer> buffer)
 : MessageBase<ClientMessageBuilder>({&sizeState_, &dataState_, &trailState_}, &sizeState_)
 , buffer_(buffer)
 {}
@@ -39,33 +41,38 @@ std::unique_ptr<typename ClientMessageBuilder::MessageData> ClientMessageBuilder
 }
 
 void ClientMessageBuilder::Size::event(Receive event) {
+    auto& payload = message_->data_;
+    auto& buffer = message_->buffer_;
+
     if (event.size > bytes_) {
         throw laar::LaarOverrun(event.size - bytes_);
     }
 
     bytes_ -= event.size;
     if (!bytes_) {
-        std::memcpy(
-            &fsm_->data_->size, 
-            fsm_->buffer_->getRawReadCursor(), 
-            sizeof(fsm_->data_->size)
-        );
-        transition(&fsm_->dataState_);
+        std::memcpy(&payload->size, buffer->rdCursor(), sizeof(payload->size));
+        buffer->drop(sizeof(payload->size));
+        transition(&message_->dataState_);
     }
 }
 
 void ClientMessageBuilder::Data::event(Receive event) {
+    auto& payload = message_->data_;
+    auto& buffer = message_->buffer_;
+
     if (event.size > bytes_) {
         throw laar::LaarOverrun();
     }
 
     bytes_ -= event.size;
     if (!bytes_) {
-        auto success = fsm_->data_->payload.ParseFromArray(fsm_->buffer_->getRawReadCursor(), fsm_->data_->size);
+        auto success = payload->payload.ParseFromArray(buffer->rdCursor(), payload->size);
+        buffer->drop(payload->size);
         if (!success) {
+            PLOG(plog::warning) << "Unable to parse message payload, reseting state";
             throw laar::LaarBadReceive();
         }
-        transition(&fsm_->trailState_);
+        transition(&message_->trailState_);
     }
 }
 

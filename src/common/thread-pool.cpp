@@ -43,7 +43,8 @@ void ThreadPool::init() {
 }
 
 void ThreadPool::run() {
-    genericCallback_t currentTask;
+    std::unique_ptr<IConditionalCallback> currentTask;
+
     while (true) {
         {
             std::unique_lock<std::mutex> lock(queueMutex_);
@@ -58,24 +59,19 @@ void ThreadPool::run() {
             currentTask = std::move(tasks_.front());
             tasks_.pop();
         }
-        if (isCastDownPossible<OptionalCallback>(currentTask)) {
-            handleOptionalCallback(specifyCallback<OptionalCallback>(std::move(currentTask)));
-        }
-        if (isCastDownPossible<Callback>(currentTask)) {
-            handleRegularCallback(specifyCallback<Callback>(std::move(currentTask)));
-        }
+        handleCallback(std::move(currentTask));
     }
 }
 
 void ThreadPool::query(std::function<void()> task, std::weak_ptr<void> lifetime) {
-    query(makeCallback<OptionalCallback>(std::move(task), lifetime));
+    query(ICallback::makeCallback<BoundCallback>(std::move(task), lifetime));
 }
 
 void ThreadPool::query(std::function<void()> task) {
-    query(makeCallback<Callback>(task));
+    query(ICallback::makeCallback<Callback>(task));
 }
 
-void ThreadPool::query(genericCallback_t callback) {
+void ThreadPool::query(std::unique_ptr<IConditionalCallback> callback) {
     {
         std::unique_lock<std::mutex> lock (queueMutex_);
         if (tasks_.size() >= settings_.maxSize) return;
@@ -84,10 +80,6 @@ void ThreadPool::query(genericCallback_t callback) {
     cv_.notify_one();
 }
 
-void ThreadPool::handleOptionalCallback(optionalCallback_t callback) {
-    if (callback->validate()) callback->execute();
-}
-
-void ThreadPool::handleRegularCallback(regularCallback_t callback) {
-    if (callback->validate()) callback->execute();
+void ThreadPool::handleCallback(std::unique_ptr<IConditionalCallback> callback) {
+    if (callback->isValid()) callback->execute();
 }

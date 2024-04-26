@@ -1,3 +1,5 @@
+#pragma once
+
 // laar
 #include <common/callback-queue.hpp>
 #include <common/exceptions.hpp>
@@ -20,6 +22,9 @@ namespace laar {
 
         std::size_t peek(char* dest, std::size_t size);
         std::size_t drop(std::size_t size);
+
+        char* rdCursor();
+        char* wrCursor();
 
     private:
         // No private methods

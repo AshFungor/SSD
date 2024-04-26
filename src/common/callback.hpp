@@ -22,7 +22,7 @@ namespace laar {
     public:
         // Convenience method
         template<typename TCallback, typename... TInitialArgs>
-        static std::unique_ptr<ICallback<Args...>> makeCallback(TInitialArgs... args) 
+        static std::unique_ptr<TCallback> makeCallback(TInitialArgs... args) 
             requires std::derived_from<TCallback, ICallback<Args...>>
         {
             return std::make_unique<TCallback>(args...);
@@ -31,7 +31,7 @@ namespace laar {
         virtual void execute(Args... args) = 0;
         // Same as execute(Args...)
         virtual void operator()(Args... args) = 0;
-        virtual ~ICallback() = 0;
+        virtual ~ICallback() = default;
     };
 
     // Conditional callbacks need additional validation
@@ -41,6 +41,7 @@ namespace laar {
     public:
         // additional method to validate callback
         virtual bool isValid() const = 0;
+        virtual ~IConditionalCallback() = default;
     };
 
     // Persistent callback is always valid
@@ -48,6 +49,7 @@ namespace laar {
     class PersistentCallback : public IConditionalCallback<Args...> {
     public:
         PersistentCallback(std::function<void()> task);
+        ~PersistentCallback() override = default;
         // IConditionalCallback implementation
         virtual bool isValid() const override;
         // ICallback implementation
@@ -64,6 +66,7 @@ namespace laar {
     public:
         TimedCallback(std::function<void()> task, std::chrono::milliseconds timeout);
         TimedCallback(std::function<void()> task, hs_clock::time_point expirationTs);
+        ~TimedCallback() override = default;
         // IConditionalCallback implementation
         virtual bool isValid() const override;
         // ICallback implementation
@@ -82,6 +85,7 @@ namespace laar {
     class BoundCallback : public IConditionalCallback<Args...> {
     public:
         BoundCallback(std::function<void()> task, std::weak_ptr<void> binding);
+        ~BoundCallback() override = default;
         // IConditionalCallback implementation
         virtual bool isValid() const override;
         // ICallback implementation
@@ -134,38 +138,32 @@ namespace laar {
 
     template<typename... Args>
     void PersistentCallback<Args...>::execute(Args... args) {
-        task_(std::move(args...));
+        task_(args...);
     }
 
     template<typename... Args>
     void TimedCallback<Args...>::execute(Args... args) {
-        if (!isValid()) {
-            throw laar::LaarValidatorError();
-        }
-        task_(std::move(args...));
+        task_(args...);
     }
 
     template<typename... Args>
     void BoundCallback<Args...>::execute(Args... args) {
-        if (!isValid()) {
-            throw laar::LaarValidatorError();
-        }
-        task_(std::move(args...));
+        task_(args...);
     }
 
     template<typename... Args>
     void PersistentCallback<Args...>::operator()(Args... args) {
-        execute(std::move(args...));
+        execute(args...);
     }
 
     template<typename... Args>
     void TimedCallback<Args...>::operator()(Args... args) {
-        execute(std::move(args...));
+        execute(args...);
     }
 
     template<typename... Args>
     void BoundCallback<Args...>::operator()(Args... args) {
-        execute(std::move(args...));
+        execute(args...);
     }
 
     template<typename... Args>

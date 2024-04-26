@@ -22,9 +22,12 @@ namespace laar {
     {
     private: struct Private { };
     public:
-        using optionalCallback_t = std::unique_ptr<OptionalCallback>;
-        using regularCallback_t = std::unique_ptr<Callback>;
-        using genericCallback_t = std::unique_ptr<ICallback>;
+
+        using IConditionalCallback = class IConditionalCallback<>;
+        using Callback = class PersistentCallback<>;
+        using TimedCallback = class TimedCallback<>;
+        using BoundCallback = class BoundCallback<>;
+        using ICallback = class ICallback<>;
 
         struct Settings {
             std::size_t size = std::thread::hardware_concurrency();
@@ -41,9 +44,8 @@ namespace laar {
 
     private:
         void run(); 
-        void query(genericCallback_t callback);
-        void handleOptionalCallback(optionalCallback_t callback);
-        void handleRegularCallback(regularCallback_t callback);
+        void query(std::unique_ptr<IConditionalCallback> callback);
+        void handleCallback(std::unique_ptr<IConditionalCallback> callback);
 
     private:
         bool abort_;
@@ -51,7 +53,7 @@ namespace laar {
         Settings settings_;
 
         std::vector<std::thread> threads_;
-        std::queue<genericCallback_t> tasks_;
+        std::queue<std::unique_ptr<IConditionalCallback>> tasks_;
         std::condition_variable cv_;
         std::mutex queueMutex_;
     };

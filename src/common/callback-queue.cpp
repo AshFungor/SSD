@@ -72,8 +72,7 @@ void CallbackQueue::hang() {
 }
 
 void CallbackQueue::run() {
-    CallbackPtr task;
-    TimedCallbackPtr timedTask;
+    std::unique_ptr<IConditionalCallback> task;
     
     while (true) {
         {
@@ -89,20 +88,13 @@ void CallbackQueue::run() {
             task = std::move(tasks_.front());
             tasks_.pop();
         }
-        if (isCastDownPossible<OptionalCallback>(task)) {
-            handleOptionalCallback(specifyCallback<OptionalCallback>(std::move(task)));
-        }
-        if (isCastDownPossible<TimedCallback>(task)) {
-            handleTimedCallback(specifyCallback<TimedCallback>(std::move(task)));
-        }
-        if (isCastDownPossible<Callback>(task)) {
-            handleRegularCallback(specifyCallback<Callback>(std::move(task)));
-        }
+        handleCallback(std::move(task));
     }
 }
 
 void CallbackQueue::schedule() {
-    timedCallback_t next;
+    std::unique_ptr<TimedCallback> next;
+
     while (true) {
         {
             std::unique_lock<std::mutex> schedulerLock (schedulerLock_);
@@ -115,65 +107,57 @@ void CallbackQueue::schedule() {
             }
 
             reschedule:
-            next = std::move(const_cast<timedCallback_t&>(scheduled_.top()));
+            next = std::move(const_cast<std::unique_ptr<TimedCallback>&>(scheduled_.top()));
             scheduled_.pop();
             
-            schedulerCv_.wait_for(schedulerLock, next->goesOff() - std::chrono::high_resolution_clock::now());
-            if (std::chrono::high_resolution_clock::now() < next->goesOff()) {
+            schedulerCv_.wait_for(schedulerLock, next->expires() - std::chrono::high_resolution_clock::now());
+            if (std::chrono::high_resolution_clock::now() < next->expires()) {
                 scheduled_.push(std::move(next));
                 goto reschedule;
             }
-        }
 
-        
-        {
-            std::unique_lock<std::mutex> queueLock (queueLock_);
-            tasks_.push(std::move(next));
-        }
-        queueCv_.notify_one();
-    }
-}
-
-void CallbackQueue::handleRegularCallback(regularCallback_t callback) {
-    if (callback->validate()) callback->execute();
-}
-
-void CallbackQueue::handleOptionalCallback(optionalCallback_t callback) {
-    if (callback->validate()) callback->execute();
-}
-
-void CallbackQueue::handleTimedCallback(timedCallback_t callback) {
-    if (!callback->validate() && !callback->locked()) {
-        {
-            std::unique_lock<std::mutex> schedulerLock (schedulerLock_);
-            if (scheduled_.size() >= settings_.maxScheduled) {
-                return;
+            {
+                std::unique_lock<std::mutex> queueLock (queueLock_);
+                tasks_.push(std::move(next));
             }
-            scheduled_.emplace(std::move(callback));
-        }
-        schedulerCv_.notify_one();
-    } else if (callback->validate()) {
-        callback->execute();
+
+            queueCv_.notify_one();
+        } 
     }
+}
+
+void CallbackQueue::handleCallback(std::unique_ptr<IConditionalCallback> callback) {
+    if (callback->isValid()) callback->execute();
 }
 
 void CallbackQueue::query(std::function<void()> task) {
-    query(makeCallback<Callback>(std::move(task)));
+    query(ICallback::makeCallback<Callback>(std::move(task)));
 }
 
 void CallbackQueue::query(std::function<void()> task, std::chrono::milliseconds timeout) {
-    query(makeCallback<TimedCallback>(std::move(task), timeout));
+    query(ICallback::makeCallback<TimedCallback>(std::move(task), timeout));
 }
 
 void CallbackQueue::query(std::function<void()> task, std::weak_ptr<void> lifetime) {
-    query(makeCallback<OptionalCallback>(std::move(task), lifetime));
+    query(ICallback::makeCallback<BoundCallback>(std::move(task), lifetime));
 }
 
-void CallbackQueue::query(genericCallback_t callback) {
+void CallbackQueue::query(std::unique_ptr<IConditionalCallback> callback) {
     {
         std::unique_lock<std::mutex> lock (queueLock_);
         if (tasks_.size() >= settings_.maxSize) return;
         tasks_.emplace(std::move(callback));
     }
     queueCv_.notify_one();
+}
+
+void CallbackQueue::query(std::unique_ptr<TimedCallback> callback) {
+    {
+        std::unique_lock<std::mutex> schedulerLock (schedulerLock_);
+        if (scheduled_.size() >= settings_.maxScheduled) {
+            return;
+        }
+        scheduled_.emplace(std::move(callback));
+    }
+    schedulerCv_.notify_one();
 }
