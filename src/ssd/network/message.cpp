@@ -1,95 +1,139 @@
 // laar
 #include <common/exceptions.hpp>
+#include <common/macros.hpp>
+
+// plog
+#include <memory>
 #include <plog/Log.h>
 #include <plog/Severity.h>
 
+// STD
+#include <cstdint>
+#include <string>
+
 // local
 #include "message.hpp"
+#include "protos/client/client-message.pb.h"
+
+#define ENSURE_STATE(current, target) \
+    SSD_ABORT_UNLESS(current == target)
 
 using namespace laar;
 
+void MessageBuilder::reset() {
+    stage_ = EState::IN_HEADER;
+    requested_ = headerSize_;
+}
 
-Receive::Receive(std::size_t size)
-: size(size)
+void MessageBuilder::init() {
+    // Do nothing
+}
+
+std::uint32_t MessageBuilder::poll() const {
+    return requested_;
+}
+
+bool MessageBuilder::handle(Receive payload) {
+    if (payload.size < requested_ || !payload.size) {
+        requested_ -= payload.size;
+        return ready();
+    }
+
+    if (payload.size > requested_) {
+        onCriticalError(laar::LaarOverrun(payload.size - requested_));
+    }
+
+    requested_ = 0;
+    switch(stage_) {
+        case EState::IN_HEADER:
+            handleHeader();
+            return ready();
+        case EState::IN_PAYLOAD:
+            handlePayload();
+            return ready();
+        case EState::OUT_READY:
+            onCriticalError(laar::LaarSemanticError());
+    }
+
+    return ready();
+}
+
+void MessageBuilder::handleHeader() {
+    ENSURE_STATE(stage_, EState::IN_HEADER);
+
+    std::size_t header = 0;
+    buffer_->read((char*) &header, headerSize_);
+
+    // version
+    current_.version = static_cast<IResult::EVersion>(header & versionMask);
+    if ((std::size_t) current_.version > (std::size_t) IResult::EVersion::FIRST) {
+        fallback(laar::LaarProtocolError(
+            "version is unsupported, value received: " + std::to_string((std::size_t) current_.version)));
+    }
+
+    current_.payloadType = ((header & isRawMask) >> 4) ? IResult::EPayloadType::RAW : IResult::EPayloadType::STRUCTURED;
+    current_.messageType = static_cast<IResult::EType>((header & messageTypeMask) >> 8);
+
+    if ((std::size_t) current_.messageType > (std::size_t) IResult::EType::FLUSH_SIMPLE) {
+        fallback(laar::LaarProtocolError(
+            "message type is unsupported, value received: " + std::to_string((std::size_t) current_.messageType)));
+    }
+
+    current_.payloadSize = (header & payloadSizeMask) >> 16;
+
+    // next state
+    stage_ = EState::IN_PAYLOAD;
+    requested_ = current_.payloadSize;
+}
+
+void MessageBuilder::handlePayload() {
+    ENSURE_STATE(stage_, EState::IN_PAYLOAD);
+
+    switch (current_.payloadType) {
+        case IResult::EPayloadType::RAW:
+            assembled_ = assembleRaw();
+            return;
+        case IResult::EPayloadType::STRUCTURED:
+            assembled_ = assembleStructured();
+            return;
+    }
+
+    // next state
+    stage_ = EState::OUT_READY;
+    requested_ = 0;
+}
+
+std::unique_ptr<MessageBuilder::IRawResult> MessageBuilder::assembleRaw() {
+    auto payload = std::make_unique<MessageBuilder::RawResult>(
+        buffer_, current_.payloadSize, current_.messageType, current_.version
+    );
+    return std::move(payload);
+}
+
+std::unique_ptr<MessageBuilder::IStructuredResult> MessageBuilder::assembleStructured() {
+    NSound::TClientMessage message;
+    message.ParseFromArray(buffer_->rdCursor(), current_.payloadSize);
+    buffer_->drop(current_.payloadSize);
+
+    auto payload = std::make_unique<MessageBuilder::StructuredResult>(
+        std::move(message), current_.payloadSize, current_.messageType, current_.version
+    );
+    return std::move(payload);
+}
+
+void MessageBuilder::onCriticalError(std::exception error) {
+    PLOG(plog::error) << "error while constructing message: " << error.what();
+    throw error;
+}
+
+MessageBuilder::RawResult::RawResult(
+    std::weak_ptr<RingBuffer> buffer, 
+    std::uint32_t size,
+    EType type,
+    EVersion version)
+    : hasPayload_(true)
+    , buffer_(std::move(buffer))
+    , size_(size)
+    , type_(type)
+    , version_(version)
 {}
-
-void ClientMessageBuilder::reset() {
-    data_ = std::make_unique<ClientMessageBuilder::MessageData>();
-    current_ = &sizeState_;
-    current_->entry();
-}
-
-
-void ClientMessageBuilder::start() {
-    reset();
-}
-
-ClientMessageBuilder::ClientMessageBuilder(std::shared_ptr<laar::RingBuffer> buffer)
-: MessageBase<ClientMessageBuilder>({&sizeState_, &dataState_, &trailState_}, &sizeState_)
-, buffer_(buffer)
-{}
-
-bool ClientMessageBuilder::constructed() {
-    return isInTrail();
-}
-
-std::unique_ptr<typename ClientMessageBuilder::MessageData> ClientMessageBuilder::result() {
-    if (constructed()) {
-        return std::move(data_);
-    }
-    throw laar::LaarBadGet();
-}
-
-void ClientMessageBuilder::Size::event(Receive event) {
-    auto& payload = message_->data_;
-    auto& buffer = message_->buffer_;
-
-    if (event.size > bytes_) {
-        throw laar::LaarOverrun(event.size - bytes_);
-    }
-
-    bytes_ -= event.size;
-    if (!bytes_) {
-        std::memcpy(&payload->size, buffer->rdCursor(), sizeof(payload->size));
-        buffer->drop(sizeof(payload->size));
-        transition(&message_->dataState_);
-    }
-}
-
-void ClientMessageBuilder::Data::event(Receive event) {
-    auto& payload = message_->data_;
-    auto& buffer = message_->buffer_;
-
-    if (event.size > bytes_) {
-        throw laar::LaarOverrun();
-    }
-
-    bytes_ -= event.size;
-    if (!bytes_) {
-        auto success = payload->payload.ParseFromArray(buffer->rdCursor(), payload->size);
-        buffer->drop(payload->size);
-        if (!success) {
-            PLOG(plog::warning) << "Unable to parse message payload, reseting state";
-            throw laar::LaarBadReceive();
-        }
-        transition(&message_->trailState_);
-    }
-}
-
-void ClientMessageBuilder::Trail::event(Receive event) {
-    if (event.size) {
-        throw laar::LaarOverrun();
-    }
-}
-
-bool ClientMessageBuilder::isInSize() {
-    return (void*) current_ == (void*) &sizeState_;
-}
-
-bool ClientMessageBuilder::isInData() {
-    return (void*) current_ == (void*) &dataState_;
-}
-
-bool ClientMessageBuilder::isInTrail() {
-    return (void*) current_ == (void*) &trailState_;
-}

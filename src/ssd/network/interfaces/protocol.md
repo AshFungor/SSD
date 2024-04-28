@@ -16,8 +16,13 @@ of stream settings and other payload that is a bit more complicated.
 
 Protocol has the following structure:
 
-| ID | Size | Payload |
-|----|------|---------|
-|10 b| 8 b  | Size (B)|
+|  ID  | Size | Payload  |
+|------|------|----------|
+| 16 b | 32 b | Size (B) |
 
-ID consists of 7 bits - message type, 1 bit - type (raw, protobuf) and 2 bits are protocol version.
+ID consists of 8 bits - message type, 1 bit - type (raw, protobuf) and 4 bits are protocol version. (3 reserved)
+ID is constructed in the following way:
+
+| Version | Flags | Message Type |
+|---------|-------|--------------|
+|   4 b   |  4 b  |      8 b     |

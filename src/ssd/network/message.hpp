@@ -1,6 +1,8 @@
 #pragma once
 
 // standard
+#include <cstdint>
+#include <exception>
 #include <initializer_list>
 #include <cstddef>
 #include <memory>
@@ -21,94 +23,103 @@
 
 namespace laar {
 
-    // Size must be equal requestedBytes() byte count
-    struct Receive {
-        Receive(std::size_t size);
-        std::size_t size;
+    template<typename MessageBuilder>
+    class RollbackHandler : IFallbackHandler<MessageBuilder> {
+        virtual void onError(MessageBuilder* builder, std::exception error) override;
     };
 
-    class ClientMessageBuilder : public MessageBase<ClientMessageBuilder> {
+    class MessageBuilder : IMessageBuilder<RollbackHandler<MessageBuilder>> {
     public:
 
-        // IMessage implementation
-        virtual void reset() override;
-        virtual void start() override;
-
-        ClientMessageBuilder(std::shared_ptr<laar::RingBuffer> buffer);
-
-        struct MessageData {
-            std::size_t size;
-            NSound::TClientMessage payload;
-        };
-
-        bool constructed();
-        std::unique_ptr<MessageData> result();
-
-        bool isInSize();
-        bool isInData();
-        bool isInTrail();
-
-        class IEventStateHandle : public MessageBase<ClientMessageBuilder>::MessageStateBase {
+        // need to patch this 
+        class RawResult : public IRawResult {
         public:
-            IEventStateHandle(ClientMessageBuilder* data) : MessageStateBase(data) {}
-            virtual void event(Receive event) {}
-        };
+            RawResult(
+                std::weak_ptr<RingBuffer> buffer, 
+                std::uint32_t size,
+                EType type,
+                EVersion version
+            );
+            ~RawResult();
 
-        class Size : IEventStateHandle {
-        public:
-            Size(ClientMessageBuilder* data)            : IEventStateHandle(data) {}
-            // IMessageState implementation
-            virtual void entry() override               { bytes_ = sizeof this->message_->data_->size; }
-            virtual void exit() override                {}
-            virtual std::size_t bytes() const override  { return bytes_; }
-
-            void event(Receive event) override;
-
-            friend ClientMessageBuilder;
+            virtual std::size_t payload(char* dest) override;
+            virtual std::uint32_t size() const override;
+            virtual EVersion version() const override;
+            virtual EType type() const override;
 
         private:
-            std::size_t bytes_;
+            bool hasPayload_;
+
+            std::weak_ptr<RingBuffer> buffer_;
+            std::uint32_t size_;
+            EType type_;
+            EVersion version_;
         };
 
-        class Data : IEventStateHandle {
+        class StructuredResult : public IStructuredResult {
         public:
-            Data(ClientMessageBuilder* data)            : IEventStateHandle(data) {}
-            // IMessageState implementation
-            virtual void entry() override               { bytes_ = this->message_->data_->size; }
-            virtual void exit() override                {}
-            virtual std::size_t bytes() const override  { return bytes_; }
-
-            virtual void event(Receive event) override;
-
-            friend ClientMessageBuilder;
-
-        private:
-            std::size_t bytes_;
-        };
-
-        class Trail : IEventStateHandle {
-        public:
-            Trail(ClientMessageBuilder* data)           : IEventStateHandle(data) {}
-            // IMessageState implementation
-            virtual void entry() override               { bytes_ = 0; }
-            virtual void exit() override                {}
-            virtual std::size_t bytes() const override  { return bytes_; }
-
-            virtual void event(Receive event) override;
-
-            friend ClientMessageBuilder;
-
-        private:
-            std::size_t bytes_;
-
-        };
+            StructuredResult(
+                NSound::TClientMessage buffer, 
+                std::uint32_t size,
+                EType type,
+                EVersion version
+            );
         
-    private:     
-        std::unique_ptr<MessageData> data_;
+            virtual NSound::TClientMessage& payload() override;
+            virtual std::uint32_t size() const override;
+            virtual EVersion version() const override;
+            virtual EType type() const override;
+        }; 
+
+        MessageBuilder();
+        // IMessageBuilder implementation
+        virtual void reset() override;
+        virtual void init() override;
+        virtual std::uint32_t poll() const override;
+        virtual bool handle(Receive payload) override;
+        virtual operator bool() const override;
+        virtual bool ready() const override;
+        virtual std::unique_ptr<IResult> fetch() override;
+
+    private:
+
+        void onCriticalError(std::exception error);
+        std::unique_ptr<IRawResult> assembleRaw();
+        std::unique_ptr<IStructuredResult> assembleStructured();
+        // parsing
+        void handleHeader();
+        void handlePayload();
+
+    private:
+
+        static constexpr std::size_t isRawMask = 0x10;
+        static constexpr std::size_t versionMask = 0xF;
+        static constexpr std::size_t messageTypeMask = 0xFF00;
+        static constexpr std::size_t payloadSizeMask = 0xFFFFFFFF0000;
+
+        enum class EState {
+            IN_HEADER,
+            IN_PAYLOAD,
+            OUT_READY,
+        } stage_;
+
+        // header size and structure is always defined and cannot
+        // be changed.
+        static constexpr std::uint32_t headerSize_ = 6;
+        
+        struct CachedMessageData {
+            IResult::EVersion version;
+            IResult::EType messageType;
+            IResult::EPayloadType payloadType;
+            std::uint32_t payloadSize;
+
+        } current_;
+
+        // bytes requested by current state
+        std::uint32_t requested_;
         std::shared_ptr<laar::RingBuffer> buffer_;
 
-        Size sizeState_     {this};
-        Data dataState_     {this};
-        Trail trailState_   {this};
+        std::unique_ptr<IResult> assembled_;
+
     };
 }

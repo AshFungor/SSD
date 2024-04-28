@@ -18,7 +18,7 @@ void dummy(const Dummy& variable) {}
 
 #define SSD_ABORT_UNLESS(condition)             \
     do {                                        \
-        if (!condition) {                       \
+        if (!(condition)) {                       \
             std::abort();                       \
         }                                       \
     } while (false)

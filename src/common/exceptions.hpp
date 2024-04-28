@@ -10,7 +10,7 @@ namespace laar {
 
     // init() methods should be called once on each object,
     // this exception signals that specified rule was violated
-    class LaarBadInit : std::exception {
+    class LaarBadInit : public std::exception {
     public:
 
         LaarBadInit() = default;
@@ -27,7 +27,7 @@ namespace laar {
     };
 
     // init() must be called at least once
-    class LaarNoInit : std::exception {
+    class LaarNoInit : public std::exception {
     public:
 
         LaarNoInit() = default;
@@ -44,7 +44,7 @@ namespace laar {
     };
 
     // critical overrun on any buffer or variable
-    class LaarOverrun : std::exception {
+    class LaarOverrun : public std::exception {
     public:
 
         LaarOverrun() = default;
@@ -65,25 +65,31 @@ namespace laar {
 
     };
 
-    class LaarBadGet : std::exception {
+    class LaarSemanticError : public std::exception {
     public:
-        virtual const char* what() const noexcept override {
-            return "data requested by getter cannot be accessed";
-        }
+
+        LaarSemanticError() = default;
+        LaarSemanticError(std::string message)
+        : message_(message)
+        {}
+
+    private:
+        std::string message_ = "semantic error caused by invalid program state";
+
     };
 
-    class LaarBadReceive : std::exception {
+    class LaarProtocolError : public std::exception {
     public:
-        virtual const char* what() const noexcept override {
-            return "data contains less bytes than expected";
-        }
-    };
 
-    class LaarValidatorError : std::exception {
-    public:
-        virtual const char* what() const noexcept override {
-            return "state validation failed";
+        LaarProtocolError() = default;
+        LaarProtocolError(std::string additional)
+        {
+            message_ = std::vformat(message_, std::make_format_args(additional));
         }
+
+    private:
+        std::string message_ = "protocol message reading error: {}";
+
     };
 
     class LaarSoundHandlerError : std::exception {
