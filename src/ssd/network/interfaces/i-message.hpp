@@ -65,6 +65,7 @@ namespace laar {
                 // 3 left
             };
 
+            virtual EPayloadType payloadType() const = 0;
             virtual std::uint32_t size() const = 0;
             virtual EVersion version() const = 0;
             virtual EType type() const = 0;
@@ -76,7 +77,7 @@ namespace laar {
         };
 
         class IRawResult : public IResult {
-            virtual std::size_t payload(char* dest) = 0;
+            virtual char* payload() = 0;
         };
 
         class IStructuredResult : public IResult {
@@ -97,6 +98,8 @@ namespace laar {
         virtual bool ready() const = 0;
         // gets resulting message, can be called only once per message
         virtual std::unique_ptr<IResult> fetch() = 0;
+        // validates parser state
+        virtual bool valid() const = 0;
 
         virtual ~IMessageBuilder() = default;
 

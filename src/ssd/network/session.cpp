@@ -20,7 +20,7 @@
 
 // laar
 #include <common/exceptions.hpp>
-#include <common/shared-buffer.hpp>
+#include <common/ring-buffer.hpp>
 #include <network/message.hpp>
 
 // local
@@ -83,12 +83,10 @@ namespace {
 
 } // anonymous namespace
 
-ClientSession::ClientSession(sockpp::tcp_socket&& sock, std::shared_ptr<laar::SharedBuffer> buffer, Private access) 
+ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access) 
 : sock_(std::move(sock))
-, isMessageBeingReceived_(false)
-, isUpdating_(false)
-, buffer_(buffer)
-, message_(buffer)
+, buffer_(std::make_shared<laar::RingBuffer>())
+, builder_(laar::MessageBuilder::configure(buffer_))
 {}
 
 ClientSession::~ClientSession() {
@@ -96,7 +94,7 @@ ClientSession::~ClientSession() {
 }
 
 std::shared_ptr<ClientSession> ClientSession::instance(sockpp::tcp_socket&& sock) {
-    return std::make_shared<ClientSession>(std::move(sock), std::make_shared<laar::SharedBuffer>(1024), Private());
+    return std::make_shared<ClientSession>(std::move(sock), Private());
 }
 
 void ClientSession::init() {
@@ -113,7 +111,6 @@ void ClientSession::init() {
         error("Peer is not connected, passed socket is invalid");
     }
     sock_.set_non_blocking();
-    message_.start();
 }
 
 void ClientSession::terminate() {
@@ -127,20 +124,16 @@ void ClientSession::terminate() {
 
 bool ClientSession::update() {
     // try to read message, return if transmission is not completed yet
-    if (isUpdating_) {
-        return false;
-    }
-
     std::unique_lock<std::mutex> locked (sessionLock_);
-    isUpdating_ = true;
 
     if (!sock_.is_open()) {
         PLOG(plog::debug) << "Socket " << sock_.address() << " was closed by peer";
         return false;
     }
 
-    auto requestedBytes = message_.bytes();
-    auto res = sock_.recv(buffer_->getRawWriteCursor(0), requestedBytes);
+    auto requested = builder_->poll();
+    auto buffer = std::make_unique<char[]>(requested);
+    auto res = sock_.recv(buffer.get(), requested);
     
     if (res.is_error() || !res.value()) {
         if (!res.value()) {
@@ -153,20 +146,23 @@ bool ClientSession::update() {
         }
     }
 
-    laar::Receive event (res.value());
-    buffer_->getRawWriteCursor(event.size);
-    message_.handle<laar::Receive>(event);
-    buffer_->advanceReadCursor(event.size);
+    buffer_->write(buffer.get(), res.value());
+    laar::MessageBuilder::Receive event (res.value());
+    builder_->handle(event);
 
-    if (message_.isInTrail()) {
-        auto result = message_.result();
-        onClientMessage(std::move(result->payload));
-        buffer_->clear();
-
-        message_.reset();
+    if (!builder_->valid()) {
+        // reset connection
     }
 
-    isUpdating_ = false;
+    if (builder_) {
+        auto result = builder_->fetch();
+        if (result->payloadType() == laar::MessageBuilder::IResult::EPayloadType::STRUCTURED) {
+            onClientMessage(std::move(result->cast<laar::MessageBuilder::StructuredResult>().payload()));
+        } else {
+            // not implemented
+        }
+        builder_.reset();
+    }
 
     return true;
 }
@@ -207,10 +203,6 @@ void ClientSession::onStreamConfigMessage(const NSound::NSimple::TSimpleMessage:
 bool ClientSession::open() {
     std::unique_lock<std::mutex> locked (sessionLock_);
     return sock_.is_open();
-}
-
-bool ClientSession::updating() {
-    return isUpdating_;
 }
 
 void ClientSession::error(const std::string& errorMessage) {

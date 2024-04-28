@@ -20,6 +20,12 @@
 
 using namespace laar;
 
+MessageBuilder::MessageBuilder(std::shared_ptr<laar::RingBuffer> buffer, Private access) 
+: buffer_(buffer)
+{
+    reset();
+}
+
 void MessageBuilder::reset() {
     stage_ = EState::IN_HEADER;
     requested_ = headerSize_;
@@ -52,10 +58,29 @@ bool MessageBuilder::handle(Receive payload) {
             handlePayload();
             return ready();
         case EState::OUT_READY:
+        case EState::INVALID:
             onCriticalError(laar::LaarSemanticError());
     }
 
     return ready();
+}
+
+MessageBuilder::operator bool() const {
+    return ready();
+}
+
+bool MessageBuilder::ready() const {
+    return stage_ == EState::OUT_READY;
+}
+
+std::unique_ptr<MessageBuilder::IResult> MessageBuilder::fetch() {
+    ENSURE_STATE(stage_, EState::OUT_READY);
+
+    return std::move(assembled_);
+}
+
+bool MessageBuilder::valid() const {
+    return stage_ != EState::INVALID;
 }
 
 void MessageBuilder::handleHeader() {
@@ -104,19 +129,23 @@ void MessageBuilder::handlePayload() {
 }
 
 std::unique_ptr<MessageBuilder::IRawResult> MessageBuilder::assembleRaw() {
+    ENSURE_STATE(stage_, EState::IN_PAYLOAD);
+
     auto payload = std::make_unique<MessageBuilder::RawResult>(
-        buffer_, current_.payloadSize, current_.messageType, current_.version
+        buffer_, current_.payloadSize, current_.messageType, current_.version, current_.payloadType
     );
     return std::move(payload);
 }
 
 std::unique_ptr<MessageBuilder::IStructuredResult> MessageBuilder::assembleStructured() {
+    ENSURE_STATE(stage_, EState::IN_PAYLOAD);
+
     NSound::TClientMessage message;
     message.ParseFromArray(buffer_->rdCursor(), current_.payloadSize);
     buffer_->drop(current_.payloadSize);
 
     auto payload = std::make_unique<MessageBuilder::StructuredResult>(
-        std::move(message), current_.payloadSize, current_.messageType, current_.version
+        std::move(message), current_.payloadSize, current_.messageType, current_.version, current_.payloadType
     );
     return std::move(payload);
 }
@@ -127,13 +156,69 @@ void MessageBuilder::onCriticalError(std::exception error) {
 }
 
 MessageBuilder::RawResult::RawResult(
-    std::weak_ptr<RingBuffer> buffer, 
+    std::shared_ptr<RingBuffer> buffer, 
     std::uint32_t size,
     EType type,
-    EVersion version)
-    : hasPayload_(true)
-    , buffer_(std::move(buffer))
+    EVersion version,
+    EPayloadType payloadType)
+    : buffer_(size)
     , size_(size)
     , type_(type)
     , version_(version)
+    , payloadType_(payloadType)
+{
+    buffer->read(buffer_.data(), size);
+}
+
+MessageBuilder::StructuredResult::StructuredResult(
+    NSound::TClientMessage message, 
+    std::uint32_t size,
+    EType type,
+    EVersion version,
+    EPayloadType payloadType)
+    : message_(std::move(message))
+    , size_(size)
+    , type_(type)
+    , version_(version)
+    , payloadType_(payloadType)
 {}
+
+char* MessageBuilder::RawResult::payload() {
+    return buffer_.data();
+}
+
+NSound::TClientMessage& MessageBuilder::StructuredResult::payload() {
+    return message_;
+}
+
+std::uint32_t MessageBuilder::RawResult::size() const {
+    return size_;
+}
+
+std::uint32_t MessageBuilder::StructuredResult::size() const {
+    return size_;
+}
+
+MessageBuilder::RawResult::EVersion MessageBuilder::RawResult::version() const {
+    return version_;
+}
+
+MessageBuilder::StructuredResult::EVersion MessageBuilder::StructuredResult::version() const {
+    return version_;
+}
+
+MessageBuilder::RawResult::EType MessageBuilder::RawResult::type() const {
+    return type_;
+}
+
+MessageBuilder::StructuredResult::EType MessageBuilder::StructuredResult::type() const {
+    return type_;
+}
+
+MessageBuilder::RawResult::EPayloadType MessageBuilder::RawResult::payloadType() const {
+    return payloadType_;
+}
+
+MessageBuilder::StructuredResult::EPayloadType MessageBuilder::StructuredResult::payloadType() const {
+    return payloadType_;
+}

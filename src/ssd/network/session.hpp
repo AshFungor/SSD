@@ -1,4 +1,5 @@
 // sockpp
+#include "network/interfaces/i-message.hpp"
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/tcp_socket.h>
 
@@ -11,7 +12,7 @@
 
 // laar
 #include <network/message.hpp>
-#include <common/shared-buffer.hpp>
+#include <common/ring-buffer.hpp>
 
 // protos
 #include <protos/client/simple/simple.pb.h>
@@ -28,11 +29,10 @@ namespace srv {
     public:
 
         static std::shared_ptr<ClientSession> instance(sockpp::tcp_socket&& sock);
-        ClientSession(sockpp::tcp_socket&& sock, std::shared_ptr<laar::SharedBuffer> buffer, Private access);
+        ClientSession(sockpp::tcp_socket&& sock, Private access);
         ~ClientSession();
 
         void terminate();
-        bool updating();
         bool update();
         bool open();
         void init();
@@ -45,13 +45,11 @@ namespace srv {
         void reply(/* server message */);
 
     private:
-        bool isMessageBeingReceived_;
 
         std::mutex sessionLock_;
-        std::atomic<bool> isUpdating_;
 
-        std::shared_ptr<laar::SharedBuffer> buffer_;
-        laar::ClientMessageBuilder message_;
+        std::shared_ptr<laar::RingBuffer> buffer_;
+        std::shared_ptr<laar::IMessageBuilder<laar::RollbackHandler<laar::MessageBuilder>>> builder_;
 
         NSound::NSimple::TSimpleMessage::TStreamConfiguration sessionConfig_;
         sockpp::tcp_socket sock_;

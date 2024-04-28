@@ -157,14 +157,14 @@ void Server::run() {
         }
 
         update:
-        hasWork_ = true;
+        hasWork_ = false;
         for (auto& session : sessions_) {
             if (!session->open()) {
                 std::swap(session, sessions_.back());
                 sessions_.pop_back();
             }
             threadPool_->query([&]() {
-                hasWork_ = hasWork_ && session->update();
+                hasWork_ = hasWork_ || session->update();
             }, weak_from_this());
         }
     }   

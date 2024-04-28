@@ -3,7 +3,6 @@
 // standard
 #include <cstdint>
 #include <exception>
-#include <initializer_list>
 #include <cstddef>
 #include <memory>
 
@@ -15,6 +14,7 @@
 
 // proto
 #include <google/protobuf/message.h>
+#include <plog/Severity.h>
 #include <protos/client/client-message.pb.h>
 #include <protos/client/simple/simple.pb.h>
 
@@ -25,53 +25,71 @@ namespace laar {
 
     template<typename MessageBuilder>
     class RollbackHandler : IFallbackHandler<MessageBuilder> {
-        virtual void onError(MessageBuilder* builder, std::exception error) override;
+        virtual void onError(MessageBuilder* builder, std::exception error) override {
+            PLOG(plog::warning) << "Protocol error: " << error.what();
+            builder->stage_ = MessageBuilder::EState::INVALID;
+        }
     };
 
-    class MessageBuilder : IMessageBuilder<RollbackHandler<MessageBuilder>> {
+    class MessageBuilder 
+        : public IMessageBuilder<RollbackHandler<MessageBuilder>> 
+        , public std::enable_shared_from_this<MessageBuilder> {
+    private: struct Private {};
     public:
 
-        // need to patch this 
         class RawResult : public IRawResult {
         public:
             RawResult(
-                std::weak_ptr<RingBuffer> buffer, 
+                std::shared_ptr<RingBuffer> buffer, 
                 std::uint32_t size,
                 EType type,
-                EVersion version
+                EVersion version,
+                EPayloadType payloadType
             );
-            ~RawResult();
 
-            virtual std::size_t payload(char* dest) override;
+            virtual char* payload() override;
             virtual std::uint32_t size() const override;
             virtual EVersion version() const override;
             virtual EType type() const override;
+            virtual EPayloadType payloadType() const override;
 
         private:
-            bool hasPayload_;
 
-            std::weak_ptr<RingBuffer> buffer_;
+            std::vector<char> buffer_;
             std::uint32_t size_;
             EType type_;
             EVersion version_;
+            EPayloadType payloadType_;
         };
 
         class StructuredResult : public IStructuredResult {
         public:
             StructuredResult(
-                NSound::TClientMessage buffer, 
+                NSound::TClientMessage message, 
                 std::uint32_t size,
                 EType type,
-                EVersion version
+                EVersion version,
+                EPayloadType payloadType
             );
         
             virtual NSound::TClientMessage& payload() override;
             virtual std::uint32_t size() const override;
             virtual EVersion version() const override;
             virtual EType type() const override;
+            virtual EPayloadType payloadType() const override;
+
+        private:
+
+            NSound::TClientMessage message_;
+            std::uint32_t size_;
+            EType type_;
+            EVersion version_;
+            EPayloadType payloadType_;
         }; 
 
-        MessageBuilder();
+        static std::shared_ptr<MessageBuilder> configure(std::shared_ptr<laar::RingBuffer> buffer);
+        MessageBuilder(std::shared_ptr<laar::RingBuffer> buffer, Private access);
+
         // IMessageBuilder implementation
         virtual void reset() override;
         virtual void init() override;
@@ -80,6 +98,9 @@ namespace laar {
         virtual operator bool() const override;
         virtual bool ready() const override;
         virtual std::unique_ptr<IResult> fetch() override;
+        virtual bool valid() const override;
+
+        friend class RollbackHandler<MessageBuilder>;
 
     private:
 
@@ -101,6 +122,7 @@ namespace laar {
             IN_HEADER,
             IN_PAYLOAD,
             OUT_READY,
+            INVALID,
         } stage_;
 
         // header size and structure is always defined and cannot
