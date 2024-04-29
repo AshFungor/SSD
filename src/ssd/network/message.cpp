@@ -9,10 +9,12 @@
 
 // STD
 #include <cstdint>
+#include <sstream>
 #include <string>
 
 // local
 #include "message.hpp"
+#include "network/interfaces/i-message.hpp"
 #include "protos/client/client-message.pb.h"
 
 #define ENSURE_STATE(current, target) \
@@ -20,10 +22,70 @@
 
 using namespace laar;
 
+namespace {
+
+    std::string dumpHeader(
+        MessageBuilder::IResult::EVersion version,
+        MessageBuilder::IResult::EType messageType,
+        MessageBuilder::IResult::EPayloadType payloadType,
+        std::uint32_t payloadSize
+    ) {
+        std::stringstream ss;
+        ss << "Protocol Version: ";
+        switch (version) {
+            case MessageBuilder::IResult::EVersion::FIRST:
+                ss << "First";
+                break;
+            default:
+                ss << "Undefined";
+        }
+        ss << "; Payload Type: ";
+        switch (payloadType) {
+            case MessageBuilder::IResult::EPayloadType::RAW:
+                ss << "RAW";
+                break;
+            case MessageBuilder::IResult::EPayloadType::STRUCTURED:
+                ss << "STRUCTURED";
+                break;
+        }
+        ss << "; Message Type: ";
+        switch (messageType) {
+            case MessageBuilder::IResult::EType::CLOSE_SIMPLE:
+                ss << "Simple protocol: close";
+                break;
+            case MessageBuilder::IResult::EType::DRAIN_SIMPLE:
+                ss << "Simple protocol: drain";
+                break;
+            case MessageBuilder::IResult::EType::FLUSH_SIMPLE:
+                ss << "Simple protocol: flush";
+                break;
+            case MessageBuilder::IResult::EType::OPEN_SIMPLE:
+                ss << "Simple protocol: open";
+                break;
+            case MessageBuilder::IResult::EType::PUSH_SIMPLE:
+                ss << "Simple protocol: push";
+                break;
+            case MessageBuilder::IResult::EType::PULL_SIMPLE:
+                ss << "Simple protocol: pull";
+                break;   
+            default:
+                ss << "Undefined";
+        }
+        ss << ";";
+        return ss.str();
+    }
+
+}
+
 MessageBuilder::MessageBuilder(std::shared_ptr<laar::RingBuffer> buffer, Private access) 
-: buffer_(buffer)
+: IMessageBuilder(std::make_unique<RollbackHandler>())
+, buffer_(buffer)
 {
     reset();
+}
+
+std::shared_ptr<MessageBuilder> MessageBuilder::configure(std::shared_ptr<laar::RingBuffer> buffer) {
+    return std::make_shared<MessageBuilder>(std::move(buffer), Private{});
 }
 
 void MessageBuilder::reset() {
@@ -83,6 +145,10 @@ bool MessageBuilder::valid() const {
     return stage_ != EState::INVALID;
 }
 
+void MessageBuilder::invalidate() {
+    stage_ = EState::INVALID;
+}
+
 void MessageBuilder::handleHeader() {
     ENSURE_STATE(stage_, EState::IN_HEADER);
 
@@ -105,6 +171,9 @@ void MessageBuilder::handleHeader() {
     }
 
     current_.payloadSize = (header & payloadSizeMask) >> 16;
+
+    PLOG(plog::debug) << "protocol: header; data: " 
+        << dumpHeader(current_.version, current_.messageType, current_.payloadType, current_.payloadSize);
 
     // next state
     stage_ = EState::IN_PAYLOAD;
@@ -141,12 +210,16 @@ std::unique_ptr<MessageBuilder::IStructuredResult> MessageBuilder::assembleStruc
     ENSURE_STATE(stage_, EState::IN_PAYLOAD);
 
     NSound::TClientMessage message;
-    message.ParseFromArray(buffer_->rdCursor(), current_.payloadSize);
+    auto result = message.ParseFromArray(buffer_->rdCursor(), current_.payloadSize);
     buffer_->drop(current_.payloadSize);
 
     auto payload = std::make_unique<MessageBuilder::StructuredResult>(
         std::move(message), current_.payloadSize, current_.messageType, current_.version, current_.payloadType
     );
+
+    PLOG(plog::debug) << "protocol: payload; data: " << "proto of size " 
+        << current_.payloadSize << "bytes, parse result: " << result;
+
     return std::move(payload);
 }
 

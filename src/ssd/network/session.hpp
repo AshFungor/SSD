@@ -49,7 +49,7 @@ namespace srv {
         std::mutex sessionLock_;
 
         std::shared_ptr<laar::RingBuffer> buffer_;
-        std::shared_ptr<laar::IMessageBuilder<laar::RollbackHandler<laar::MessageBuilder>>> builder_;
+        std::shared_ptr<laar::IMessageBuilder> builder_;
 
         NSound::NSimple::TSimpleMessage::TStreamConfiguration sessionConfig_;
         sockpp::tcp_socket sock_;

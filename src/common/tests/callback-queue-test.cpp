@@ -1,9 +1,9 @@
 // GTest
-#include <atomic>
 #include <gtest/gtest.h>
 
 // standard
 #include <iostream>
+#include <atomic>
 #include <memory>
 #include <chrono>
 #include <thread>

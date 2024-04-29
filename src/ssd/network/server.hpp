@@ -1,4 +1,5 @@
 // sockpp
+#include <atomic>
 #include <mutex>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/inet_address.h>
@@ -47,6 +48,7 @@ namespace srv {
 
         void init();
         void run();
+        void terminate();
 
     private:
         void subscribeOnConfigs(); 
@@ -67,8 +69,10 @@ namespace srv {
         } settings_;
 
         std::atomic<bool> hasWork_;
+        std::atomic<bool> abort_;
         std::vector<std::chrono::milliseconds>::const_iterator currentTimeout_;
 
+        std::mutex serverLock_; 
         std::mutex settingsLock_;
         std::condition_variable cv_;
 

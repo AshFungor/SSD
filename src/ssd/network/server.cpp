@@ -51,6 +51,7 @@ Server::Server(
     , configHandler_(std::move(configHandler))
     , cbQueue_(std::move(cbQueue))
     , hasWork_(true)
+    , abort_(false)
 {}
 
 void Server::subscribeOnConfigs() {
@@ -128,7 +129,8 @@ void Server::init() {
 }
 
 void Server::run() {
-    while (true) {
+    while (!abort_) {
+        std::unique_lock<std::mutex> locked(serverLock_); 
         // Accept a new client connection
         auto result = acc_.accept();
 
@@ -170,8 +172,14 @@ void Server::run() {
     }   
 }
 
-Server::~Server() {
+void Server::terminate() {
+    abort_ = true;
+    std::unique_lock<std::mutex> locked(serverLock_); 
     for (auto& session : sessions_) {
         session->terminate();
     }
+}
+
+Server::~Server() {
+    terminate();
 }

@@ -18,6 +18,8 @@ std::shared_ptr<ThreadPool> ThreadPool::configure(Settings settings) {
 
 ThreadPool::ThreadPool(Settings settings, Private access)
 : settings_(std::move(settings))
+, initiated_(false)
+, abort_(false)
 {}
 
 ThreadPool::~ThreadPool() {

@@ -85,7 +85,7 @@ namespace {
 
 ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access) 
 : sock_(std::move(sock))
-, buffer_(std::make_shared<laar::RingBuffer>())
+, buffer_(std::make_shared<laar::RingBuffer>(4096))
 , builder_(laar::MessageBuilder::configure(buffer_))
 {}
 
@@ -154,7 +154,7 @@ bool ClientSession::update() {
         // reset connection
     }
 
-    if (builder_) {
+    if (*builder_) {
         auto result = builder_->fetch();
         if (result->payloadType() == laar::MessageBuilder::IResult::EPayloadType::STRUCTURED) {
             onClientMessage(std::move(result->cast<laar::MessageBuilder::StructuredResult>().payload()));

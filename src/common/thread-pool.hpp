@@ -30,7 +30,7 @@ namespace laar {
         using ICallback = class ICallback<>;
 
         struct Settings {
-            std::size_t size = std::thread::hardware_concurrency();
+            std::size_t size = 2;
             std::size_t maxSize = 1024;
         };
 

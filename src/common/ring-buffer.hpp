@@ -14,6 +14,8 @@ namespace laar {
     class RingBuffer {
     public:
 
+        RingBuffer(std::size_t size);
+
         std::size_t writableSize();
         std::size_t readableSize();
 

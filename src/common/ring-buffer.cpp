@@ -8,6 +8,13 @@
 using namespace laar;
 
 
+RingBuffer::RingBuffer(std::size_t size) 
+: buffer_(std::make_unique<std::vector<char>>(size))
+, wPos_(0)
+, rPos_(0)
+, empty_(false)
+{}
+
 std::size_t RingBuffer::writableSize() {
     std::scoped_lock<std::recursive_mutex> locked(lock_);
 

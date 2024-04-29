@@ -23,16 +23,16 @@
 
 namespace laar {
 
-    template<typename MessageBuilder>
-    class RollbackHandler : IFallbackHandler<MessageBuilder> {
-        virtual void onError(MessageBuilder* builder, std::exception error) override {
+    class RollbackHandler : public IFallbackHandler {
+    public:
+        virtual void onError(IMessageBuilder* builder, std::exception error) override {
             PLOG(plog::warning) << "Protocol error: " << error.what();
-            builder->stage_ = MessageBuilder::EState::INVALID;
+            builder->invalidate();
         }
     };
 
     class MessageBuilder 
-        : public IMessageBuilder<RollbackHandler<MessageBuilder>> 
+        : public IMessageBuilder
         , public std::enable_shared_from_this<MessageBuilder> {
     private: struct Private {};
     public:
@@ -99,8 +99,7 @@ namespace laar {
         virtual bool ready() const override;
         virtual std::unique_ptr<IResult> fetch() override;
         virtual bool valid() const override;
-
-        friend class RollbackHandler<MessageBuilder>;
+        virtual void invalidate() override;
 
     private:
 

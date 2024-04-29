@@ -16,17 +16,21 @@
 
 namespace laar {
 
-    template<typename MessageBuilder>
+    class IMessageBuilder;
+
     class IFallbackHandler {
     public:
-        virtual void onError(MessageBuilder* builder, std::exception error) = 0;
+        virtual void onError(IMessageBuilder* builder, std::exception error) = 0;
         virtual ~IFallbackHandler() = default;
     };
 
     // Controls construction of messages
-    template<typename FallbackHandle>
     class IMessageBuilder {
     public:
+
+        IMessageBuilder(std::unique_ptr<IFallbackHandler> handle)
+        : fbHandler_(std::move(handle))
+        {}
 
         // Payload for state machine
         struct Receive {
@@ -100,15 +104,17 @@ namespace laar {
         virtual std::unique_ptr<IResult> fetch() = 0;
         // validates parser state
         virtual bool valid() const = 0;
+        // invalidate current protocol transfer
+        virtual void invalidate() = 0;
 
         virtual ~IMessageBuilder() = default;
 
     protected:
         virtual void fallback(std::exception error) {
-            fbHandler_.onError(this, std::move(error));
+            fbHandler_->onError(this, std::move(error));
         }
 
     protected:
-        FallbackHandle fbHandler_;
+        std::unique_ptr<IFallbackHandler> fbHandler_;
     };
 }
