@@ -12,16 +12,16 @@ RingBuffer::RingBuffer(std::size_t size)
 : buffer_(std::make_unique<std::vector<char>>(size))
 , wPos_(0)
 , rPos_(0)
-, empty_(false)
+, empty_(true)
 {}
 
 std::size_t RingBuffer::writableSize() {
     std::scoped_lock<std::recursive_mutex> locked(lock_);
 
     if (wPos_ > rPos_) {
-        return wPos_ - wPos_;
+        return buffer_->size() - wPos_ + rPos_;
     } else if (wPos_ < rPos_) {
-        return buffer_->size() - rPos_ + wPos_;
+        return rPos_ - wPos_;
     } else {
         // wpos == rpos
         return (empty_) ? buffer_->size() : 0;
@@ -32,12 +32,12 @@ std::size_t RingBuffer::readableSize() {
     std::scoped_lock<std::recursive_mutex> locked(lock_);
 
      if (wPos_ > rPos_) {
-        return buffer_->size() - wPos_ + rPos_;
+        return wPos_ - rPos_; 
     } else if (wPos_ < rPos_) {
-        return rPos_ - wPos_;
+        return buffer_->size() - rPos_ + wPos_;
     } else {
         // wpos == rpos
-        return (empty_) ? buffer_->size() : 0;
+        return (empty_) ? 0 : buffer_->size();
     }
 }
 

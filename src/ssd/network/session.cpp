@@ -161,7 +161,6 @@ bool ClientSession::update() {
         } else {
             // not implemented
         }
-        builder_.reset();
     }
 
     return true;

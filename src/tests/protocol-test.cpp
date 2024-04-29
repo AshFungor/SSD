@@ -1,25 +1,19 @@
 // GTest
-#include "common/callback-queue.hpp"
-#include "util/config-loader.hpp"
-#include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <gtest/gtest.h>
 
 // plog
-#include <ios>
 #include <plog/Appenders/ConsoleAppender.h>
 #include <plog/Initializers/RollingFileInitializer.h>
 #include <plog/Severity.h>
 
 // standard
+#include <cstdint>
+#include <filesystem>
 #include <iostream>
-#include <atomic>
+#include <fstream>
 #include <memory>
-#include <chrono>
-#include <sstream>
 #include <thread>
-#include <vector>
+#include <ios>
 
 // sockpp
 #include <sockpp/tcp_connector.h>
@@ -27,6 +21,8 @@
 // laar
 #include <network/message.hpp>
 #include <network/server.hpp>
+#include <util/config-loader.hpp>
+#include <common/callback-queue.hpp>
 #include <common/exceptions.hpp>
 #include <common/macros.hpp>
 
@@ -34,6 +30,8 @@ using namespace std::chrono;
 
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
+
+static bool loggerInited_ = false;
 
 class ServerTest : public testing::Test {
 public:
@@ -54,7 +52,10 @@ public:
     }
 
     void SetUp() override {
-        plog::init(plog::Severity::debug, "server.log", 1024 * 8, 2);
+        if (!loggerInited_) {
+            plog::init(plog::Severity::debug, "server.log", 1024 * 8, 1);
+            loggerInited_ = true;
+        }
         PLOG(plog::debug) << "running server on local endpoint";
 
         initConfigs();
@@ -100,7 +101,7 @@ namespace {
         std::size_t size) 
     {
         auto message = std::make_unique<char[]>(6 + size);
-        std::size_t section;
+        std::size_t section = 0;
 
         section = (std::uint32_t) version;
         section |= ((std::uint32_t) payloadType) << 4;
@@ -110,6 +111,13 @@ namespace {
 
         std::memcpy(message.get(), &section, 6);
         std::memcpy(message.get() + 6, buffer, size);
+
+        std::stringstream ss;
+        ss << std::hex;
+        for (std::size_t i = 0; i < size + 6; ++i) {
+            ss << "byte " << i << " is " << (std::uint32_t) message[i] << "; ";
+        }
+        GTEST_COUT(ss.str());
 
         return std::move(message);
     }
@@ -149,8 +157,8 @@ TEST_F(ServerTest, InitConnection) {
 
     auto out = assembleMessage(
         laar::MessageBuilder::IResult::EVersion::FIRST, 
-        laar::MessageBuilder::IResult::EPayloadType::RAW, 
-        laar::MessageBuilder::IResult::EType::CLOSE_SIMPLE, 
+        laar::MessageBuilder::IResult::EPayloadType::STRUCTURED, 
+        laar::MessageBuilder::IResult::EType::OPEN_SIMPLE, 
         buffer.get(), 
         len);
 

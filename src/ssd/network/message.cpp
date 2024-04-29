@@ -138,6 +138,7 @@ bool MessageBuilder::ready() const {
 std::unique_ptr<MessageBuilder::IResult> MessageBuilder::fetch() {
     ENSURE_STATE(stage_, EState::OUT_READY);
 
+    reset();
     return std::move(assembled_);
 }
 
@@ -153,7 +154,11 @@ void MessageBuilder::handleHeader() {
     ENSURE_STATE(stage_, EState::IN_HEADER);
 
     std::size_t header = 0;
-    buffer_->read((char*) &header, headerSize_);
+    auto received = buffer_->read((char*) &header, headerSize_);
+
+    if (received < headerSize_) {
+        onCriticalError(laar::LaarDryRun(headerSize_ - received));
+    }
 
     // version
     current_.version = static_cast<IResult::EVersion>(header & versionMask);
@@ -172,6 +177,7 @@ void MessageBuilder::handleHeader() {
 
     current_.payloadSize = (header & payloadSizeMask) >> 16;
 
+    PLOG(plog::debug) << "protocol: raw header received: " << header;
     PLOG(plog::debug) << "protocol: header; data: " 
         << dumpHeader(current_.version, current_.messageType, current_.payloadType, current_.payloadSize);
 
@@ -186,10 +192,10 @@ void MessageBuilder::handlePayload() {
     switch (current_.payloadType) {
         case IResult::EPayloadType::RAW:
             assembled_ = assembleRaw();
-            return;
+            break;
         case IResult::EPayloadType::STRUCTURED:
             assembled_ = assembleStructured();
-            return;
+            break;
     }
 
     // next state

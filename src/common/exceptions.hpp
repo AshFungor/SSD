@@ -65,6 +65,28 @@ namespace laar {
 
     };
 
+    // critical underrun on any buffer or variable
+    class LaarDryRun : public std::exception {
+    public:
+
+        LaarDryRun() = default;
+        LaarDryRun(std::string message)
+        : message_(message)
+        {}
+        
+        LaarDryRun(std::size_t by) { 
+            message_ += std::vformat(": {} bytes needed", std::make_format_args(by));
+        }
+
+        virtual const char* what() const noexcept override {
+            return message_.data();
+        }
+
+    private:
+        std::string message_ = "critical underrun on buffer or variable";
+
+    };
+
     class LaarSemanticError : public std::exception {
     public:
 

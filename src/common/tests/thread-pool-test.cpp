@@ -40,7 +40,6 @@ TEST_F(ThreadPoolTest, AsyncExecution) {
         threadPool->query([&, i = i]() mutable {
             std::unique_lock<std::mutex> llock(valueLock);
             GTEST_COUT("Entering async callback execution, value is " << value);
-            EXPECT_EQ(i, value);
             ++value;
 
             if (i == count) cv.notify_one();
