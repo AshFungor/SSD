@@ -1,6 +1,7 @@
 // GTest
 #include "protos/client/client-message.pb.h"
 #include "protos/client/simple/simple.pb.h"
+#include <chrono>
 #include <google/protobuf/message.h>
 #include <gtest/gtest.h>
 
@@ -38,6 +39,11 @@ static bool loggerInited_ = false;
 
 class ServerTest : public testing::Test {
 public:
+
+    static constexpr std::size_t pushTimes = 20;
+    static constexpr std::size_t pushSize = 1024;
+    static constexpr milliseconds initTimeout = 100ms;
+    static constexpr milliseconds terminateTimeout = 100ms;
 
     void initConfigs() {
         nlohmann::json cfgDefault;
@@ -137,7 +143,7 @@ namespace {
 
 }
 
-TEST_F(ServerTest, RunServerTests) {
+TEST_F(ServerTest, InitServerTests) {
     std::thread main (&srv::Server::run, server.get());
     std::this_thread::sleep_for(100ms);
 
@@ -147,7 +153,7 @@ TEST_F(ServerTest, RunServerTests) {
     main.join();
 }
 
-TEST_F(ServerTest, InitConnection) {
+TEST_F(ServerTest, FlowTest) {
     std::thread main (&srv::Server::run, server.get());
     std::this_thread::sleep_for(100ms);
 
@@ -172,8 +178,11 @@ TEST_F(ServerTest, InitConnection) {
 
     // send some data
     NSound::TClientMessage another_message;
-    another_message.mutable_simple_message()->mutable_push()->set_size(3);
-    another_message.mutable_simple_message()->mutable_push()->set_pushed({1, 1, 1});
+    std::string bytes;
+    bytes.resize(pushSize, 0);
+
+    another_message.mutable_simple_message()->mutable_push()->set_size(pushSize);
+    another_message.mutable_simple_message()->mutable_push()->mutable_pushed()->append(std::move(bytes));
 
     out = assembleStructuredMessage(
         laar::IResult::EVersion::FIRST, 
@@ -181,12 +190,11 @@ TEST_F(ServerTest, InitConnection) {
         laar::IResult::EType::PUSH_SIMPLE, 
         another_message);
 
-    GTEST_COUT("sending push...");
-    conn.write_n(out.get(), another_message.ByteSizeLong() + headerSize);
-    GTEST_COUT("sending push...");
-    conn.write_n(out.get(), another_message.ByteSizeLong() + headerSize);
-    GTEST_COUT("sending push...");
-    conn.write_n(out.get(), another_message.ByteSizeLong() + headerSize);
+    
+    for (std::size_t i = 0; i < pushTimes; ++i) {
+        GTEST_COUT("sending push (" << i << " time)");
+        conn.write_n(out.get(), another_message.ByteSizeLong() + headerSize);
+    }
 
     NSound::TClientMessage closing_message;
     *closing_message.mutable_simple_message()->mutable_close() = NSound::NSimple::TSimpleMessage::TClose::default_instance();
@@ -202,7 +210,60 @@ TEST_F(ServerTest, InitConnection) {
     
     conn.close();
 
+    std::this_thread::sleep_for(terminateTimeout);
+    std::filesystem::remove("default.cfg");
+    std::filesystem::remove("dynamic.cfg");
+    server->terminate();
+    main.join();
+}
+
+TEST_F(ServerTest, UseMultipleConnectionsTest) {
+    std::thread main (&srv::Server::run, server.get());
     std::this_thread::sleep_for(100ms);
+
+    sockpp::tcp_connector conn1, conn2;
+    int16_t port = 5050;
+
+    if (auto res = conn1.connect(sockpp::inet_address("localhost", port))) {
+        GTEST_COUT("result of making connection (1): " << res.error_message());
+    }
+
+    // open stream
+    NSound::TClientMessage message;
+    message.mutable_simple_message()->mutable_stream_config()->mutable_buffer_config()->set_fragment_size(12);
+
+    auto out = assembleStructuredMessage(
+        laar::IResult::EVersion::FIRST, 
+        laar::IResult::EPayloadType::STRUCTURED, 
+        laar::IResult::EType::OPEN_SIMPLE, 
+        message);
+
+    conn1.write_n(out.get(), message.ByteSizeLong() + headerSize);
+
+    if (auto res = conn2.connect(sockpp::inet_address("localhost", port))) {
+        GTEST_COUT("result of making connection (2): " << res.error_message());
+    }
+
+    conn2.write_n(out.get(), message.ByteSizeLong() + headerSize);
+
+    NSound::TClientMessage closing_message;
+    *closing_message.mutable_simple_message()->mutable_close() = NSound::NSimple::TSimpleMessage::TClose::default_instance();
+
+    out = assembleStructuredMessage(
+        laar::IResult::EVersion::FIRST, 
+        laar::IResult::EPayloadType::STRUCTURED, 
+        laar::IResult::EType::CLOSE_SIMPLE, 
+        closing_message);
+
+    GTEST_COUT("sending close (from 1)...");
+    conn1.write_n(out.get(), closing_message.ByteSizeLong() + headerSize);
+    conn1.close();
+
+    GTEST_COUT("sending close (from 2)...");
+    conn2.write_n(out.get(), closing_message.ByteSizeLong() + headerSize);
+    conn2.close();
+
+    std::this_thread::sleep_for(terminateTimeout);
     std::filesystem::remove("default.cfg");
     std::filesystem::remove("dynamic.cfg");
     server->terminate();
