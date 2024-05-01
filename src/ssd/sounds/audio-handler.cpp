@@ -177,7 +177,7 @@ void SoundHandler::push(char* buffer, std::size_t frames) {
         int error = 0;
         error = snd_pcm_writei(pcmHandle_.get(), buffer, frames);
         if (error < 0) {
-            onRecoveribleError(error, "failed write on sound device: {}", snd_strerror(error));
+            onRecoverableError(error, "failed write on sound device: {}", snd_strerror(error));
         }
     }, weak_from_this());
 }
@@ -187,7 +187,7 @@ void SoundHandler::pull(char* buffer, std::size_t frames) {
         int error = 0;
         error = snd_pcm_readi(pcmHandle_.get(), buffer, frames);
         if (error < 0) {
-            onRecoveribleError(error, "failed read on sound device: {}", snd_strerror(error));
+            onRecoverableError(error, "failed read on sound device: {}", snd_strerror(error));
         }
     }, weak_from_this());
 }

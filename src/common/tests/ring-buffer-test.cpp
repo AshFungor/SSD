@@ -7,7 +7,6 @@
 // laar
 #include <common/ring-buffer.hpp>
 
-
 TEST(RingBufferTest, IOOperationsTest) {
     std::size_t bufferSize = 20;
     laar::RingBuffer buffer (bufferSize);

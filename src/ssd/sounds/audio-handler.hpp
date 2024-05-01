@@ -49,7 +49,7 @@ namespace sound {
         void onFatalError(std::string format, FormatArgs... args);
 
         template<typename... FormatArgs>
-        void onRecoveribleError(int error, std::string format, FormatArgs... args);
+        void onRecoverableError(int error, std::string format, FormatArgs... args);
 
         void hwInit();
         void swInit();
@@ -83,7 +83,7 @@ void sound::SoundHandler::onFatalError(std::string format, FormatArgs... args) {
 }
 
 template<typename... FormatArgs>
-void sound::SoundHandler::onRecoveribleError(int error, std::string format, FormatArgs... args) {
+void sound::SoundHandler::onRecoverableError(int error, std::string format, FormatArgs... args) {
     PLOG(plog::warning) << std::vformat(format, std::make_format_args(args...));
     xrunRecovery(error);
 }

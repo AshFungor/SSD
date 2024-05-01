@@ -1,4 +1,5 @@
 // GTest
+#include <google/protobuf/message.h>
 #include <gtest/gtest.h>
 
 // plog
@@ -93,33 +94,43 @@ public:
 
 namespace {
 
-    std::unique_ptr<char[]> assembleMessage(
-        laar::MessageBuilder::IResult::EVersion version,
-        laar::MessageBuilder::IResult::EPayloadType payloadType,
-        laar::MessageBuilder::IResult::EType type,
-        char* buffer,
-        std::size_t size) 
+    static constexpr int headerSize = 6;
+
+    std::unique_ptr<char[]> assembleStructuredMessage(
+        laar::IResult::EVersion version,
+        laar::IResult::EPayloadType payloadType,
+        laar::IResult::EType type,
+        google::protobuf::Message& message) 
     {
-        auto message = std::make_unique<char[]>(6 + size);
+        std::size_t len = message.ByteSizeLong();
+
+        auto buffer = std::make_unique<char[]>(len);
+        message.SerializeToArray(buffer.get(), len);
+
+        auto out = std::make_unique<char[]>(headerSize + len);
         std::size_t section = 0;
 
         section = (std::uint32_t) version;
         section |= ((std::uint32_t) payloadType) << 4;
         section |= (((std::uint32_t) type)) << 8;
 
-        section |= ((std::size_t) size) << 16;
+        section |= ((std::size_t) len) << 16;
 
-        std::memcpy(message.get(), &section, 6);
-        std::memcpy(message.get() + 6, buffer, size);
+        std::memcpy(out.get(), &section, headerSize);
+        std::memcpy(out.get() + headerSize, buffer.get(), len);
 
         std::stringstream ss;
         ss << std::hex;
-        for (std::size_t i = 0; i < size + 6; ++i) {
-            ss << "byte " << i << " is " << (std::uint32_t) message[i] << "; ";
+        for (std::size_t i = 0, newline = 0; i < len + headerSize; ++i, ++newline) {
+            if (newline % 4 == 0) {
+                ss << "\n";
+            }
+            ss << "byte " << i << " is " << (std::uint32_t) out[i] << ";\t";
         }
         GTEST_COUT(ss.str());
+        GTEST_COUT("sending message with " << len << " bytes");
 
-        return std::move(message);
+        return std::move(out);
     }
 
 }
@@ -148,21 +159,14 @@ TEST_F(ServerTest, InitConnection) {
     NSound::TClientMessage message;
     *message.mutable_simple_message()->mutable_stream_config() = NSound::NSimple::TSimpleMessage::TStreamConfiguration::default_instance();
     message.mutable_simple_message()->mutable_stream_config()->mutable_buffer_config()->set_fragment_size(12);
-    std::size_t len = message.ByteSizeLong();
 
-    GTEST_COUT("sending message with " << len << " bytes");
+    auto out = assembleStructuredMessage(
+        laar::IResult::EVersion::FIRST, 
+        laar::IResult::EPayloadType::STRUCTURED, 
+        laar::IResult::EType::OPEN_SIMPLE, 
+        message);
 
-    auto buffer = std::make_unique<char[]>(len);
-    message.SerializeToArray(buffer.get(), len);
-
-    auto out = assembleMessage(
-        laar::MessageBuilder::IResult::EVersion::FIRST, 
-        laar::MessageBuilder::IResult::EPayloadType::STRUCTURED, 
-        laar::MessageBuilder::IResult::EType::OPEN_SIMPLE, 
-        buffer.get(), 
-        len);
-
-    conn.write_n(out.get(), len + 6);
+    conn.write_n(out.get(), message.ByteSizeLong() + headerSize);
 
     conn.close();
 

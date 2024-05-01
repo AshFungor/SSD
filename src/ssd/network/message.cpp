@@ -14,6 +14,7 @@
 
 // local
 #include "message.hpp"
+#include "common/plain-buffer.hpp"
 #include "network/interfaces/i-message.hpp"
 #include "protos/client/client-message.pb.h"
 
@@ -25,15 +26,15 @@ using namespace laar;
 namespace {
 
     std::string dumpHeader(
-        MessageBuilder::IResult::EVersion version,
-        MessageBuilder::IResult::EType messageType,
-        MessageBuilder::IResult::EPayloadType payloadType,
+        IResult::EVersion version,
+        IResult::EType messageType,
+        IResult::EPayloadType payloadType,
         std::uint32_t payloadSize
     ) {
         std::stringstream ss;
         ss << "Protocol Version: ";
         switch (version) {
-            case MessageBuilder::IResult::EVersion::FIRST:
+            case IResult::EVersion::FIRST:
                 ss << "First";
                 break;
             default:
@@ -41,31 +42,31 @@ namespace {
         }
         ss << "; Payload Type: ";
         switch (payloadType) {
-            case MessageBuilder::IResult::EPayloadType::RAW:
+            case IResult::EPayloadType::RAW:
                 ss << "RAW";
                 break;
-            case MessageBuilder::IResult::EPayloadType::STRUCTURED:
+            case IResult::EPayloadType::STRUCTURED:
                 ss << "STRUCTURED";
                 break;
         }
         ss << "; Message Type: ";
         switch (messageType) {
-            case MessageBuilder::IResult::EType::CLOSE_SIMPLE:
+            case IResult::EType::CLOSE_SIMPLE:
                 ss << "Simple protocol: close";
                 break;
-            case MessageBuilder::IResult::EType::DRAIN_SIMPLE:
+            case IResult::EType::DRAIN_SIMPLE:
                 ss << "Simple protocol: drain";
                 break;
-            case MessageBuilder::IResult::EType::FLUSH_SIMPLE:
+            case IResult::EType::FLUSH_SIMPLE:
                 ss << "Simple protocol: flush";
                 break;
-            case MessageBuilder::IResult::EType::OPEN_SIMPLE:
+            case IResult::EType::OPEN_SIMPLE:
                 ss << "Simple protocol: open";
                 break;
-            case MessageBuilder::IResult::EType::PUSH_SIMPLE:
+            case IResult::EType::PUSH_SIMPLE:
                 ss << "Simple protocol: push";
                 break;
-            case MessageBuilder::IResult::EType::PULL_SIMPLE:
+            case IResult::EType::PULL_SIMPLE:
                 ss << "Simple protocol: pull";
                 break;   
             default:
@@ -77,14 +78,14 @@ namespace {
 
 }
 
-MessageBuilder::MessageBuilder(std::shared_ptr<laar::RingBuffer> buffer, Private access) 
-: IMessageBuilder(std::make_unique<RollbackHandler>())
+MessageBuilder::MessageBuilder(std::shared_ptr<laar::PlainBuffer> buffer, Private access) 
+: IMessageReceiver(std::make_unique<RollbackHandler>())
 , buffer_(buffer)
 {
     reset();
 }
 
-std::shared_ptr<MessageBuilder> MessageBuilder::configure(std::shared_ptr<laar::RingBuffer> buffer) {
+std::shared_ptr<MessageBuilder> MessageBuilder::configure(std::shared_ptr<laar::PlainBuffer> buffer) {
     return std::make_shared<MessageBuilder>(std::move(buffer), Private{});
 }
 
@@ -135,7 +136,7 @@ bool MessageBuilder::ready() const {
     return stage_ == EState::OUT_READY;
 }
 
-std::unique_ptr<MessageBuilder::IResult> MessageBuilder::fetch() {
+std::unique_ptr<IResult> MessageBuilder::fetch() {
     ENSURE_STATE(stage_, EState::OUT_READY);
 
     reset();
@@ -203,7 +204,7 @@ void MessageBuilder::handlePayload() {
     requested_ = 0;
 }
 
-std::unique_ptr<MessageBuilder::IRawResult> MessageBuilder::assembleRaw() {
+std::unique_ptr<IRawResult> MessageBuilder::assembleRaw() {
     ENSURE_STATE(stage_, EState::IN_PAYLOAD);
 
     auto payload = std::make_unique<MessageBuilder::RawResult>(
@@ -212,12 +213,12 @@ std::unique_ptr<MessageBuilder::IRawResult> MessageBuilder::assembleRaw() {
     return std::move(payload);
 }
 
-std::unique_ptr<MessageBuilder::IStructuredResult> MessageBuilder::assembleStructured() {
+std::unique_ptr<IStructuredResult> MessageBuilder::assembleStructured() {
     ENSURE_STATE(stage_, EState::IN_PAYLOAD);
 
     NSound::TClientMessage message;
-    auto result = message.ParseFromArray(buffer_->rdCursor(), current_.payloadSize);
-    buffer_->drop(current_.payloadSize);
+    auto result = message.ParseFromArray(buffer_->rPosition(), current_.payloadSize);
+    buffer_->advance(PlainBuffer::EPosition::RPOS, current_.payloadSize);
 
     auto payload = std::make_unique<MessageBuilder::StructuredResult>(
         std::move(message), current_.payloadSize, current_.messageType, current_.version, current_.payloadType
@@ -235,7 +236,7 @@ void MessageBuilder::onCriticalError(std::exception error) {
 }
 
 MessageBuilder::RawResult::RawResult(
-    std::shared_ptr<RingBuffer> buffer, 
+    std::shared_ptr<PlainBuffer> buffer, 
     std::uint32_t size,
     EType type,
     EVersion version,

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(common-test LANGUAGES CXX VERSION 0.0)
 
-set(SOURCES callback-queue-test.cpp thread-pool-test.cpp ring-buffer-test.cpp)
+set(SOURCES callback-queue-test.cpp thread-pool-test.cpp ring-buffer-test.cpp plain-buffer-test.cpp)
 
 add_executable(common-test ${SOURCES})
 

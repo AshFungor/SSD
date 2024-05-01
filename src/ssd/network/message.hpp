@@ -1,6 +1,7 @@
 #pragma once
 
 // standard
+#include "common/plain-buffer.hpp"
 #include <cstdint>
 #include <exception>
 #include <cstddef>
@@ -25,14 +26,14 @@ namespace laar {
 
     class RollbackHandler : public IFallbackHandler {
     public:
-        virtual void onError(IMessageBuilder* builder, std::exception error) override {
+        virtual void onError(IMessageReceiver* builder, std::exception error) override {
             PLOG(plog::warning) << "Protocol error: " << error.what();
             builder->invalidate();
         }
     };
 
     class MessageBuilder 
-        : public IMessageBuilder
+        : public IMessageReceiver
         , public std::enable_shared_from_this<MessageBuilder> {
     private: struct Private {};
     public:
@@ -40,7 +41,7 @@ namespace laar {
         class RawResult : public IRawResult {
         public:
             RawResult(
-                std::shared_ptr<RingBuffer> buffer, 
+                std::shared_ptr<PlainBuffer> buffer, 
                 std::uint32_t size,
                 EType type,
                 EVersion version,
@@ -87,8 +88,8 @@ namespace laar {
             EPayloadType payloadType_;
         }; 
 
-        static std::shared_ptr<MessageBuilder> configure(std::shared_ptr<laar::RingBuffer> buffer);
-        MessageBuilder(std::shared_ptr<laar::RingBuffer> buffer, Private access);
+        static std::shared_ptr<MessageBuilder> configure(std::shared_ptr<laar::PlainBuffer> buffer);
+        MessageBuilder(std::shared_ptr<laar::PlainBuffer> buffer, Private access);
 
         // IMessageBuilder implementation
         virtual void reset() override;
@@ -138,7 +139,7 @@ namespace laar {
 
         // bytes requested by current state
         std::uint32_t requested_;
-        std::shared_ptr<laar::RingBuffer> buffer_;
+        std::shared_ptr<laar::PlainBuffer> buffer_;
 
         std::unique_ptr<IResult> assembled_;
 

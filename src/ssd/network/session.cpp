@@ -25,6 +25,7 @@
 
 // local
 #include "session.hpp"
+#include "common/plain-buffer.hpp"
 
 using namespace srv;
 
@@ -85,7 +86,7 @@ namespace {
 
 ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access) 
 : sock_(std::move(sock))
-, buffer_(std::make_shared<laar::RingBuffer>(4096))
+, buffer_(std::make_shared<laar::PlainBuffer>(4096))
 , builder_(laar::MessageBuilder::configure(buffer_))
 {}
 
@@ -132,8 +133,7 @@ bool ClientSession::update() {
     }
 
     auto requested = builder_->poll();
-    auto buffer = std::make_unique<char[]>(requested);
-    auto res = sock_.recv(buffer.get(), requested);
+    auto res = sock_.recv(buffer_->wPosition(), requested);
     
     if (res.is_error() || !res.value()) {
         if (!res.value()) {
@@ -146,7 +146,7 @@ bool ClientSession::update() {
         }
     }
 
-    buffer_->write(buffer.get(), res.value());
+    buffer_->advance(laar::PlainBuffer::EPosition::WPOS, res.value());
     laar::MessageBuilder::Receive event (res.value());
     builder_->handle(event);
 
@@ -156,14 +156,22 @@ bool ClientSession::update() {
 
     if (*builder_) {
         auto result = builder_->fetch();
-        if (result->payloadType() == laar::MessageBuilder::IResult::EPayloadType::STRUCTURED) {
+        if (result->payloadType() == laar::IResult::EPayloadType::STRUCTURED) {
             onClientMessage(std::move(result->cast<laar::MessageBuilder::StructuredResult>().payload()));
         } else {
             // not implemented
         }
+        // reset buffer to clear space for next message (risking overflow otherwise)
+        buffer_->reset();
     }
 
     return true;
+}
+
+void ClientSession::onReply(std::unique_ptr<char[]> buffer, std::size_t size) {
+    std::unique_lock<std::mutex> locked (sessionLock_);
+
+    // reply to user
 }
 
 void ClientSession::handleErrorState(sockpp::result<std::size_t> requestState) {
@@ -196,7 +204,6 @@ void ClientSession::onStreamConfigMessage(const NSound::NSimple::TSimpleMessage:
     // handle double config on same stream
     PLOG(plog::debug) << "config for peer: " << sock_.peer_address() << " received, dumping it to logs";
     PLOG(plog::debug) << dumpStreamConfig(message);
-    sessionConfig_ = message;
 }
 
 bool ClientSession::open() {

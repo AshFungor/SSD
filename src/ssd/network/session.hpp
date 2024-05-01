@@ -13,6 +13,7 @@
 // laar
 #include <network/message.hpp>
 #include <common/ring-buffer.hpp>
+#include <network/interfaces/i-protocol.hpp>
 
 // protos
 #include <protos/client/simple/simple.pb.h>
@@ -24,6 +25,7 @@ namespace srv {
 
     class ClientSession 
     : std::enable_shared_from_this<ClientSession>
+    , laar::IProtocol::IReplyListener
     {
     private: struct Private { };
     public:
@@ -37,21 +39,23 @@ namespace srv {
         bool open();
         void init();
 
+        // IProtocol::IReplyListener
+        virtual void onReply(std::unique_ptr<char[]> buffer, std::size_t size) override;
+        virtual void leave() override;
+
     private:
         void onStreamConfigMessage(const NSound::NSimple::TSimpleMessage::TStreamConfiguration& message);
         void onClientMessage(const NSound::TClientMessage& message);
         void error(const std::string& errorMessage);
         void handleErrorState(sockpp::result<std::size_t> requestState);
-        void reply(/* server message */);
 
     private:
 
         std::mutex sessionLock_;
 
-        std::shared_ptr<laar::RingBuffer> buffer_;
-        std::shared_ptr<laar::IMessageBuilder> builder_;
+        std::shared_ptr<laar::PlainBuffer> buffer_;
+        std::shared_ptr<laar::IMessageReceiver> builder_;
 
-        NSound::NSimple::TSimpleMessage::TStreamConfiguration sessionConfig_;
         sockpp::tcp_socket sock_;
     };
 
