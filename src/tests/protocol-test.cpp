@@ -1,4 +1,6 @@
 // GTest
+#include "protos/client/client-message.pb.h"
+#include "protos/client/simple/simple.pb.h"
 #include <google/protobuf/message.h>
 #include <gtest/gtest.h>
 
@@ -128,7 +130,7 @@ namespace {
             ss << "byte " << i << " is " << (std::uint32_t) out[i] << ";\t";
         }
         GTEST_COUT(ss.str());
-        GTEST_COUT("sending message with " << len << " bytes");
+        GTEST_COUT("assembling message with " << len << " bytes");
 
         return std::move(out);
     }
@@ -156,8 +158,8 @@ TEST_F(ServerTest, InitConnection) {
         GTEST_COUT("result of making connection: " << res.error_message());
     }
 
+    // open stream
     NSound::TClientMessage message;
-    *message.mutable_simple_message()->mutable_stream_config() = NSound::NSimple::TSimpleMessage::TStreamConfiguration::default_instance();
     message.mutable_simple_message()->mutable_stream_config()->mutable_buffer_config()->set_fragment_size(12);
 
     auto out = assembleStructuredMessage(
@@ -168,6 +170,36 @@ TEST_F(ServerTest, InitConnection) {
 
     conn.write_n(out.get(), message.ByteSizeLong() + headerSize);
 
+    // send some data
+    NSound::TClientMessage another_message;
+    another_message.mutable_simple_message()->mutable_push()->set_size(3);
+    another_message.mutable_simple_message()->mutable_push()->set_pushed({1, 1, 1});
+
+    out = assembleStructuredMessage(
+        laar::IResult::EVersion::FIRST, 
+        laar::IResult::EPayloadType::STRUCTURED, 
+        laar::IResult::EType::PUSH_SIMPLE, 
+        another_message);
+
+    GTEST_COUT("sending push...");
+    conn.write_n(out.get(), another_message.ByteSizeLong() + headerSize);
+    GTEST_COUT("sending push...");
+    conn.write_n(out.get(), another_message.ByteSizeLong() + headerSize);
+    GTEST_COUT("sending push...");
+    conn.write_n(out.get(), another_message.ByteSizeLong() + headerSize);
+
+    NSound::TClientMessage closing_message;
+    *closing_message.mutable_simple_message()->mutable_close() = NSound::NSimple::TSimpleMessage::TClose::default_instance();
+
+    out = assembleStructuredMessage(
+        laar::IResult::EVersion::FIRST, 
+        laar::IResult::EPayloadType::STRUCTURED, 
+        laar::IResult::EType::CLOSE_SIMPLE, 
+        closing_message);
+
+    GTEST_COUT("sending close...");
+    conn.write_n(out.get(), closing_message.ByteSizeLong() + headerSize);
+    
     conn.close();
 
     std::this_thread::sleep_for(100ms);

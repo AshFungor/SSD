@@ -1,5 +1,6 @@
 // sockpp
 #include "network/interfaces/i-message.hpp"
+#include "network/sync-protocol.hpp"
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/tcp_socket.h>
 
@@ -41,11 +42,9 @@ namespace srv {
 
         // IProtocol::IReplyListener
         virtual void onReply(std::unique_ptr<char[]> buffer, std::size_t size) override;
-        virtual void leave() override;
+        virtual void onClose() override;
 
     private:
-        void onStreamConfigMessage(const NSound::NSimple::TSimpleMessage::TStreamConfiguration& message);
-        void onClientMessage(const NSound::TClientMessage& message);
         void error(const std::string& errorMessage);
         void handleErrorState(sockpp::result<std::size_t> requestState);
 
@@ -55,6 +54,7 @@ namespace srv {
 
         std::shared_ptr<laar::PlainBuffer> buffer_;
         std::shared_ptr<laar::IMessageReceiver> builder_;
+        std::unique_ptr<laar::SyncProtocol> protocol_;
 
         sockpp::tcp_socket sock_;
     };

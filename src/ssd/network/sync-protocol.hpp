@@ -28,7 +28,7 @@ namespace laar {
         MessageQueue(std::unique_ptr<IEffectiveLoadClassifier> classifier);
         // IMessageQueue implementation
         virtual std::unique_ptr<IResult> pop() override;
-        virtual void push(std::unique_ptr<IResult> message) override;
+        virtual std::size_t push(std::unique_ptr<IResult> message) override;
         virtual std::size_t getEffectiveLoad() const override;
 
     private:
@@ -43,8 +43,13 @@ namespace laar {
         virtual void onClientMessage(std::unique_ptr<IResult> message) override;
 
     private:
+        void onStreamConfiguration(NSound::NSimple::TSimpleMessage::TStreamConfiguration message);
+        void onDrain(NSound::NSimple::TSimpleMessage::TDrain message);
+        void onFlush(NSound::NSimple::TSimpleMessage::TFlush message);
+        void onIOOperation(NSound::NSimple::TSimpleMessage::TPull message);
+        void onIOOperation(NSound::NSimple::TSimpleMessage::TPush message);
+        void onClose(NSound::NSimple::TSimpleMessage::TClose message);
         void onError(std::exception error);
-        void leave();
 
     private:
         std::unique_ptr<MessageQueue> msQueue_;

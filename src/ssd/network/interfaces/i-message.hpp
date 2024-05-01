@@ -62,10 +62,12 @@ namespace laar {
     };
 
     class IRawResult : public IResult {
+    public:
         virtual char* payload() = 0;
     };
 
     class IStructuredResult : public IResult {
+    public:
         virtual NSound::TClientMessage& payload() = 0;
     };
 

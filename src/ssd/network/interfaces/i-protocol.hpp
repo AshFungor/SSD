@@ -24,7 +24,7 @@ namespace laar {
     class IMessageQueue {
     public:
         virtual std::unique_ptr<IResult> pop() = 0;
-        virtual void push(std::unique_ptr<IResult> message) = 0;
+        virtual std::size_t push(std::unique_ptr<IResult> message) = 0;
         virtual std::size_t getEffectiveLoad() const = 0;
 
         virtual ~IMessageQueue() = default;
@@ -36,7 +36,7 @@ namespace laar {
         class IReplyListener {
         public:
             virtual void onReply(std::unique_ptr<char[]> buffer, std::size_t size) = 0;
-            virtual void leave() = 0;
+            virtual void onClose() = 0;
         };
 
         virtual void onClientMessage(std::unique_ptr<IResult> message) = 0;
