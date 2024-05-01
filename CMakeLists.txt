@@ -25,4 +25,3 @@ add_subdirectory(contrib)
 add_subdirectory(pulse)
 
 add_subdirectory(src)
-add_subdirectory(alsa-examples)
