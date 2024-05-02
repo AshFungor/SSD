@@ -145,7 +145,7 @@ namespace {
 
 TEST_F(ServerTest, InitServerTests) {
     std::thread main (&srv::Server::run, server.get());
-    std::this_thread::sleep_for(100ms);
+    std::this_thread::sleep_for(initTimeout);
 
     std::filesystem::remove("default.cfg");
     std::filesystem::remove("dynamic.cfg");
@@ -155,7 +155,7 @@ TEST_F(ServerTest, InitServerTests) {
 
 TEST_F(ServerTest, FlowTest) {
     std::thread main (&srv::Server::run, server.get());
-    std::this_thread::sleep_for(100ms);
+    std::this_thread::sleep_for(initTimeout);
 
     sockpp::tcp_connector conn;
     int16_t port = 5050;

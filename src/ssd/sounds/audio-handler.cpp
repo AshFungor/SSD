@@ -1,17 +1,12 @@
 // laar
+#include <climits>
 #include <common/callback-queue.hpp>
 #include <common/exceptions.hpp>
 #include <common/macros.hpp>
 
-// alsa
-#include <alsa/asoundlib.h>
-#include <alsa/control.h>
-#include <alsa/error.h>
-#include <alsa/conf.h>
-#include <alsa/pcm.h>
-
 // std
 #include <condition_variable>
+#include <cstdint>
 #include <format>
 #include <memory>
 #include <string>
@@ -23,178 +18,188 @@
 #include <plog/Severity.h>
 #include <plog/Log.h>
 
+// RtAudio
+#include <RtAudio.h>
+
 // local
 #include "audio-handler.hpp"
 
-using namespace sound;
-
+using namespace laar;
 
 std::shared_ptr<SoundHandler> SoundHandler::configure(
     std::shared_ptr<laar::CallbackQueue> cbQueue,
-    NSound::NSimple::TSimpleMessage::TStreamConfiguration config) 
+    std::shared_ptr<laar::ThreadPool> threadPool)  
 {
-    return std::make_shared<SoundHandler>(std::move(cbQueue), std::move(config), Private());    
+    return std::make_shared<SoundHandler>(std::move(cbQueue), std::move(threadPool), Private());    
 }
 
 SoundHandler::SoundHandler(
-    std::shared_ptr<laar::CallbackQueue> cbQueue, 
-    NSound::NSimple::TSimpleMessage::TStreamConfiguration config, 
+    std::shared_ptr<laar::CallbackQueue> cbQueue,
+    std::shared_ptr<laar::ThreadPool> threadPool,
     Private access)
-    : cbQueue_(std::move(cbQueue))
-    , clientConfig_(std::move(config))
-    , pcmHandle_(nullptr, &snd_pcm_close)
-    , hwParams_(nullptr, &snd_pcm_hw_params_free)
-    , swParams_(nullptr, &snd_pcm_sw_params_free)
+: cbQueue_(std::move(cbQueue))
+, threadPool_(std::move(threadPool))
+, audio_(RtAudio::Api::LINUX_ALSA)
 {}
 
 void SoundHandler::init() {
-    SSD_ENSURE_THREAD(cbQueue_);
-
-    snd_pcm_t* handle = nullptr;
-    int error = 0;
-
-    if ((error = snd_pcm_open(&handle, device_.c_str(), getStreamDir(), mode_)) < 0) {
-        onFatalError("error opening device: {}", snd_strerror(error));
+    auto devices = audio_.getDeviceIds();
+    for (auto& id : devices) {
+        auto info = audio_.getDeviceInfo(id);
+        PLOG(plog::debug) << "Available device with id: " << id << ", name: " << info.name;
     }
-    pcmHandle_.reset(handle);
 
-    hwInit();
-    swInit();
+    auto inputDevice = audio_.getDefaultInputDevice();
+    auto outputDevice = audio_.getDefaultOutputDevice();
+
+    if (!(inputDevice && outputDevice)) {
+        onError(laar::LaarSoundHandlerError("Device for IO was not acquired"));
+    }
+
+    RtAudio::StreamParameters inputParams;
+    inputParams.deviceId = inputDevice;
+    inputParams.firstChannel = 0;
+    inputParams.nChannels = 1;
+    unsigned int bufferFrames = UINT_MAX;
+    auto inputStreamError = audio_.openStream(
+        nullptr, 
+        &inputParams, 
+        RTAUDIO_SINT32, 
+        baseSampleRate_, 
+        &bufferFrames, 
+        &readCallback, 
+        (void*)local_.get());
+
+    if (inputStreamError) {
+        onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
+    }
+
+    PLOG(plog::info) << "input stream opened with nframes buffer: " << bufferFrames;
+
+    RtAudio::StreamParameters outParams;
+    outParams.deviceId = outputDevice;
+    outParams.firstChannel = 0;
+    outParams.nChannels = 1;
+    bufferFrames = UINT_MAX;
+    auto outStreamError = audio_.openStream(
+        &outParams, 
+        nullptr, 
+        RTAUDIO_SINT32, 
+        baseSampleRate_, 
+        &bufferFrames, 
+        &writeCallback, 
+        (void*)local_.get());
+
+    if (outStreamError) {
+        onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
+    }
+
+    PLOG(plog::info) << "output stream opened with nframes buffer: " << bufferFrames;
 }
 
-void SoundHandler::hwInit() {
-    SSD_ENSURE_THREAD(cbQueue_);
-
-    snd_pcm_hw_params_t* params = nullptr;
-    snd_pcm_hw_params_alloca(&params);
-
-    if (!pcmHandle_) {
-        onFatalError("broken init order: pcm handle is nullptr");
-    }
-    PLOG(plog::debug) << "handler check is passed, init() hw params";
-
-    int error = 0;
-    if ((error = snd_pcm_hw_params_any(pcmHandle_.get(), params)) < 0) {
-        onFatalError("unable to acquire params range for device: {}, error: {}", (std::size_t) pcmHandle_.get(), snd_strerror(error));
-    }
-
-    if ((error = snd_pcm_hw_params_set_rate_resample(pcmHandle_.get(), params, true)) < 0) {
-        onFatalError("hw params: unable to set resampling, error: {}", snd_strerror(error));
-    }
-    if ((error = snd_pcm_hw_params_set_access(pcmHandle_.get(), params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-        onFatalError("hw params: unable to set interleaved access, error: {}", snd_strerror(error));
-    }
-    if ((error = snd_pcm_hw_params_set_format(pcmHandle_.get(), params, getFormat())) < 0) {
-        onFatalError("hw params: unable to set format {}, error: {}", (std::size_t) getFormat(), snd_strerror(error));
-    }
-
-    if ((error = snd_pcm_hw_params(pcmHandle_.get(), params)) < 0) {
-        onFatalError("hw params: unable to set params for device: {}", snd_strerror(error));
-    }
-    hwParams_.reset(params);
+std::unique_ptr<SoundHandler::LocalData> SoundHandler::makeLocalData() {
+    auto data = std::make_unique<LocalData>();
+    data->object = shared_from_this();
+    data->abort = false;
+    return data;
 }
 
-void SoundHandler::swInit() {
-    SSD_ENSURE_THREAD(cbQueue_);
-
-    snd_pcm_sw_params_t* params = nullptr;
-    snd_pcm_sw_params_alloca(&params);
-
-    if (!pcmHandle_ || !hwParams_) {
-        onFatalError("broken init order: pcm handle and/or hw params are nullptr");
-    }
-    PLOG(plog::debug) << "handler check is passed, init() sw params";
-
-    int error = 0;
-    if ((error = snd_pcm_sw_params_set_avail_min(pcmHandle_.get(), params, clientConfig_.buffer_config().prebuffing_size())) < 0) {
-        onFatalError("sw params: unable to set avail min for playback: {}", snd_strerror(error));
-    }
-
-    if ((error = snd_pcm_sw_params(pcmHandle_.get(), params)) < 0) {
-        onFatalError("sw params: unable to set sw params: {}", snd_strerror(error));
-    }
-    swParams_.reset(params);
+void SoundHandler::onError(std::exception error) {
+    PLOG(plog::error) << "error in sound module: " << error.what();
+    throw error;
 }
 
-snd_pcm_stream_t SoundHandler::getStreamDir() {
-    SSD_ENSURE_THREAD(cbQueue_);
+int laar::writeCallback(
+    void* out, 
+    void* in, 
+    unsigned int frames, 
+    double streamTime, 
+    RtAudioStreamStatus status,
+    void* local) 
+{
+    auto data = (SoundHandler::LocalData*) local;
+    auto handler = data->object.lock();
 
-    using namespace NSound::NSimple;
-
-    switch (clientConfig_.direction()) {
-    case TSimpleMessage::TStreamConfiguration::PLAYBACK:
-        return SND_PCM_STREAM_PLAYBACK;
-    case TSimpleMessage::TStreamConfiguration::RECORD:
-        return SND_PCM_STREAM_CAPTURE;
-    default:
-        onFatalError("Could not resolve stream direction, received value: " + std::to_string(clientConfig_.direction()));
+    if (!handler) {
+        // abort stream
+        return 2;
     }
 
-    return static_cast<snd_pcm_stream_t>(-1);
-}
-
-snd_pcm_format_t SoundHandler::getFormat() {
-    SSD_ENSURE_THREAD(cbQueue_);
-
-    using namespace NSound::NSimple;
-
-    switch (clientConfig_.sample_spec().format()) {
-    case TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8:
-        return SND_PCM_FORMAT_U8;
-    case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN:
-        return SND_PCM_FORMAT_S16_BE;
-    case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN:
-        return SND_PCM_FORMAT_S16_LE;
-    case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN:
-        return SND_PCM_FORMAT_FLOAT_LE;
-    case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN:
-        return SND_PCM_FORMAT_FLOAT_BE;
-    case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN:
-        return SND_PCM_FORMAT_S32_LE;
-    case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN:
-        return SND_PCM_FORMAT_S32_BE;
-    default:
-        onFatalError("sample format is not supported: ", (std::size_t) clientConfig_.sample_spec().format());
+    if (data->abort) {
+        // drain stream and close it
+        return 1;
     }
 
-    return SND_PCM_FORMAT_UNKNOWN;
-}
+    handler->cbQueue_->query([&]() {
 
-void SoundHandler::xrunRecovery(int error) {
-    SSD_ENSURE_THREAD(cbQueue_);
+        std::vector<std::unique_ptr<std::int32_t[]>> buffers;
 
-    if (error == -EPIPE) {
-        error = snd_pcm_prepare(pcmHandle_.get());
-        if (error < 0) {
-            onFatalError("cannot recovery from underrun, prepare failed: {}", snd_strerror(error));
+        for (auto& handle : handler->outHandles_) {
+            if (auto lockedHandle = handle.lock()) {
+                buffers.emplace_back(std::make_unique<std::int32_t[]>(frames));
+                lockedHandle->read(buffers.back().get(), frames);
+            }
         }
+
+        auto result = (std::int32_t*) out;
+
+        for (std::size_t frame = 0; frame < frames; ++frame) {
+            bool isFirst = true;
+            for (auto& buffer : buffers) {
+                if (isFirst) {
+                    isFirst = false;
+                    result[frame] = buffer[frame];
+                } else {
+                    result[frame] = 2 * ((std::int64_t) buffer[frame] + result[frame]) 
+                        - (std::int64_t) buffer[frame] * result[frame] / (INT32_MAX / 2) - INT32_MAX;
+                }
+            }
+
+            if (buffers.empty()) {
+                // put silence
+                result[frame] = laar::SoundHandler::silence;
+            }
+        }
+
+    });
+
+    return 0;
+}
+
+int laar::readCallback(
+    void* out, 
+    void* in, 
+    unsigned int frames, 
+    double streamTime, 
+    RtAudioStreamStatus status,
+    void* local) 
+{
+    auto data = (SoundHandler::LocalData*) local;
+    auto handler = data->object.lock();
+
+    if (!handler) {
+        // abort stream
+        return 2;
     }
-    PLOG(plog::debug) << "stream " << this << " recovered from xrun";
-}
 
-void SoundHandler::push(char* buffer, std::size_t frames) {
-    cbQueue_->query([this, buffer, frames]() {
-        int error = 0;
-        error = snd_pcm_writei(pcmHandle_.get(), buffer, frames);
-        if (error < 0) {
-            onRecoverableError(error, "failed write on sound device: {}", snd_strerror(error));
+    if (data->abort) {
+        // drain stream and close it
+        return 1;
+    }
+
+    handler->cbQueue_->query([&]() {
+        auto result = (std::int32_t*) in;
+
+        for (auto& handle : handler->inHandles_) {
+            if (auto lockedHandle = handle.lock()) {
+                lockedHandle->write(result, frames);
+            }
         }
-    }, weak_from_this());
+    });
+
+    return 0;
 }
 
-void SoundHandler::pull(char* buffer, std::size_t frames) {
-    cbQueue_->query([this, buffer, frames]() {
-        int error = 0;
-        error = snd_pcm_readi(pcmHandle_.get(), buffer, frames);
-        if (error < 0) {
-            onRecoverableError(error, "failed read on sound device: {}", snd_strerror(error));
-        }
-    }, weak_from_this());
-}
-
-void SoundHandler::drain() {
-    cbQueue_->query([this]() {
-        snd_pcm_drain(pcmHandle_.get());
-    }, weak_from_this());
-    cbQueue_->hang();
+std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle() {
+    
 }

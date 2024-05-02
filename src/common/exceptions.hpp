@@ -95,6 +95,10 @@ namespace laar {
         : message_(message)
         {}
 
+        virtual const char* what() const noexcept override {
+            return message_.data();
+        }
+
     private:
         std::string message_ = "semantic error caused by invalid program state";
 
@@ -109,14 +113,22 @@ namespace laar {
             message_ = std::vformat(message_, std::make_format_args(additional));
         }
 
+        virtual const char* what() const noexcept override {
+            return message_.data();
+        }
+
     private:
         std::string message_ = "protocol message reading error: {}";
 
     };
 
-    class LaarSoundHandlerError : std::exception {
+    class LaarSoundHandlerError : public std::exception {
     public:
         LaarSoundHandlerError(std::string message) : message_(std::move(message)) {}
+
+        virtual const char* what() const noexcept override {
+            return message_.data();
+        }
 
     protected:
         std::string message_;

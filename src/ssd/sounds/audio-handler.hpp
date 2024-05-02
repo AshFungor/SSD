@@ -1,10 +1,13 @@
 // laar
+#include "common/thread-pool.hpp"
 #include <common/callback-queue.hpp>
 #include <common/exceptions.hpp>
+#include <cstdint>
+#include <exception>
+#include <sounds/interfaces/i-audio-handler.hpp>
 
-// alsa
-#include <alsa/asoundlib.h>
-#include <alsa/pcm.h>
+// RtAudio
+#include <RtAudio.h>
 
 // std
 #include <format>
@@ -15,75 +18,92 @@
 #include <plog/Log.h>
 
 // proto
-#include <plog/Severity.h>
 #include <protos/client/simple/simple.pb.h>
 
 
-namespace sound {
+namespace laar {
 
-    class SoundHandler : public std::enable_shared_from_this<SoundHandler> {
+    int writeCallback(
+        void* out, 
+        void* in, 
+        unsigned int frames, 
+        double streamTime, 
+        RtAudioStreamStatus status,
+        void* local
+    );
+
+    int readCallback(
+        void* out, 
+        void* in, 
+        unsigned int frames, 
+        double streamTime, 
+        RtAudioStreamStatus status,
+        void* local
+    );
+
+    class SoundHandler 
+        : public std::enable_shared_from_this<SoundHandler> 
+        , public IStreamHandler {
     private: struct Private {};
     public:
 
         static std::shared_ptr<SoundHandler> configure(
             std::shared_ptr<laar::CallbackQueue> cbQueue,
-            NSound::NSimple::TSimpleMessage::TStreamConfiguration config
-        );
-
+            std::shared_ptr<laar::ThreadPool> threadPool);
         SoundHandler(
-            std::shared_ptr<laar::CallbackQueue> cbQueue, 
-            NSound::NSimple::TSimpleMessage::TStreamConfiguration config, 
-            Private access
+            std::shared_ptr<laar::CallbackQueue> cbQueue,
+            std::shared_ptr<laar::ThreadPool> threadPool,
+            Private access);
+
+        void init() override;
+        virtual std::shared_ptr<IReadHandle> acquireReadHandle() override;
+        virtual std::shared_ptr<IWriteHandle> acquireWriteHandle() override;
+
+        friend int laar::writeCallback(
+            void* out, 
+            void* in, 
+            unsigned int frames, 
+            double streamTime, 
+            RtAudioStreamStatus status,
+            void* local
         );
 
-        void init();
-        void push(char* buffer, std::size_t frames);
-        void pull(char* buffer, std::size_t frames);
-        void drain();
+        friend int laar::readCallback(
+            void* out, 
+            void* in, 
+            unsigned int frames, 
+            double streamTime, 
+            RtAudioStreamStatus status,
+            void* local
+        );
 
-        ~SoundHandler();
+    private:
+        struct LocalData;
+
+        void onError(std::exception error);
+        std::unique_ptr<LocalData> makeLocalData();
 
     private:
 
-        template<typename... FormatArgs>
-        void onFatalError(std::string format, FormatArgs... args);
-
-        template<typename... FormatArgs>
-        void onRecoverableError(int error, std::string format, FormatArgs... args);
-
-        void hwInit();
-        void swInit();
-
-        snd_pcm_stream_t getStreamDir();
-        snd_pcm_format_t getFormat();
-
-        void xrunRecovery(int error);
-
-    private:
-
-        // generic hw interface
-        const std::string device_ = "plughw:0,0";
-        // blocking mode
-        const int mode_ = 0;
+        static constexpr int baseSampleRate_ = 44100;
+        static constexpr std::int32_t silence = INT32_MIN;
 
         std::shared_ptr<laar::CallbackQueue> cbQueue_;
-        NSound::NSimple::TSimpleMessage::TStreamConfiguration clientConfig_;
+        std::shared_ptr<laar::ThreadPool> threadPool_;
 
-        std::unique_ptr<snd_pcm_hw_params_t, void(*)(snd_pcm_hw_params_t*)> hwParams_;
-        std::unique_ptr<snd_pcm_sw_params_t, void(*)(snd_pcm_sw_params_t*)> swParams_;
-        std::unique_ptr<snd_pcm_t, int(*)(snd_pcm_t*)> pcmHandle_;
+        std::vector<std::weak_ptr<IWriteHandle>> outHandles_;
+        std::vector<std::weak_ptr<IReadHandle>> inHandles_;
+
+        struct LocalData {
+            std::weak_ptr<SoundHandler> object;
+            std::atomic<bool> abort;
+        };
+
+        std::unique_ptr<LocalData> local_;
+        
+        RtAudio audio_;
+        
 
     };
 
-}
-
-template<typename... FormatArgs>
-void sound::SoundHandler::onFatalError(std::string format, FormatArgs... args) {
-    throw laar::LaarSoundHandlerError(std::vformat(format, std::make_format_args(args...)));
-}
-
-template<typename... FormatArgs>
-void sound::SoundHandler::onRecoverableError(int error, std::string format, FormatArgs... args) {
-    PLOG(plog::warning) << std::vformat(format, std::make_format_args(args...));
-    xrunRecovery(error);
 }
