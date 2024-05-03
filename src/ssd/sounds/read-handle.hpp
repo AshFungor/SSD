@@ -1,20 +1,15 @@
 // laar
-#include "sounds/converter.hpp"
 #include <sounds/interfaces/i-audio-handler.hpp>
-#include <common/ring-buffer.hpp>
 #include <common/callback-queue.hpp>
+#include <common/ring-buffer.hpp>
 #include <common/exceptions.hpp>
+#include <sounds/converter.hpp>
 
 // RtAudio
 #include <RtAudio.h>
 
 // std
-#include <format>
 #include <memory>
-
-// plog
-#include <plog/Severity.h>
-#include <plog/Log.h>
 
 // proto
 #include <protos/client/simple/simple.pb.h>
