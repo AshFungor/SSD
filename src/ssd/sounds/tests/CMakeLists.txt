@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(sound-test LANGUAGES CXX VERSION 0.0)
 
-set(SOURCES sample-converter-test.cpp)
+set(SOURCES sample-converter-test.cpp sound-test.cpp)
 
 add_executable(sound-test ${SOURCES})
 

@@ -25,8 +25,8 @@ namespace srv {
     using byte = std::uint8_t;
 
     class ClientSession 
-    : std::enable_shared_from_this<ClientSession>
-    , laar::IProtocol::IReplyListener
+    : public std::enable_shared_from_this<ClientSession>
+    , public laar::IProtocol::IReplyListener
     {
     private: struct Private { };
     public:

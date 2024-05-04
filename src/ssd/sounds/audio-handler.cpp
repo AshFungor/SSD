@@ -1,15 +1,16 @@
 // laar
-#include <climits>
 #include <common/callback-queue.hpp>
 #include <common/exceptions.hpp>
 #include <common/macros.hpp>
+#include <sounds/read-handle.hpp>
+#include <sounds/write-handle.hpp>
 
 // std
-#include <condition_variable>
+#include <climits>
 #include <cstdint>
-#include <format>
 #include <memory>
 #include <string>
+#include <mutex>
 
 // proto
 #include <protos/client/simple/simple.pb.h>
@@ -26,23 +27,44 @@
 
 using namespace laar;
 
-std::shared_ptr<SoundHandler> SoundHandler::configure(
-    std::shared_ptr<laar::CallbackQueue> cbQueue,
-    std::shared_ptr<laar::ThreadPool> threadPool)  
+namespace {
+
+    constexpr auto SOUND_SECTION = "sound";
+
+}
+
+std::shared_ptr<SoundHandler> SoundHandler::configure(std::shared_ptr<laar::ConfigHandler> configHandler)
 {
-    return std::make_shared<SoundHandler>(std::move(cbQueue), std::move(threadPool), Private());    
+    return std::make_shared<SoundHandler>(std::move(configHandler), Private());    
 }
 
 SoundHandler::SoundHandler(
-    std::shared_ptr<laar::CallbackQueue> cbQueue,
-    std::shared_ptr<laar::ThreadPool> threadPool,
+    std::shared_ptr<laar::ConfigHandler> configHandler,
     Private access)
-: cbQueue_(std::move(cbQueue))
-, threadPool_(std::move(threadPool))
-, audio_(RtAudio::Api::LINUX_ALSA)
+: audio_(RtAudio::Api::LINUX_ALSA)
+, configHandler_(std::move(configHandler))
+, local_(makeLocalData())
+, init_(false)
 {}
 
 void SoundHandler::init() {
+
+    configHandler_->subscribeOnDefaultConfig(
+        SOUND_SECTION, 
+        [&](const auto& config) {
+            parseDefaultConfig(config);
+        }, 
+        weak_from_this());
+
+    if (init_) {
+        throw laar::LaarBadInit();
+    }
+
+    std::unique_lock<std::mutex> locked(local_->handlerLock);
+    cv_.wait(locked, [&]{
+        return init_;
+    });
+
     auto devices = audio_.getDeviceIds();
     for (auto& id : devices) {
         auto info = audio_.getDeviceInfo(id);
@@ -56,45 +78,53 @@ void SoundHandler::init() {
         onError(laar::LaarSoundHandlerError("Device for IO was not acquired"));
     }
 
-    RtAudio::StreamParameters inputParams;
-    inputParams.deviceId = inputDevice;
-    inputParams.firstChannel = 0;
-    inputParams.nChannels = 1;
-    unsigned int bufferFrames = UINT_MAX;
-    auto inputStreamError = audio_.openStream(
-        nullptr, 
-        &inputParams, 
-        RTAUDIO_SINT32, 
-        baseSampleRate_, 
-        &bufferFrames, 
-        &readCallback, 
-        (void*)local_.get());
+    if (settings_.isCaptureEnabled) {
+        RtAudio::StreamParameters inputParams;
+        inputParams.deviceId = inputDevice;
+        inputParams.firstChannel = 0;
+        inputParams.nChannels = 1;
+        unsigned int bufferFrames = UINT_MAX;
+        auto inputStreamError = audio_.openStream(
+            nullptr, 
+            &inputParams, 
+            RTAUDIO_SINT32, 
+            BaseSampleRate, 
+            &bufferFrames, 
+            &readCallback, 
+            (void*)local_.get());
 
-    if (inputStreamError) {
-        onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
+        if (inputStreamError) {
+            onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
+        }
+
+        PLOG(plog::info) << "input stream opened with nframes buffer: " << bufferFrames;
+    } else {
+        PLOG(plog::warning) << "capture was not open";
     }
 
-    PLOG(plog::info) << "input stream opened with nframes buffer: " << bufferFrames;
+    if (settings_.isPlaybackEnabled) {
+        RtAudio::StreamParameters outParams;
+        outParams.deviceId = outputDevice;
+        outParams.firstChannel = 0;
+        outParams.nChannels = 1;
+        unsigned int bufferFrames = UINT_MAX;
+        auto outStreamError = audio_.openStream(
+            &outParams, 
+            nullptr, 
+            RTAUDIO_SINT32, 
+            BaseSampleRate, 
+            &bufferFrames, 
+            &writeCallback, 
+            (void*)local_.get());
 
-    RtAudio::StreamParameters outParams;
-    outParams.deviceId = outputDevice;
-    outParams.firstChannel = 0;
-    outParams.nChannels = 1;
-    bufferFrames = UINT_MAX;
-    auto outStreamError = audio_.openStream(
-        &outParams, 
-        nullptr, 
-        RTAUDIO_SINT32, 
-        baseSampleRate_, 
-        &bufferFrames, 
-        &writeCallback, 
-        (void*)local_.get());
+        if (outStreamError) {
+            onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
+        }
 
-    if (outStreamError) {
-        onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
+        PLOG(plog::info) << "output stream opened with nframes buffer: " << bufferFrames;
+    } else {
+        PLOG(plog::warning) << "playback was not open";
     }
-
-    PLOG(plog::info) << "output stream opened with nframes buffer: " << bufferFrames;
 }
 
 std::unique_ptr<SoundHandler::LocalData> SoundHandler::makeLocalData() {
@@ -122,48 +152,48 @@ int laar::writeCallback(
 
     if (!handler) {
         // abort stream
-        return 2;
+        PLOG(plog::warning) << "handler is nullptr, exiting on playback stream";
+        return rtcontrol::ABORT;
     }
 
     if (data->abort) {
+        PLOG(plog::warning) << "draining and aborting playback stream";
         // drain stream and close it
-        return 1;
+        return rtcontrol::DRAIN;
     }
 
-    handler->cbQueue_->query([&]() {
-
-        std::vector<std::unique_ptr<std::int32_t[]>> buffers;
-
+    std::vector<std::unique_ptr<std::int32_t[]>> buffers;
+    {
+        std::unique_lock<std::mutex> locked(data->handlerLock);
         for (auto& handle : handler->outHandles_) {
             if (auto lockedHandle = handle.lock()) {
                 buffers.emplace_back(std::make_unique<std::int32_t[]>(frames));
                 lockedHandle->read(buffers.back().get(), frames);
             }
         }
+    }
 
-        auto result = (std::int32_t*) out;
+    auto result = (std::int32_t*) out;
 
-        for (std::size_t frame = 0; frame < frames; ++frame) {
-            bool isFirst = true;
-            for (auto& buffer : buffers) {
-                if (isFirst) {
-                    isFirst = false;
-                    result[frame] = buffer[frame];
-                } else {
-                    result[frame] = 2 * ((std::int64_t) buffer[frame] + result[frame]) 
-                        - (std::int64_t) buffer[frame] * result[frame] / (INT32_MAX / 2) - INT32_MAX;
-                }
-            }
-
-            if (buffers.empty()) {
-                // put silence
-                result[frame] = laar::SoundHandler::silence;
+    for (std::size_t frame = 0; frame < frames; ++frame) {
+        bool isFirst = true;
+        for (auto& buffer : buffers) {
+            if (isFirst) {
+                isFirst = false;
+                result[frame] = buffer[frame];
+            } else {
+                result[frame] = 2 * ((std::int64_t) buffer[frame] + result[frame]) 
+                    - (std::int64_t) buffer[frame] * result[frame] / (INT32_MAX / 2) - INT32_MAX;
             }
         }
 
-    });
+        if (buffers.empty()) {
+            // put silence
+            result[frame] = Silence;
+        }
+    }
 
-    return 0;
+    return rtcontrol::SUCCESS;
 }
 
 int laar::readCallback(
@@ -179,27 +209,46 @@ int laar::readCallback(
 
     if (!handler) {
         // abort stream
-        return 2;
+        return rtcontrol::ABORT;
     }
 
     if (data->abort) {
         // drain stream and close it
-        return 1;
+        return rtcontrol::DRAIN;
     }
 
-    handler->cbQueue_->query([&]() {
-        auto result = (std::int32_t*) in;
-
+    auto result = (std::int32_t*) in;
+    {
+        std::unique_lock<std::mutex> locked(data->handlerLock);
         for (auto& handle : handler->inHandles_) {
             if (auto lockedHandle = handle.lock()) {
                 lockedHandle->write(result, frames);
             }
         }
-    });
+    }
 
-    return 0;
+    return rtcontrol::SUCCESS;
 }
 
-std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle() {
-    
+void SoundHandler::parseDefaultConfig(const nlohmann::json& config) {
+
+    settings_.isCaptureEnabled = config.value<bool>("isCaptureEnabled", true);
+    settings_.isPlaybackEnabled = config.value<bool>("isPlaybackEnabled", true);
+
+    init_ = true;
+    cv_.notify_one();
+}
+
+std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle(TSimpleMessage::TStreamConfiguration config) {
+    std::unique_lock<std::mutex> locked(local_->handlerLock);
+    auto handle = std::make_shared<laar::ReadHandle>(std::move(config));
+    inHandles_.push_back(handle);
+    return handle;
+}
+
+std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(TSimpleMessage::TStreamConfiguration config) {
+    std::unique_lock<std::mutex> locked(local_->handlerLock);
+    auto handle = std::make_shared<laar::WriteHandle>(std::move(config));
+    outHandles_.push_back(handle);
+    return handle;
 }

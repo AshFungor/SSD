@@ -7,6 +7,8 @@
 #include <queue>
 
 // laar
+#include <network/interfaces/i-message.hpp>
+#include <sounds/interfaces/i-audio-handler.hpp>
 #include <network/interfaces/i-protocol.hpp>
 #include <common/plain-buffer.hpp>
 #include <common/exceptions.hpp>
@@ -37,10 +39,17 @@ namespace laar {
         std::size_t effectiveSize_;
     };
 
-    class SyncProtocol : public IProtocol {
+    class SyncProtocol 
+        : public IProtocol
+        , public IStreamHandler::IHandle::IListener {
     public:
+
+        SyncProtocol(std::weak_ptr<IProtocol::IReplyListener> listener);
         // IProtocol implementation
         virtual void onClientMessage(std::unique_ptr<IResult> message) override;
+        // IStreamHandler::IHandle::IListener implementation
+        virtual void onBufferDrained(int status) override;
+        virtual void onBufferFlushed(int status) override;
 
     private:
         void onStreamConfiguration(NSound::NSimple::TSimpleMessage::TStreamConfiguration message);
@@ -53,7 +62,9 @@ namespace laar {
 
     private:
         std::unique_ptr<MessageQueue> msQueue_;
+        std::shared_ptr<laar::IStreamHandler::IHandle> handle_;
         std::optional<NSound::NSimple::TSimpleMessage::TStreamConfiguration> config_;
+        std::weak_ptr<IProtocol::IReplyListener> listener_;
     };
 
 }

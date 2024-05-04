@@ -1,20 +1,10 @@
 #pragma once
 
-// laar
-#include <common/callback-queue.hpp>
-#include <common/exceptions.hpp>
-
 // RtAudio
 #include <RtAudio.h>
 
 // std
 #include <cstdint>
-#include <format>
-#include <memory>
-
-// plog
-#include <plog/Severity.h>
-#include <plog/Log.h>
 
 // proto
 #include <protos/client/simple/simple.pb.h>

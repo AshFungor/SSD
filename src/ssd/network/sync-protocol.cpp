@@ -20,6 +20,7 @@
 #include "sync-protocol.hpp"
 #include "network/interfaces/i-message.hpp"
 #include "protos/client/simple/simple.pb.h"
+#include "sounds/write-handle.hpp"
 
 using namespace laar;
 
@@ -122,6 +123,10 @@ std::size_t MessageQueue::getEffectiveLoad() const {
     return effectiveSize_;
 }
 
+SyncProtocol::SyncProtocol(std::weak_ptr<IProtocol::IReplyListener> listener) 
+: listener_(std::move(listener))
+{}
+
 void SyncProtocol::onClientMessage(std::unique_ptr<IResult> message) {
     auto payload = message->cast<IStructuredResult>().payload().mutable_simple_message();
     if (config_.has_value()) {
@@ -158,6 +163,10 @@ void SyncProtocol::onStreamConfiguration(NSound::NSimple::TSimpleMessage::TStrea
     PLOG(plog::info) << "received config for sync stream on protocol " << this << ": " << dumpStreamConfig(message);
     fillConfig(message);
     config_ = std::move(message);
+
+    if (config_->direction() == TSimpleMessage::TStreamConfiguration::PLAYBACK) {
+        handle_ = std::make_shared<laar::WriteHandle>(config_);
+    }
 }
 
 void SyncProtocol::onDrain(NSound::NSimple::TSimpleMessage::TDrain message) {
@@ -183,5 +192,13 @@ void SyncProtocol::onClose(NSound::NSimple::TSimpleMessage::TClose message) {
 void SyncProtocol::onError(std::exception error) {
     PLOG(plog::error) << "error on protocol " << this << ": " << error.what();
     throw error; 
+}
+
+void SyncProtocol::onBufferDrained(int status) {
+
+}
+
+void SyncProtocol::onBufferFlushed(int status) {
+
 }
 

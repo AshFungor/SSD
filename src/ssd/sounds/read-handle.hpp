@@ -19,11 +19,11 @@ namespace laar {
     class ReadHandle : public IStreamHandler::IReadHandle {
     public:
 
-        ReadHandle(TSimpleMessage::TStreamConfiguration config);
+        ReadHandle(TSimpleMessage::TStreamConfiguration config, std::weak_ptr<IListener> owner);
         // IStreamHandler::IReadHandle implementation
-        virtual void flush() override;
-        virtual void read(char* dest, std::size_t size) override;
-        virtual void write(std::int32_t* src, std::size_t size) override;
+        virtual int flush() override;
+        virtual int read(char* dest, std::size_t size) override;
+        virtual int write(std::int32_t* src, std::size_t size) override;
         virtual ESampleType format() const override;
 
     private:
@@ -32,7 +32,7 @@ namespace laar {
 
         std::mutex lock_;
         std::unique_ptr<laar::RingBuffer> buffer_;
-        
+        std::weak_ptr<IListener> owner_;
     };
 
 }

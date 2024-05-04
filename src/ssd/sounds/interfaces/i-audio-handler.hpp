@@ -1,6 +1,7 @@
 #pragma once
 
 // laar
+#include "sounds/converter.hpp"
 #include <common/callback-queue.hpp>
 #include <common/exceptions.hpp>
 
@@ -27,46 +28,54 @@ namespace laar {
     class IStreamHandler {
     public:
 
-        class IReadHandle {
+        class IHandle {
         public:
-
 
             class IListener {
             public:
-                virtual void onFlushed(int status) = 0;
+                virtual void onBufferDrained(int status) = 0;
+                virtual void onBufferFlushed(int status) = 0;
                 virtual ~IListener() = default;
             };
 
-            // async call from rt stream
-            virtual void flush() = 0;
-            virtual void read(char* dest, std::size_t size) = 0;
-            virtual void write(std::int32_t* src, std::size_t size) = 0;
-            virtual TSimpleMessage::TStreamConfiguration::TSampleSpecification::TFormat format() const = 0;
-            virtual ~IReadHandle() = default;
+            // discard buffer
+            virtual int flush() = 0;
+            // io functions, int32 is used by audio stream
+            // and char an arbitrary type for storing audio in any format
+            virtual int read(char* dest, std::size_t size) = 0;
+            virtual int write(char* src, std::size_t size) = 0;
+            virtual int read(std::int32_t* dest, std::size_t size) = 0;
+            virtual int write(std::int32_t* src, std::size_t size) = 0;
+            virtual ESampleType format() const = 0;
+
+            virtual ~IHandle() = 0; 
         };
 
-        class IWriteHandle {
+        class IReadHandle : public IHandle {
         public:
+            virtual ~IReadHandle() = default;
+            virtual int read(char* src, std::size_t size) override = 0;
+            virtual int write(std::int32_t* dest, std::size_t size) override = 0;
 
-            class IListener {
-            public:
-                virtual void onDrained(int status) = 0;
-                virtual void onFlushed(int status) = 0;
-                virtual ~IListener() = default;
-            };
+        private:
+            virtual int write(char* src, std::size_t size) override { return 0; }
+            virtual int read(std::int32_t* dest, std::size_t size) override { return 0; }
+        };
 
-            // async call from rt stream
-            virtual void drain() = 0;
-            virtual void flush() = 0;
-            virtual void write(char* src, std::size_t size) = 0;
-            virtual void read(std::int32_t* dest, std::size_t size) = 0;
-            virtual TSimpleMessage::TStreamConfiguration::TSampleSpecification::TFormat format() const = 0;
+        class IWriteHandle : public IHandle {
+        public:
             virtual ~IWriteHandle() = default;
+            virtual int write(char* src, std::size_t size) override = 0;
+            virtual int read(std::int32_t* dest, std::size_t size) override = 0;
+
+        private:
+            virtual int read(char* src, std::size_t size) override { return 0; }
+            virtual int write(std::int32_t* dest, std::size_t size) override { return 0; }
         };
 
         virtual void init() = 0;
-        virtual std::shared_ptr<IReadHandle> acquireReadHandle() = 0;
-        virtual std::shared_ptr<IWriteHandle> acquireWriteHandle() = 0;
+        virtual std::shared_ptr<IReadHandle> acquireReadHandle(TSimpleMessage::TStreamConfiguration config) = 0;
+        virtual std::shared_ptr<IWriteHandle> acquireWriteHandle(TSimpleMessage::TStreamConfiguration config) = 0;
         virtual ~IStreamHandler() = default;
 
     };

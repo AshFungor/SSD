@@ -105,6 +105,7 @@ namespace {
                     prevDist = dist;
                 } else {
                     if (std::is_floating_point<SampleType>::value) {
+                        // float arithmetics...
                         EXPECT_EQ(dist / 1000, prevDist / 1000);
                     } else {
                         EXPECT_EQ(dist, prevDist);

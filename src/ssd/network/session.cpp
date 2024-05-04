@@ -34,7 +34,7 @@ ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access)
 : sock_(std::move(sock))
 , buffer_(std::make_shared<laar::PlainBuffer>(4096))
 , builder_(laar::MessageBuilder::configure(buffer_))
-, protocol_(std::make_unique<laar::SyncProtocol>())
+, protocol_(std::make_unique<laar::SyncProtocol>(weak_from_this()))
 {}
 
 ClientSession::~ClientSession() {

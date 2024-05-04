@@ -12,6 +12,7 @@ target_include_directories(server PUBLIC ${SRC_ROOT})
 target_link_libraries(server PUBLIC server-util)
 target_link_libraries(server PUBLIC sockpp)
 target_link_libraries(server PUBLIC protos)
+target_link_libraries(server PUBLIC sound)
 
 add_subdirectory(interfaces)
 add_subdirectory(protocols)
