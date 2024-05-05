@@ -43,11 +43,13 @@ SoundHandler::SoundHandler(
     Private access)
 : audio_(RtAudio::Api::LINUX_ALSA)
 , configHandler_(std::move(configHandler))
-, local_(makeLocalData())
+, local_(nullptr)
 , init_(false)
 {}
 
 void SoundHandler::init() {
+
+    local_ = makeLocalData();
 
     configHandler_->subscribeOnDefaultConfig(
         SOUND_SECTION, 

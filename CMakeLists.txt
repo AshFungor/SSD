@@ -14,7 +14,6 @@ find_package(nlohmann_json REQUIRED VERSION 3.11.3)
 find_package(GTest REQUIRED VERSION 1.14.0)
 find_package(plog REQUIRED VERSION 1.1.10)
 find_package(Boost REQUIRED VERSION 1.84.0)
-find_package(ALSA REQUIRED VERSION 1.2.10)
 
 set(ROOT ${CMAKE_SOURCE_DIR})
 
