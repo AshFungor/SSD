@@ -1,3 +1,5 @@
+#pragma once
+
 // laar
 #include <sounds/interfaces/i-audio-handler.hpp>
 #include <common/callback-queue.hpp>
@@ -23,7 +25,7 @@ namespace laar {
         // IStreamHandler::IReadHandle implementation
         virtual int flush() override;
         virtual int read(char* dest, std::size_t size) override;
-        virtual int write(std::int32_t* src, std::size_t size) override;
+        virtual int write(const std::int32_t* src, std::size_t size) override;
         virtual ESampleType format() const override;
 
     private:

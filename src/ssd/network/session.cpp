@@ -30,19 +30,25 @@
 
 using namespace srv;
 
-ClientSession::ClientSession(sockpp::tcp_socket&& sock, Private access) 
+ClientSession::ClientSession(
+    sockpp::tcp_socket&& sock, 
+    std::shared_ptr<laar::IStreamHandler> soundHandler,
+    Private access) 
 : sock_(std::move(sock))
 , buffer_(std::make_shared<laar::PlainBuffer>(4096))
 , builder_(laar::MessageBuilder::configure(buffer_))
-, protocol_(std::make_unique<laar::SyncProtocol>(weak_from_this()))
+, protocol_(laar::SyncProtocol::configure(weak_from_this(), std::move(soundHandler)))
 {}
 
 ClientSession::~ClientSession() {
     terminate();
 }
 
-std::shared_ptr<ClientSession> ClientSession::instance(sockpp::tcp_socket&& sock) {
-    return std::make_shared<ClientSession>(std::move(sock), Private());
+std::shared_ptr<ClientSession> ClientSession::instance(
+    sockpp::tcp_socket&& sock,
+    std::shared_ptr<laar::IStreamHandler> soundHandler) 
+{
+    return std::make_shared<ClientSession>(std::move(sock), std::move(soundHandler), Private());
 }
 
 void ClientSession::init() {

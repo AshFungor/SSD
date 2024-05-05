@@ -37,19 +37,22 @@ namespace {
 std::shared_ptr<Server> Server::configure(
     std::shared_ptr<laar::CallbackQueue> cbQueue,
     std::shared_ptr<laar::ThreadPool> threadPool,
-    std::shared_ptr<laar::ConfigHandler> configHandler)
+    std::shared_ptr<laar::ConfigHandler> configHandler,
+    std::shared_ptr<laar::IStreamHandler> soundHandler)
 {
-    return std::make_shared<Server>(std::move(cbQueue), std::move(threadPool), std::move(configHandler), Private());
+    return std::make_shared<Server>(std::move(cbQueue), std::move(threadPool), std::move(configHandler), std::move(soundHandler), Private());
 }
 
 Server::Server(
     std::shared_ptr<laar::CallbackQueue> cbQueue,
     std::shared_ptr<laar::ThreadPool> threadPool,
     std::shared_ptr<laar::ConfigHandler> configHandler,
+    std::shared_ptr<laar::IStreamHandler> soundHandler,
     Private access)
     : threadPool_(std::move(threadPool))
     , configHandler_(std::move(configHandler))
     , cbQueue_(std::move(cbQueue))
+    , soundHandler_(std::move(soundHandler))
     , hasWork_(true)
     , abort_(false)
 {}
@@ -152,7 +155,7 @@ void Server::run() {
         else {
             sockpp::tcp_socket sock = result.release();
             PLOG(plog::info) << "accepting new client " << sock.peer_address();
-            sessions_.emplace_back(srv::ClientSession::instance(std::move(sock)));
+            sessions_.emplace_back(srv::ClientSession::instance(std::move(sock), soundHandler_));
             sessions_.back()->init();
 
             currentTimeout_ = settings_.timeouts.begin();

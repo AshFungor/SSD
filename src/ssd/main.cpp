@@ -29,8 +29,14 @@ int main() {
     
     PLOG(plog::debug) << "module created: " << "ThreadPool; instance: " << threadPool.get();
 
-    auto server = srv::Server::configure(SharedCallbackQueue, threadPool, configHandler);
+    auto soundHandler = laar::SoundHandler::configure(configHandler);
+    soundHandler->init();
+
+    PLOG(plog::debug) << "module created: " << "SoundHandler; instance: " << soundHandler.get();
+
+    auto server = srv::Server::configure(SharedCallbackQueue, threadPool, configHandler, soundHandler);
     PLOG(plog::debug) << "module created: " << "Server; instance: " << server.get();
+
 
     server->init();
     server->run();

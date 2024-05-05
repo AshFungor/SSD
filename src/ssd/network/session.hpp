@@ -31,8 +31,17 @@ namespace srv {
     private: struct Private { };
     public:
 
-        static std::shared_ptr<ClientSession> instance(sockpp::tcp_socket&& sock);
-        ClientSession(sockpp::tcp_socket&& sock, Private access);
+        static std::shared_ptr<ClientSession> instance(
+            sockpp::tcp_socket&& sock,
+            std::shared_ptr<laar::IStreamHandler> soundHandler
+        );
+
+        ClientSession(
+            sockpp::tcp_socket&& sock, 
+            std::shared_ptr<laar::IStreamHandler> soundHandler, 
+            Private access
+        );
+        
         ~ClientSession();
 
         void terminate();
@@ -54,7 +63,7 @@ namespace srv {
 
         std::shared_ptr<laar::PlainBuffer> buffer_;
         std::shared_ptr<laar::IMessageReceiver> builder_;
-        std::unique_ptr<laar::SyncProtocol> protocol_;
+        std::shared_ptr<laar::SyncProtocol> protocol_;
 
         sockpp::tcp_socket sock_;
     };

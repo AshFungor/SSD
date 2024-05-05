@@ -25,7 +25,7 @@ namespace laar {
         // IStreamHandler::IReadHandle implementation
         virtual int flush() override;
         virtual int read(std::int32_t* dest, std::size_t size) override;
-        virtual int write(char* src, std::size_t size) override;
+        virtual int write(const char* src, std::size_t size) override;
         virtual ESampleType format() const override;
 
     private:

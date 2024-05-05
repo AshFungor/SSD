@@ -1,7 +1,6 @@
 #pragma once
 
 // laar
-#include <condition_variable>
 #include <sounds/interfaces/i-audio-handler.hpp>
 #include <common/callback-queue.hpp>
 #include <util/config-loader.hpp>
@@ -14,6 +13,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 // std
+#include <condition_variable>
 #include <exception>
 #include <cstdint>
 #include <memory>
@@ -27,23 +27,6 @@
 
 
 namespace laar {
-
-    constexpr int BaseSampleRate = 44100;
-    constexpr std::int32_t Silence = INT32_MIN;
-
-    namespace status {
-
-        constexpr int OVERRUN = 2;
-        constexpr int UNDERRUN = 1;
-        constexpr int SUCCESS = 0;
-
-    }
-
-    namespace rtcontrol {
-        constexpr int ABORT = 2;
-        constexpr int DRAIN = 1;
-        constexpr int SUCCESS = 0;
-    }
 
     int writeCallback(
         void* out, 
@@ -65,7 +48,7 @@ namespace laar {
 
     class SoundHandler 
         : public std::enable_shared_from_this<SoundHandler> 
-        , public IStreamHandler {
+        , public laar::IStreamHandler {
     private: struct Private {};
     public:
 
@@ -73,8 +56,12 @@ namespace laar {
         SoundHandler(std::shared_ptr<laar::ConfigHandler> configHandler, Private access);
 
         void init() override;
-        virtual std::shared_ptr<IReadHandle> acquireReadHandle(TSimpleMessage::TStreamConfiguration config) override;
-        virtual std::shared_ptr<IWriteHandle> acquireWriteHandle(TSimpleMessage::TStreamConfiguration config) override;
+        virtual std::shared_ptr<IReadHandle> acquireReadHandle(
+            TSimpleMessage::TStreamConfiguration config,
+            std::weak_ptr<IStreamHandler::IHandle::IListener> owner) override;
+        virtual std::shared_ptr<IWriteHandle> acquireWriteHandle(
+            TSimpleMessage::TStreamConfiguration config,
+            std::weak_ptr<IStreamHandler::IHandle::IListener> owner) override;
 
         friend int laar::writeCallback(
             void* out, 

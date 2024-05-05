@@ -40,11 +40,23 @@ namespace laar {
     };
 
     class SyncProtocol 
-        : public IProtocol
+        : std::enable_shared_from_this<SyncProtocol>
+        , public IProtocol
         , public IStreamHandler::IHandle::IListener {
+    private: struct Private { };
     public:
 
-        SyncProtocol(std::weak_ptr<IProtocol::IReplyListener> listener);
+        static std::shared_ptr<SyncProtocol> configure(
+            std::weak_ptr<IProtocol::IReplyListener> listener,
+            std::shared_ptr<laar::IStreamHandler> soundHandler
+        );
+    
+        SyncProtocol(
+            std::weak_ptr<IProtocol::IReplyListener> listener,
+            std::shared_ptr<laar::IStreamHandler> soundHandler,
+            Private access
+        );
+        
         // IProtocol implementation
         virtual void onClientMessage(std::unique_ptr<IResult> message) override;
         // IStreamHandler::IHandle::IListener implementation
@@ -62,6 +74,7 @@ namespace laar {
 
     private:
         std::unique_ptr<MessageQueue> msQueue_;
+        std::weak_ptr<laar::IStreamHandler> soundHandler_;
         std::shared_ptr<laar::IStreamHandler::IHandle> handle_;
         std::optional<NSound::NSimple::TSimpleMessage::TStreamConfiguration> config_;
         std::weak_ptr<IProtocol::IReplyListener> listener_;

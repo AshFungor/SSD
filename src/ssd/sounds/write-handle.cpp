@@ -1,5 +1,3 @@
-#pragma once
-
 // laar
 #include <sounds/interfaces/i-audio-handler.hpp>
 #include <sounds/audio-handler.hpp> 
@@ -78,7 +76,7 @@ int WriteHandle::read(std::int32_t* dest, std::size_t size) {
     return status::SUCCESS;
 }
 
-int WriteHandle::write(char* src, std::size_t size) {
+int WriteHandle::write(const char* src, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
     std::uint8_t sample8 = 0;

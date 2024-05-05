@@ -36,12 +36,14 @@ namespace srv {
         static std::shared_ptr<Server> configure(
             std::shared_ptr<laar::CallbackQueue> cbQueue,
             std::shared_ptr<laar::ThreadPool> threadPool,
-            std::shared_ptr<laar::ConfigHandler> configHandler
+            std::shared_ptr<laar::ConfigHandler> configHandler,
+            std::shared_ptr<laar::IStreamHandler> soundHandler
         );
         Server(
             std::shared_ptr<laar::CallbackQueue> cbQueue,
             std::shared_ptr<laar::ThreadPool> threadPool,
             std::shared_ptr<laar::ConfigHandler> configHandler,
+            std::shared_ptr<laar::IStreamHandler> soundHandler,
             Private access
         );
         ~Server();
@@ -61,6 +63,7 @@ namespace srv {
         std::shared_ptr<laar::CallbackQueue> cbQueue_;
         std::shared_ptr<laar::ThreadPool> threadPool_;
         std::shared_ptr<laar::ConfigHandler> configHandler_;
+        std::shared_ptr<laar::IStreamHandler> soundHandler_;
 
         struct Settings {
             bool init = false;

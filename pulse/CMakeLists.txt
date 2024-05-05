@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.19)
 
 project(pulse-headers LANGUAGES C VERSION 17.0)
 
@@ -34,9 +34,7 @@ set(HEADERS
     volume.h
     xmalloc.h)
 
-add_library(pulse-headers INTERFACE)
-
-target_sources(pulse-headers INTERFACE ${HEADERS})
+add_library(pulse-headers INTERFACE ${HEADERS})
 
 target_include_directories(pulse-headers INTERFACE ${ROOT})
 target_include_directories(pulse-headers INTERFACE ${glib_INCLUDE_DIR})

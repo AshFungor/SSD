@@ -239,16 +239,22 @@ void SoundHandler::parseDefaultConfig(const nlohmann::json& config) {
     cv_.notify_one();
 }
 
-std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle(TSimpleMessage::TStreamConfiguration config) {
+std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle(
+    TSimpleMessage::TStreamConfiguration config,
+    std::weak_ptr<IStreamHandler::IHandle::IListener> owner) 
+{
     std::unique_lock<std::mutex> locked(local_->handlerLock);
-    auto handle = std::make_shared<laar::ReadHandle>(std::move(config));
+    auto handle = std::make_shared<laar::ReadHandle>(std::move(config), std::move(owner));
     inHandles_.push_back(handle);
     return handle;
 }
 
-std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(TSimpleMessage::TStreamConfiguration config) {
+std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(
+    TSimpleMessage::TStreamConfiguration config,
+    std::weak_ptr<IStreamHandler::IHandle::IListener> owner) 
+{
     std::unique_lock<std::mutex> locked(local_->handlerLock);
-    auto handle = std::make_shared<laar::WriteHandle>(std::move(config));
+    auto handle = std::make_shared<laar::WriteHandle>(std::move(config), std::move(owner));
     outHandles_.push_back(handle);
     return handle;
 }

@@ -1,5 +1,3 @@
-#pragma once
-
 // laar
 #include <sounds/interfaces/i-audio-handler.hpp>
 #include <common/callback-queue.hpp>
@@ -117,7 +115,7 @@ int ReadHandle::read(char* dest, std::size_t size) {
     return status::SUCCESS;
 }
 
-int ReadHandle::write(std::int32_t* src, std::size_t size) {
+int ReadHandle::write(const std::int32_t* src, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
     bool overrun = false;
