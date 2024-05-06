@@ -179,9 +179,9 @@ void SyncProtocol::onStreamConfiguration(NSound::NSimple::TSimpleMessage::TStrea
 
     if (auto audio = soundHandler_.lock()) {
         if (config_->direction() == TSimpleMessage::TStreamConfiguration::PLAYBACK) {
-            handle_ = audio->acquireWriteHandle(config_.value(), shared_from_this());
+            handle_ = audio->acquireWriteHandle(config_.value(), weak_from_this());
         } else if (config_->direction() == TSimpleMessage::TStreamConfiguration::RECORD) {
-            handle_ = audio->acquireReadHandle(config_.value(), shared_from_this());
+            handle_ = audio->acquireReadHandle(config_.value(), weak_from_this());
         }
     } else {
         PLOG(plog::warning) << "sound handler is nullptr, session was not started";
