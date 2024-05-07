@@ -10,8 +10,9 @@ set(PROTOS_BINARY_ROOT "${CMAKE_CURRENT_BINARY_DIR}/protos")
 
 add_subdirectory(protos)
 add_subdirectory(trace)
+add_subdirectory(sync-protocol) 
 
 add_executable(pulse-calls-mapper ${HEADERS} ${SOURCES})
 
 target_link_libraries(pulse-calls-mapper PRIVATE protos)
-target_link_libraries(pulse-calls-mapper PRIVATE sockpp)
+target_link_libraries(pulse-calls-mapper PRIVATE sync-protocol)

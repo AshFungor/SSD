@@ -1,36 +1,43 @@
+#include "pulse/def.h"
+#include <cmath>
 #include <iostream>
 #include <memory>
 
 // protos
+#include <numbers>
 #include <protos/client/simple/simple.pb.h>
 #include <protos/client/client-message.pb.h>
+
+#include <pulse/sample.h>
+#include <pulse/simple.h>
+#include <pcm/sync-protocol/sync-protocol.hpp>
 
 // sockpp
 #include <sockpp/tcp_connector.h>
 
 int main() {
 
-    std::cout << "starting PCM";
+    const int duration = 5; // in seconds
 
-    sockpp::tcp_connector conn;
-    int16_t port = 5050;
+    std::cout << "Demo for playback on SSD";
 
-    if (auto res = conn.connect(sockpp::inet_address("localhost", port))) {
-        std::cout << "result: " << res.error_message() << "\n";
+    auto spec = std::make_unique<pa_sample_spec>();
+    spec->rate = 44100;
+    spec->channels = 1;
+    spec->format = PA_SAMPLE_FLOAT32LE;
+    auto connection = pa_simple_new("", "", PA_STREAM_PLAYBACK, nullptr, "", spec.get(), nullptr, nullptr, nullptr);
+
+    auto data = std::make_unique<float[]>(spec->rate * duration);
+    for (std::size_t i = 0; i <= spec->rate * duration; ++i) {
+        if (i % 400 == 0 && i > 0) {
+            pa_simple_write(connection, data.get() + i - 400, 400, nullptr);
+        }
+        data[i] = std::sin(2 * std::numbers::pi * i * spec->rate / 1200);
     }
 
-    NSound::TClientMessage message;
-    *message.mutable_simple_message()->mutable_stream_config() = NSound::NSimple::TSimpleMessage::TStreamConfiguration::default_instance();
-    message.mutable_simple_message()->mutable_stream_config()->mutable_buffer_config()->set_fragment_size(12);
-    std::size_t len = message.ByteSizeLong();
+   
 
-    std::cout << "sending message with " << len << " bytes\n";
+    pa_simple_free(connection);
 
-    auto buffer = std::make_unique<char[]>(len);
-    message.SerializeToArray(buffer.get(), len);
-    conn.write_n((char*) &len, sizeof len);
-    conn.write_n(buffer.get(), len);
-
-    conn.close();
     return 0;
 }

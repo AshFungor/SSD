@@ -99,6 +99,10 @@ void SoundHandler::init() {
             onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
         }
 
+        if (audio_.startStream()) {
+            PLOG(plog::error) << "error starting stream: " << audio_.getErrorText(); 
+        }
+
         PLOG(plog::info) << "input stream opened with nframes buffer: " << bufferFrames;
     } else {
         PLOG(plog::warning) << "capture was not open";
@@ -116,12 +120,14 @@ void SoundHandler::init() {
             RTAUDIO_SINT32, 
             BaseSampleRate, 
             &bufferFrames, 
-            &writeCallback, 
+            &laar::writeCallback, 
             (void*)local_.get());
 
         if (outStreamError) {
             onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
         }
+
+        audio_.startStream();
 
         PLOG(plog::info) << "output stream opened with nframes buffer: " << bufferFrames;
     } else {
@@ -187,6 +193,7 @@ int laar::writeCallback(
                 result[frame] = 2 * ((std::int64_t) buffer[frame] + result[frame]) 
                     - (std::int64_t) buffer[frame] * result[frame] / (INT32_MAX / 2) - INT32_MAX;
             }
+            // PLOG(plog::debug) << "writing byte (frame " << frame << "): " << result[frame];
         }
 
         if (buffers.empty()) {

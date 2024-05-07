@@ -35,7 +35,7 @@ ClientSession::ClientSession(
     std::shared_ptr<laar::IStreamHandler> soundHandler,
     Private access) 
 : sock_(std::move(sock))
-, buffer_(std::make_shared<laar::PlainBuffer>(4096))
+, buffer_(std::make_shared<laar::PlainBuffer>(44100 * 4 * 10))
 , builder_(laar::MessageBuilder::configure(buffer_))
 , protocol_(laar::SyncProtocol::configure(weak_from_this(), std::move(soundHandler)))
 {}

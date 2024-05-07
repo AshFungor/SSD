@@ -55,11 +55,14 @@ int WriteHandle::flush() {
 int WriteHandle::read(std::int32_t* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
-    std::size_t trail = size - buffer_->readableSize() / 4;
+    std::size_t trail = 0;
+    if (size > buffer_->readableSize() / 4) {
+        trail = size - buffer_->readableSize() / 4;
+    }
 
     if (trail) {
         PLOG(plog::warning) << "underrun on handle: " << this
-            << " filling " << trail << " extra samples";
+            << " filling " << trail << " extra samples, avail: " << size - trail;
     }
 
     for (std::size_t frame = 0; frame < size - trail; ++frame) {

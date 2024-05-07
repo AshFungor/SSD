@@ -14,7 +14,7 @@
 
 int main() {
 
-    plog::init(plog::Severity::debug, "server.log", 1024 * 8, 2);
+    plog::init(plog::Severity::debug, "server.log", 1024 * 1024, 2);
 
     auto SharedCallbackQueue = laar::CallbackQueue::configure({});
     PLOG(plog::debug) << "module created: " << "SharedCallbackQueue; instance: " << SharedCallbackQueue.get();
