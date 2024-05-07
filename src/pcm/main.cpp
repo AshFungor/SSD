@@ -18,6 +18,7 @@
 int main() {
 
     const int duration = 5; // in seconds
+    const int period = 44100 / 2;
 
     std::cout << "Demo for playback on SSD";
 
@@ -25,18 +26,33 @@ int main() {
     spec->rate = 44100;
     spec->channels = 1;
     spec->format = PA_SAMPLE_FLOAT32LE;
-    auto connection = pa_simple_new("", "", PA_STREAM_PLAYBACK, nullptr, "", spec.get(), nullptr, nullptr, nullptr);
+
+    auto attr = std::make_unique<pa_buffer_attr>();
+    attr->prebuf = spec->rate;
+
+    auto connection = pa_simple_new(
+        "localhost", 
+        "example-client", 
+        PA_STREAM_PLAYBACK, 
+        nullptr, 
+        "example-stream", 
+        spec.get(), 
+        nullptr, 
+        attr.get(), 
+        nullptr
+    );
 
     auto data = std::make_unique<float[]>(spec->rate * duration);
-    for (std::size_t i = 0; i <= spec->rate * duration; ++i) {
-        if (i % 400 == 0 && i > 0) {
-            pa_simple_write(connection, data.get() + i - 400, 400, nullptr);
+    std::size_t samples = 0;
+    for (std::size_t i = 0; i < spec->rate * duration / period; ++i) {
+        for (std::size_t j = 0; j < period; ++j) {
+            data[i * period + j] = std::sin(2 * std::numbers::pi * j);
         }
-        data[i] = std::sin(2 * std::numbers::pi * i * spec->rate / 1200);
+        pa_simple_write(connection, data.get() + i * period, period, nullptr);
+        samples += period;
     }
-
+    std::cout << "samples sent: " << samples;
    
-
     pa_simple_free(connection);
 
     return 0;

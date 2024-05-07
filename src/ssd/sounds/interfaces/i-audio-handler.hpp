@@ -25,6 +25,7 @@ namespace laar {
     inline constexpr std::int32_t Silence = INT32_MIN;
 
     namespace status {
+        inline constexpr int STALLED = 3;
         inline constexpr int OVERRUN = 2;
         inline constexpr int UNDERRUN = 1;
         inline constexpr int SUCCESS = 0;

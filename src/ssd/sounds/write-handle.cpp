@@ -43,6 +43,7 @@ WriteHandle::WriteHandle(TSimpleMessage::TStreamConfiguration config, std::weak_
 , format_(config.sample_spec().format())
 , buffer_(std::make_unique<laar::RingBuffer>(44100 * 4 * 120)) // think of config here
 , owner_(std::move(owner))
+, bufferConfig_(config.buffer_config())
 {}
 
 int WriteHandle::flush() {
@@ -55,13 +56,23 @@ int WriteHandle::flush() {
 int WriteHandle::read(std::int32_t* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
+    if (buffer_->readableSize() / sizeof (std::int32_t) < bufferConfig_.prebuffing_size()) {
+        PLOG(plog::debug) << "handle " << this << " is stalled, "
+            << "waiting for " << bufferConfig_.prebuffing_size() - buffer_->readableSize() / sizeof (std::int32_t)
+            << " samples (prebuffing size is " << bufferConfig_.prebuffing_size() 
+            << "; readable size is " << buffer_->readableSize() / sizeof (std::int32_t) << ")";
+        return status::STALLED;
+    } else {
+        bufferConfig_.set_prebuffing_size(0);
+    }
+
     std::size_t trail = 0;
-    if (size > buffer_->readableSize() / 4) {
-        trail = size - buffer_->readableSize() / 4;
+    if (size > buffer_->readableSize() / sizeof (std::int32_t)) {
+        trail = size - buffer_->readableSize() / sizeof (std::int32_t);
     }
 
     if (trail) {
-        PLOG(plog::warning) << "underrun on handle: " << this
+        PLOG(plog::debug) << "underrun on handle: " << this
             << " filling " << trail << " extra samples, avail: " << size - trail;
     }
 

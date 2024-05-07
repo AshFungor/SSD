@@ -29,6 +29,8 @@ namespace laar {
         virtual ESampleType format() const override;
 
     private:
+        TSimpleMessage::TStreamConfiguration::TBufferConfiguration bufferConfig_;
+
         ESampleType format_;
         std::size_t sampleSize_;
 

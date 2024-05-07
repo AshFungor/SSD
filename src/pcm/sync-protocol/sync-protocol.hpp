@@ -17,6 +17,7 @@
 
 struct pa_simple {
     std::unique_ptr<sockpp::tcp_connector> connection;
+    float scale;
 };
 
 namespace __internal_pcm {

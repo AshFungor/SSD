@@ -1,4 +1,5 @@
 // pulse
+#include <cstdint>
 #include <format>
 #include <pulse/def.h>
 #include <pulse/sample.h>
@@ -77,37 +78,59 @@ pa_simple* makeConnection(
         pcm_log::logError("unsupported stream direction", {});
     }
 
-    if (ss->rate == 44100) {
-        config.mutable_sample_spec()->set_sample_rate(44100);
-    } else {
-        pcm_log::logError("unsupported rate", {});
+    float scale = 1;
+    if (ss) {
+
+        if (ss->rate == laar::BaseSampleRate) {
+            config.mutable_sample_spec()->set_sample_rate(laar::BaseSampleRate);
+        } else {
+            pcm_log::logError("unsupported rate", {});
+        }
+
+        if (ss->format == PA_SAMPLE_U8) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8);
+            scale = 1;
+        } else if (ss->format == PA_SAMPLE_S16LE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN);
+            scale = sizeof (std::int16_t);
+        } else if (ss->format == PA_SAMPLE_S16BE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN);
+            scale = sizeof (std::int16_t);
+        } else if (ss->format == PA_SAMPLE_S24LE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_24_LITTLE_ENDIAN);
+            scale = 3;
+        } else if (ss->format == PA_SAMPLE_S24BE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_24_BIG_ENDIAN);
+            scale = 3;
+        } else if (ss->format == PA_SAMPLE_S32LE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN);
+            scale = sizeof (std::int32_t);
+        } else if (ss->format == PA_SAMPLE_S32BE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN);
+            scale = sizeof (std::int32_t);
+        } else if (ss->format == PA_SAMPLE_FLOAT32LE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN);
+            scale = sizeof (float);
+        } else if (ss->format == PA_SAMPLE_FLOAT32BE) {
+            config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN);
+            scale = sizeof (float);
+        } else {
+            pcm_log::logError("unsupported sample type", {});
+        }
+
+        if (ss->channels == 1) {
+            config.mutable_sample_spec()->set_channels(ss->channels);
+        } else {
+            pcm_log::logError("unsupported channel number", {});
+        }
     }
 
-    if (ss->format == PA_SAMPLE_U8) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8);
-    } else if (ss->format == PA_SAMPLE_S16LE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN);
-    } else if (ss->format == PA_SAMPLE_S16BE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN);
-    } else if (ss->format == PA_SAMPLE_S24LE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_24_LITTLE_ENDIAN);
-    } else if (ss->format == PA_SAMPLE_S24BE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_24_BIG_ENDIAN);
-    } else if (ss->format == PA_SAMPLE_S32LE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN);
-    } else if (ss->format == PA_SAMPLE_S32BE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN);
-    } else if (ss->format == PA_SAMPLE_FLOAT32LE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN);
-    } else if (ss->format == PA_SAMPLE_FLOAT32BE) {
-        config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN);
-    } else {
-        pcm_log::logError("unsupported sample type", {});
+    if (attr) {
+        config.mutable_buffer_config()->set_prebuffing_size(attr->prebuf);
     }
-
-    config.mutable_sample_spec()->set_channels(1);
 
     pa_simple* connection = new pa_simple;
+    connection->scale = scale;
     connection->connection = std::make_unique<sockpp::tcp_connector>();
     connection->connection->connect(sockpp::inet_address("localhost", __internal_pcm::port));
 
@@ -150,14 +173,12 @@ int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::siz
 
     push.set_size(size);
 
-    std::string data;
-    data.resize(size);
-    std::memcpy(&data[0], bytes, size);
-
-    push.set_pushed(std::move(data));
+    push.set_pushed((char*) bytes, (int) size * connection->scale);
 
     NSound::TClientMessage out;
     out.mutable_simple_message()->mutable_push()->CopyFrom(std::move(push));
+
+    std::cout << "size: " << out.ByteSizeLong() << "\n";
 
     auto message = __internal_pcm::assembleStructuredMessage(
         laar::IResult::EVersion::FIRST, 
