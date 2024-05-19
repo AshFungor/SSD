@@ -85,7 +85,7 @@ void SoundHandler::init() {
         inputParams.deviceId = inputDevice;
         inputParams.firstChannel = 0;
         inputParams.nChannels = 1;
-        unsigned int bufferFrames = UINT_MAX;
+        unsigned int bufferFrames = 0;
         auto inputStreamError = audio_.openStream(
             nullptr, 
             &inputParams, 
@@ -113,7 +113,10 @@ void SoundHandler::init() {
         outParams.deviceId = outputDevice;
         outParams.firstChannel = 0;
         outParams.nChannels = 1;
-        unsigned int bufferFrames = UINT_MAX;
+        unsigned int bufferFrames = 256;
+        RtAudio::StreamOptions options;
+        options.numberOfBuffers = 1;
+        options.flags = RTAUDIO_NONINTERLEAVED;
         auto outStreamError = audio_.openStream(
             &outParams, 
             nullptr, 
@@ -121,7 +124,9 @@ void SoundHandler::init() {
             BaseSampleRate, 
             &bufferFrames, 
             &laar::writeCallback, 
-            (void*)local_.get());
+            (void*)local_.get(),
+            &options
+        );
 
         if (outStreamError) {
             onError(laar::LaarSoundHandlerError(audio_.getErrorText()));
@@ -201,8 +206,9 @@ int laar::writeCallback(
             result[frame] = Silence;
         }
     }
-
+    
     return rtcontrol::SUCCESS;
+
 }
 
 int laar::readCallback(

@@ -22,7 +22,6 @@
 
 // local
 #include "sync-protocol.hpp"
-#include "sounds/audio-handler.hpp"
 
 using namespace laar;
 
@@ -208,7 +207,7 @@ void SyncProtocol::onIOOperation(NSound::NSimple::TSimpleMessage::TPull message)
 void SyncProtocol::onIOOperation(NSound::NSimple::TSimpleMessage::TPush message) {
     PLOG(plog::debug) << "received IO operation (push) directive on protocol " << this << " effective size is " << message.size();
     if (config_->direction() == TSimpleMessage::TStreamConfiguration::PLAYBACK) {
-        auto status = handle_->write(message.pushed().c_str(), message.pushed().size());
+        auto status = handle_->write(message.pushed().c_str(), message.size());
         PLOG(plog::debug) << "write status: " << status;
     } else if (config_->direction() == TSimpleMessage::TStreamConfiguration::RECORD) {
         onError(laar::LaarSemanticError("expecting pull directives on record; received push"));

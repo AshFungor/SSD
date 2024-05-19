@@ -22,6 +22,7 @@
 // plog
 #include <plog/Log.h>
 #include <thread>
+#include <utility>
 
 // local
 #include "server.hpp"
@@ -141,14 +142,14 @@ void Server::run() {
             if (result.error().value() != EWOULDBLOCK) {
                 PLOG(plog::error) << "Error accepting peer: " << result.error_message();
             }
-            if (hasWork_) {
-                goto update;
-            }
             // FIXME: check for work on all sessions
             if (result.error().value() == EWOULDBLOCK) {
-                std::this_thread::sleep_for(*currentTimeout_);
-                if (settings_.timeouts.end() - currentTimeout_ > 1) {
-                    std::advance(currentTimeout_, 1);
+                cv_.wait_for(locked, *currentTimeout_);
+                if (!hasWork_) {
+                    if (settings_.timeouts.end() - currentTimeout_ > 1) {
+                        std::advance(currentTimeout_, 1);
+                    }
+                    continue;
                 }
             }
         }
@@ -161,8 +162,8 @@ void Server::run() {
             currentTimeout_ = settings_.timeouts.begin();
         }
 
-        update:
         hasWork_ = false;
+        currentTimeout_ = settings_.timeouts.begin();
         for (auto& session : sessions_) {
             if (!session->open()) {
                 std::swap(session, sessions_.back());
@@ -170,6 +171,7 @@ void Server::run() {
             }
             threadPool_->query([&]() {
                 hasWork_ = hasWork_ || session->update();
+                cv_.notify_one();
             }, weak_from_this());
         }
     }   

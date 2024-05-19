@@ -71,8 +71,8 @@ namespace srv {
             std::vector<std::chrono::milliseconds> timeouts;
         } settings_;
 
-        std::atomic<bool> hasWork_;
         std::atomic<bool> abort_;
+        std::atomic<bool> hasWork_;
         std::vector<std::chrono::milliseconds>::const_iterator currentTimeout_;
 
         std::mutex serverLock_; 

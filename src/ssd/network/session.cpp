@@ -64,7 +64,7 @@ void ClientSession::init() {
     if (!sock_.peer_address().is_set()) {
         error("Peer is not connected, passed socket is invalid");
     }
-    sock_.set_non_blocking();
+    sock_.set_non_blocking(false);
 }
 
 void ClientSession::terminate() {
@@ -82,7 +82,7 @@ bool ClientSession::update() {
 
     if (!sock_.is_open()) {
         PLOG(plog::debug) << "Socket " << sock_.address() << " was closed by peer";
-        return false;
+        return true;
     }
 
     auto requested = builder_->poll();
@@ -95,7 +95,7 @@ bool ClientSession::update() {
         if (res.error().value() != EWOULDBLOCK) {
             handleErrorState(std::move(res));
         } else {
-            return false;
+            return true;
         }
     }
 
