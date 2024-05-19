@@ -48,5 +48,6 @@ namespace __internal_pcm {
     int syncWrite(pa_simple* connection, const void* bytes, std::size_t size);
     int SyncDrain(pa_simple* connection);
     int SyncFlush(pa_simple* connection);
+    int SyncClose(pa_simple* connection);
 
 }

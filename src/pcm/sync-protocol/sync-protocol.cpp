@@ -163,7 +163,20 @@ pa_simple* pa_simple_new(
     return makeConnection(server, name, dir, dev, stream_name, ss, map, attr, error);
 }
 
+int __internal_pcm::SyncClose(pa_simple* connection) {
+    NSound::NSimple::TSimpleMessage::TClose out;
+    auto message = __internal_pcm::assembleStructuredMessage(
+        laar::IResult::EVersion::FIRST, 
+        laar::IResult::EPayloadType::STRUCTURED, 
+        laar::IResult::EType::CLOSE_SIMPLE, 
+        out
+    );
+    connection->connection->write_n(message.first.get(), message.second);
+    return 0;
+}
+
 void pa_simple_free(pa_simple *s) {
+    __internal_pcm::SyncClose(s);
     s->connection->close();
     free(s);
 }

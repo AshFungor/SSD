@@ -16,3 +16,4 @@ add_executable(pulse-calls-mapper ${HEADERS} ${SOURCES})
 
 target_link_libraries(pulse-calls-mapper PRIVATE protos)
 target_link_libraries(pulse-calls-mapper PRIVATE sync-protocol)
+target_link_libraries(pulse-calls-mapper PRIVATE AudioFile)
