@@ -101,7 +101,7 @@ std::size_t PlainBuffer::advance(EPosition position, std::size_t size) {
             return distance;
         case EPosition::WPOS:
             newPos = std::min(buffer_->size(), wPos_ + size);
-            newPos = newPos - wPos_;
+            distance = newPos - wPos_;
             wPos_ = newPos;
             return distance;
     }

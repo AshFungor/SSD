@@ -104,6 +104,7 @@ std::uint32_t MessageBuilder::poll() const {
 
 bool MessageBuilder::handle(Receive payload) {
     if (payload.size < requested_ || !payload.size) {
+        PLOG(plog::debug) << "requested: " << requested_ << "; size: " << payload.size;
         requested_ -= payload.size;
         return ready();
     }

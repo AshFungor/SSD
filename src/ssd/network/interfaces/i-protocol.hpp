@@ -13,6 +13,7 @@
 
 // local
 #include "i-message.hpp"
+#include "protos/client/simple/simple.pb.h"
 
 namespace laar {
 
@@ -23,9 +24,9 @@ namespace laar {
 
     class IMessageQueue {
     public:
-        virtual std::unique_ptr<IResult> pop() = 0;
-        virtual std::size_t push(std::unique_ptr<IResult> message) = 0;
-        virtual std::size_t getEffectiveLoad() const = 0;
+        virtual NSound::NSimple::TSimpleMessage pop() = 0;
+        virtual std::size_t push(NSound::NSimple::TSimpleMessage&& message) = 0;
+        virtual std::size_t load() const = 0;
 
         virtual ~IMessageQueue() = default;
     };

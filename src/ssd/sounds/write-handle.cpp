@@ -1,4 +1,5 @@
 // laar
+#include <chrono>
 #include <sounds/interfaces/i-audio-handler.hpp>
 #include <sounds/audio-handler.hpp> 
 #include <common/ring-buffer.hpp>
@@ -19,6 +20,7 @@
 
 // proto
 #include <protos/client/simple/simple.pb.h>
+#include <thread>
 
 // local
 #include "write-handle.hpp"
@@ -54,40 +56,45 @@ int WriteHandle::flush() {
 }
 
 int WriteHandle::read(std::int32_t* dest, std::size_t size) {
-    std::unique_lock<std::mutex> locked(lock_);
+    again:
+    {
+        std::unique_lock<std::mutex> locked(lock_);
 
-    if (buffer_->readableSize() / sizeof (std::int32_t) < bufferConfig_.prebuffing_size()) {
-        PLOG(plog::debug) << "handle " << this << " is stalled, "
-            << "waiting for " << bufferConfig_.prebuffing_size() - buffer_->readableSize() / sizeof (std::int32_t)
-            << " samples (prebuffing size is " << bufferConfig_.prebuffing_size() 
-            << "; readable size is " << buffer_->readableSize() / sizeof (std::int32_t) << ")";
-        return status::STALLED;
-    } else {
-        bufferConfig_.set_prebuffing_size(0);
-    }
+        if (buffer_->readableSize() / sizeof (std::int32_t) < bufferConfig_.prebuffing_size()) {
+            PLOG(plog::debug) << "handle " << this << " is stalled, "
+                << "waiting for " << bufferConfig_.prebuffing_size() - buffer_->readableSize() / sizeof (std::int32_t)
+                << " samples (prebuffing size is " << bufferConfig_.prebuffing_size() 
+                << "; readable size is " << buffer_->readableSize() / sizeof (std::int32_t) << ")";
+            return status::STALLED;
+        } else {
+            bufferConfig_.set_prebuffing_size(0);
+        }
 
-    std::size_t trail = 0;
-    if (size > buffer_->readableSize() / sizeof (std::int32_t)) {
-        trail = size - buffer_->readableSize() / sizeof (std::int32_t);
-    }
+        std::size_t trail = 0;
+        if (size > buffer_->readableSize() / sizeof (std::int32_t)) {
+            trail = size - buffer_->readableSize() / sizeof (std::int32_t);
+        }
 
-    if (trail) {
-        PLOG(plog::debug) << "underrun on handle: " << this
-            << " filling " << trail << " extra samples, avail: " << size - trail;
-    }
+        if (trail) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            goto again;
+            PLOG(plog::debug) << "underrun on handle: " << this
+                << " filling " << trail << " extra samples, avail: " << size - trail;
+        }
 
-    for (std::size_t frame = 0; frame < size - trail; ++frame) {
-        buffer_->read((char*) (dest + frame), sizeof(std::int32_t));
-    }
+        for (std::size_t frame = 0; frame < size - trail; ++frame) {
+            buffer_->read((char*) (dest + frame), sizeof(std::int32_t));
+        }
 
-    for (std::size_t frame = size - trail; frame < size; ++frame) {
-        std::memcpy(dest + frame, &Silence, sizeof(std::int32_t));
-    }
+        for (std::size_t frame = size - trail; frame < size; ++frame) {
+            std::memcpy(dest + frame, &Silence, sizeof(std::int32_t));
+        }
 
-    if (trail) {
-        return status::UNDERRUN;
+        if (trail) {
+            return status::UNDERRUN;
+        }
+        return status::SUCCESS;
     }
-    return status::SUCCESS;
 }
 
 int WriteHandle::write(const char* src, std::size_t size) {

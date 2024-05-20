@@ -106,21 +106,15 @@ std::size_t SimpleEffectiveLoadClassifier::classify(const std::unique_ptr<IResul
     return 0;
 }
 
-std::unique_ptr<IResult> MessageQueue::pop() {
-    auto out = std::move(msQueue_.front());
-    effectiveSize_ -= classifier_->classify(out);
-    msQueue_.pop();
-    return out;
+NSound::NSimple::TSimpleMessage MessageQueue::pop() {
+    return {};
 }
 
-std::size_t MessageQueue::push(std::unique_ptr<IResult> message) {
-    auto effective = classifier_->classify(message);
-    effectiveSize_ += effective;
-    msQueue_.emplace(std::move(message));
-    return effective;
+std::size_t MessageQueue::push(NSound::NSimple::TSimpleMessage&& message) {
+    return 0;
 }
 
-std::size_t MessageQueue::getEffectiveLoad() const {
+std::size_t MessageQueue::load() const {
     return effectiveSize_;
 }
 
@@ -229,5 +223,9 @@ void SyncProtocol::onBufferDrained(int status) {
 
 void SyncProtocol::onBufferFlushed(int status) {
 
+}
+
+void SyncProtocol::onBytesRequested(std::size_t size) {
+    
 }
 

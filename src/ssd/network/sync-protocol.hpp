@@ -2,6 +2,7 @@
 
 // standard
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <memory>
 #include <queue>
@@ -29,9 +30,9 @@ namespace laar {
 
         MessageQueue(std::unique_ptr<IEffectiveLoadClassifier> classifier);
         // IMessageQueue implementation
-        virtual std::unique_ptr<IResult> pop() override;
-        virtual std::size_t push(std::unique_ptr<IResult> message) override;
-        virtual std::size_t getEffectiveLoad() const override;
+        virtual NSound::NSimple::TSimpleMessage pop() override;
+        virtual std::size_t push(NSound::NSimple::TSimpleMessage&& message) override;
+        virtual std::size_t load() const override;
 
     private:
         std::unique_ptr<IEffectiveLoadClassifier> classifier_;
@@ -62,6 +63,7 @@ namespace laar {
         // IStreamHandler::IHandle::IListener implementation
         virtual void onBufferDrained(int status) override;
         virtual void onBufferFlushed(int status) override;
+        virtual void onBytesRequested(std::size_t size) override;
 
     private:
         void onStreamConfiguration(NSound::NSimple::TSimpleMessage::TStreamConfiguration message);

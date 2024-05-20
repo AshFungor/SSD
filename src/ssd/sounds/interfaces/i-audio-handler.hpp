@@ -51,6 +51,7 @@ namespace laar {
             public:
                 virtual void onBufferDrained(int status) = 0;
                 virtual void onBufferFlushed(int status) = 0;
+                virtual void onBytesRequested(std::size_t size) = 0;
                 virtual ~IListener() = default;
             };
 

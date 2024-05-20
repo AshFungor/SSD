@@ -24,7 +24,6 @@
 #include <pcm/trace/trace.hpp>
 #include "protos/client/client-message.pb.h"
 #include "protos/client/simple/simple.pb.h"
-#include "sounds/converter.hpp"
 
 std::pair<std::unique_ptr<char[]>, std::size_t> __internal_pcm::assembleStructuredMessage(
     laar::IResult::EVersion version,
@@ -144,6 +143,7 @@ pa_simple* makeConnection(
         out
     );
 
+    connection->connection->set_non_blocking(false);
     connection->connection->write_n(initMessage.first.get(), initMessage.second);
 
     return connection;
@@ -191,7 +191,7 @@ int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::siz
     NSound::TClientMessage out;
     out.mutable_simple_message()->mutable_push()->CopyFrom(std::move(push));
 
-    std::cout << "size: " << out.ByteSizeLong() << "\n";
+    // std::cout << "size: " << out.ByteSizeLong() << "\n";
 
     auto message = __internal_pcm::assembleStructuredMessage(
         laar::IResult::EVersion::FIRST, 

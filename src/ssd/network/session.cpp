@@ -1,4 +1,5 @@
 // sockpp
+#include <exception>
 #include <sockpp/tcp_connector.h>
 #include <sockpp/tcp_acceptor.h>
 #include <sockpp/result.h>
@@ -35,7 +36,7 @@ ClientSession::ClientSession(
     std::shared_ptr<laar::IStreamHandler> soundHandler,
     Private access) 
 : sock_(std::move(sock))
-, buffer_(std::make_shared<laar::PlainBuffer>(44100 * 4 * 10))
+, buffer_(std::make_shared<laar::PlainBuffer>(2200))
 , builder_(laar::MessageBuilder::configure(buffer_))
 , protocol_(laar::SyncProtocol::configure(weak_from_this(), std::move(soundHandler)))
 {}
@@ -64,7 +65,7 @@ void ClientSession::init() {
     if (!sock_.peer_address().is_set()) {
         error("Peer is not connected, passed socket is invalid");
     }
-    sock_.set_non_blocking(false);
+    sock_.set_non_blocking(true);
 }
 
 void ClientSession::terminate() {
@@ -105,6 +106,7 @@ bool ClientSession::update() {
 
     if (!builder_->valid()) {
         // reset connection
+        throw std::runtime_error("not implemented");
     }
 
     if (*builder_) {

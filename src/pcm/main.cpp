@@ -1,3 +1,4 @@
+#include <chrono>
 #include <filesystem>
 #include <algorithm>
 #include <cmath>
@@ -20,6 +21,7 @@
 
 // sockpp
 #include <sockpp/tcp_connector.h>
+#include <thread>
 
 enum EModes {
     MODE_EXPONENT = 0,
@@ -71,7 +73,7 @@ int playExponent() {
     std::size_t samples = 0, periodsTotal = spec->rate * duration / period;
     for (std::size_t i = 0; i < periodsTotal; ++i) {
         for (std::size_t j = 0; j < period; ++j) {
-            auto val = std::pow(std::numbers::e, j) / std::pow(std::numbers::e, period - 1) * UINT32_MAX - INT32_MIN;
+            auto val = std::clamp<int>(std::sin((double) j / period * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
             data[i * period + j] = val;
         }
         pa_simple_write(connection, data.get() + i * period, period, nullptr);
@@ -100,7 +102,7 @@ int playWav() {
     }
 
     std::cout << "Loading file. summary: \n";
-    AudioFile<std::int16_t> file (filename);
+    AudioFile<std::int32_t> file (filename);
     file.printSummary();
 
     int period = 0;
@@ -122,7 +124,7 @@ int playWav() {
         "example-client", 
         PA_STREAM_PLAYBACK, 
         nullptr, 
-        "example-stream", 
+        "song-stream", 
         spec.get(), 
         nullptr, 
         attr.get(), 
@@ -130,12 +132,20 @@ int playWav() {
     );
 
     auto data = std::make_unique<std::int16_t[]>(period);
-    for (int sample = 0; sample < file.getNumSamplesPerChannel(); sample += period) {
+    auto samples = file.getNumSamplesPerChannel();
+    int maxLoad = spec->rate * 3, current = 0;
+    for (int sample = 0; sample < samples; sample += period) {
         std::memset(data.get(), 0, period);
-        for (int j = sample; j < std::min(sample + period, file.getNumSamplesPerChannel()); ++j) {
+        for (int j = sample; j < std::min(sample + period, samples); ++j) {
             data[j % period] = file.samples[0][j];
         }
         pa_simple_write(connection, data.get(), period, nullptr);
+        current += period;
+
+        if (current >= maxLoad) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            current -= spec->rate / 100 * 2 + 10;
+        }
     }
 
     pa_simple_free(connection);
