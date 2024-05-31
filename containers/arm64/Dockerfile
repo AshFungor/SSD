@@ -1,7 +1,5 @@
 FROM archlinux:base-devel
 
-VOLUME /project/build
-
 RUN pacman -Syu --noconfirm
 
 # cross compilation deps
@@ -14,17 +12,23 @@ RUN pacman -S --noconfirm aarch64-linux-gnu-linux-api-headers   \
 RUN pacman -S --noconfirm python python-pip
 RUN pip install --break-system-packages --no-cache conan
 
-RUN pacman -S --noconfirm cmake gcc
+RUN pacman -S --noconfirm cmake gcc make
 
 # clear pacman cache
 RUN pacman -S --noconfirm pacman-contrib
 RUN paccache -r -k 0
 
-COPY . /project
-WORKDIR /project
+RUN groupadd runner && useradd -g runner runner && chmod 755 /home
+USER runner
+WORKDIR /home/runner
+
+RUN mkdir project
+COPY --chown=runner conanfile.py project/conanfile.py
+COPY --chown=runner data/arm64.ini project/arm64.ini
+WORKDIR /home/runner/project
 
 RUN conan profile detect
-RUN mv ./data/arm64.ini /root/.conan2/profiles/host
+RUN cp arm64.ini ~/.conan2/profiles/host
 ENV CONAN_ARGS --profile:host=host
 
 RUN conan install . --build=missing $CONAN_ARGS
@@ -39,5 +43,7 @@ ENV AR aarch64-linux-gnu-ar
 ENV AS aarch64-linux-gnu-as
 ENV FC aarch64-linux-gnu-gfortran
 ENV LD aarch64-linux-gnu-ld
+
+ENV BUILD_TYPE Release
 
 CMD ./scripts/build.sh -c && ./scripts/build.sh -b

@@ -8,6 +8,14 @@ ROOT_FOLDER="$PWD"
 # Output dir, adjusted to target platform
 BUILD_DIR="$ROOT_FOLDER/build"
 
+echo "testing build type variable..."
+if [[ -z $BUILD_TYPE ]]; then
+    BUILD_TYPE=Debug
+fi
+
+BUILD_TYPE_LOWERCASE=$(echo "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')
+
+
 help() {
     echo "helper for building Sound Server. Usage: [-c|configure] [-b|build]"
 }
@@ -23,14 +31,14 @@ configure() {
     cd "$BUILD_DIR"                                                     \
         && cmake                                                        \
             "$ROOT_FOLDER" -G                                           \
-            "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug                   \
-            -DCMAKE_TOOLCHAIN_FILE="$BUILD_DIR/conan_toolchain.cmake"
+            "Unix Makefiles" -DCMAKE_BUILD_TYPE=$BUILD_TYPE             \
+            --preset conan-$BUILD_TYPE_LOWERCASE
 }
 
 build() {
     test -d "$BUILD_DIR" || configure
     echo "Building..."
-    cmake --build "$BUILD_DIR"
+    cmake --build "$BUILD_DIR" --preset conan-$BUILD_TYPE_LOWERCASE
 }
 
 while getopts "hcba:" arg; do 
