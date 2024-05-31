@@ -28,15 +28,15 @@ configure() {
 
     conan install "$ROOT_FOLDER" --output-folder="$BUILD_DIR" --build=missing $CONAN_ARGS
 
-    cd "$BUILD_DIR"                                                     \
-        && cmake                                                        \
-            "$ROOT_FOLDER" -G                                           \
-            "Unix Makefiles" -DCMAKE_BUILD_TYPE=$BUILD_TYPE             \
-            --preset conan-$BUILD_TYPE_LOWERCASE
+    cd "$BUILD_DIR"                                     \
+        && cmake --preset conan-$BUILD_TYPE_LOWERCASE   \
+            "$ROOT_FOLDER" -G "Unix Makefiles"          \
+            -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+            
 }
 
 build() {
-    test -d "$BUILD_DIR" || configure
+    test -d "$BUILD_DIR"
     echo "Building..."
     cmake --build "$BUILD_DIR" --preset conan-$BUILD_TYPE_LOWERCASE
 }
