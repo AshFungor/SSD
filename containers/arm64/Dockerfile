@@ -44,6 +44,4 @@ ENV AS aarch64-linux-gnu-as
 ENV FC aarch64-linux-gnu-gfortran
 ENV LD aarch64-linux-gnu-ld
 
-ENV BUILD_TYPE Release
-
-CMD ./scripts/build.sh -c && ./scripts/build.sh -b
+CMD ./scripts/build.py -c -b --config Release --link

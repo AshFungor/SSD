@@ -29,4 +29,4 @@ RUN conan install . --build=missing $CONAN_ARGS
 
 ENV BUILD_TYPE Release
 
-CMD ./scripts/build.sh -c && ./scripts/build.sh -b
+CMD ./scripts/build.py -c -b --config Release --config Debug --link
