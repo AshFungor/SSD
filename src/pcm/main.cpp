@@ -77,7 +77,6 @@ int playExponent() {
             data[i * period + j] = val;
         }
         pa_simple_write(connection, data.get() + i * period, period, nullptr);
-        samples += period;
     }
 
     std::cout << "Transfer complete! Program sent periods " << periodsTotal << " times! \n";
@@ -133,19 +132,12 @@ int playWav() {
 
     auto data = std::make_unique<std::int16_t[]>(period);
     auto samples = file.getNumSamplesPerChannel();
-    int maxLoad = spec->rate * 3, current = 0;
     for (int sample = 0; sample < samples; sample += period) {
         std::memset(data.get(), 0, period);
         for (int j = sample; j < std::min(sample + period, samples); ++j) {
             data[j % period] = file.samples[0][j];
         }
         pa_simple_write(connection, data.get(), period, nullptr);
-        current += period;
-
-        if (current >= maxLoad) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            current -= spec->rate / 100 * 2 + 10;
-        }
     }
 
     pa_simple_free(connection);

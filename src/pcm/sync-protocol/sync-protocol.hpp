@@ -1,6 +1,8 @@
 #pragma once
 
 // pulse
+#include <chrono>
+#include <cstddef>
 #include <pulse/simple.h>
 
 // STD
@@ -22,8 +24,36 @@ struct pa_simple {
 
 namespace __internal_pcm {
 
+    using hs_clock = std::chrono::high_resolution_clock;
+
     inline constexpr int port = 5050;
     inline constexpr std::size_t headerSize = 6;
+
+    inline constexpr std::size_t bytesPerTimeFrame_ = 1024 * 8;
+    inline constexpr std::chrono::milliseconds timeFrame_ (1);
+
+    class LoadBalancer {
+    public:
+
+        LoadBalancer(
+            std::size_t bytes,
+            std::chrono::milliseconds delta
+        );
+        // checks time frame and blocks
+        // if this message exceeds limit
+        void balance(std::size_t size);
+
+    private:
+        void reset(hs_clock::time_point check);
+        void hold(hs_clock::time_point goesOff);
+
+    private:
+        std::size_t bytes_;
+        std::chrono::milliseconds delta_;
+        // state
+        std::size_t current_;
+        hs_clock::time_point previous_;
+    };
 
     std::pair<std::unique_ptr<char[]>, std::size_t> assembleStructuredMessage(
         laar::IResult::EVersion version,
@@ -31,6 +61,8 @@ namespace __internal_pcm {
         laar::IResult::EType type,
         google::protobuf::Message& message
     );
+
+    inline static LoadBalancer balancer (bytesPerTimeFrame_, timeFrame_);
 
     pa_simple* makeConnection(
         const char *server,                 /**< Server name, or NULL for default */
@@ -49,5 +81,7 @@ namespace __internal_pcm {
     int SyncDrain(pa_simple* connection);
     int SyncFlush(pa_simple* connection);
     int SyncClose(pa_simple* connection);
+
+    int assembleAndWrite(pa_simple* connection, const void* bytes, std::size_t size);
 
 }

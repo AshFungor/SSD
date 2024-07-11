@@ -17,6 +17,8 @@
 // laar
 #include <network/interfaces/i-message.hpp>
 #include <sounds/interfaces/i-audio-handler.hpp>
+#include <stdexcept>
+#include <thread>
 #include <utility>
 
 // local
@@ -149,6 +151,38 @@ pa_simple* makeConnection(
     return connection;
 }
 
+void __internal_pcm::LoadBalancer::balance(std::size_t size) {
+    if (size > bytes_) {
+        throw std::runtime_error("requested message is larger than single frame capacity");
+    }
+
+    if (auto now = hs_clock::now(); now - previous_ > delta_) {
+        reset(now);
+    }
+
+    if (size > bytes_ - current_) {
+        hold(previous_ + delta_);
+    }
+
+    current_ += size;
+}
+
+__internal_pcm::LoadBalancer::LoadBalancer(std::size_t bytes, std::chrono::milliseconds delta) 
+: delta_(std::move(delta))
+, bytes_(bytes)
+{
+    reset(hs_clock::now());
+}
+
+void __internal_pcm::LoadBalancer::reset(hs_clock::time_point check) {
+    previous_ = std::move(check);
+    current_ = 0; 
+}
+
+void __internal_pcm::LoadBalancer::hold(hs_clock::time_point goesOff) {
+    std::this_thread::sleep_until(std::move(goesOff));
+}
+
 pa_simple* pa_simple_new(
     const char *server,
     const char *name,
@@ -181,17 +215,15 @@ void pa_simple_free(pa_simple *s) {
     free(s);
 }
 
-int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::size_t size) {
+int __internal_pcm::assembleAndWrite(pa_simple* connection, const void* bytes, std::size_t size) {
+    int byteSize = size * connection->scale;
+
     NSound::NSimple::TSimpleMessage::TPush push;
-
     push.set_size(size);
-
-    push.set_pushed((char*) bytes, (int) size * connection->scale);
+    push.set_pushed((char*) bytes, byteSize);
 
     NSound::TClientMessage out;
     out.mutable_simple_message()->mutable_push()->CopyFrom(std::move(push));
-
-    // std::cout << "size: " << out.ByteSizeLong() << "\n";
 
     auto message = __internal_pcm::assembleStructuredMessage(
         laar::IResult::EVersion::FIRST, 
@@ -201,6 +233,23 @@ int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::siz
     );
 
     connection->connection->write_n(message.first.get(), message.second);
+    return 0;
+}
+
+int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::size_t size) {
+    const auto& singleFrameBytes = __internal_pcm::bytesPerTimeFrame_;
+    int byteSize = size * connection->scale;
+
+    for (std::size_t frame = 0; frame < size; frame += singleFrameBytes) {
+        std::size_t current = (frame % singleFrameBytes) ? frame % singleFrameBytes : singleFrameBytes;
+        balancer.balance(current * byteSize);
+        auto returned = assembleAndWrite(connection, (std::uint8_t*) bytes + frame * byteSize, current);
+
+        if (!returned) {
+            return returned;
+        }
+    }
+
     return 0;
 }
 
