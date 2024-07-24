@@ -10,6 +10,7 @@ add_library(sound STATIC ${SOURCES} ${HEADERS})
 target_include_directories(sound PUBLIC ${SRC_ROOT})
 
 add_subdirectory(interfaces)
+add_subdirectory(dispatchers)
 add_subdirectory(tests)
 
 target_link_libraries(sound PUBLIC plog::plog)

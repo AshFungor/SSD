@@ -29,7 +29,7 @@ WORKDIR /home/runner/project
 
 RUN conan profile detect
 RUN cp arm64.ini ~/.conan2/profiles/host
-ENV CONAN_ARGS --profile:host=host
+ENV CONAN_ARGS=--profile:host=host
 
 RUN conan install . --build=missing $CONAN_ARGS
 
@@ -37,11 +37,11 @@ RUN conan install . --build=missing $CONAN_ARGS
 ENV ARCH arm64
 
 # set env vars for gcc toolchain
-ENV CC aarch64-linux-gnu-gcc
-ENV CXX aarch64-linux-gnu-g++
-ENV AR aarch64-linux-gnu-ar
-ENV AS aarch64-linux-gnu-as
-ENV FC aarch64-linux-gnu-gfortran
-ENV LD aarch64-linux-gnu-ld
+ENV CC=aarch64-linux-gnu-gcc
+ENV CXX=aarch64-linux-gnu-g++
+ENV AR=aarch64-linux-gnu-ar
+ENV AS=aarch64-linux-gnu-as
+ENV FC=aarch64-linux-gnu-gfortran
+ENV LD=aarch64-linux-gnu-ld
 
 CMD ./scripts/build.py -c -b --config Release --link
