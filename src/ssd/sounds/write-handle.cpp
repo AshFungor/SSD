@@ -123,23 +123,23 @@ int WriteHandle::write(const char* src, std::size_t size) {
         } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN) {
             std::memcpy(&sample16, src + frame * sizeof(sample16), sizeof(sample16));
             converted = convertFromSigned16BE(sample16);
-            PLOG(plog::debug) << "S16BE: converted: " << converted;
+            // PLOG(plog::debug) << "S16BE: converted: " << converted;
         } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN) {
             std::memcpy(&sample16, src + frame * sizeof(sample16), sizeof(sample16));
             converted = convertFromSigned16LE(sample16);
-            PLOG(plog::debug) << "S16LE: converted: " << converted;
+            // PLOG(plog::debug) << "S16LE: converted: " << converted;
         } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN) {
             std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
             converted = convertFromFloat32BE(sample32);
-            PLOG(plog::debug) << "F32LE: converted: " << converted;
+            // PLOG(plog::debug) << "F32LE: converted: " << converted;
         } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN) {
             std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
             converted = convertFromFloat32LE(sample32);
-            PLOG(plog::debug) << "F32LE: converted: " << converted;
+            // PLOG(plog::debug) << "F32LE: converted: " << converted;
         } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN) {
             std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
             converted = convertFromSigned32BE(sample32);
-            PLOG(plog::debug) << "S32BE: converted: " << converted;
+            // PLOG(plog::debug) << "S32BE: converted: " << converted;
         } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN) {
             std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
             converted = convertFromSigned32LE(sample32);

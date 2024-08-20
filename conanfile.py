@@ -14,8 +14,7 @@ class SoundServer(ConanFile):
             "protobuf/5.27.0",
             "nlohmann_json/3.11.3",
             "boost/1.85.0",
-            "libalsa/1.2.10",
-            "kissfft/131.1.0"
+            "fftw/3.3.10"
         ]:
             self.requires(req)
 

@@ -4,6 +4,7 @@
 #include <common/macros.hpp>
 #include <sounds/read-handle.hpp>
 #include <sounds/write-handle.hpp>
+#include <sounds/dispatchers/bass-router-dispatcher.hpp>
 
 // std
 #include <climits>
@@ -24,6 +25,8 @@
 
 // local
 #include "audio-handler.hpp"
+#include "sounds/dispatchers/tube-dispatcher.hpp"
+#include "sounds/interfaces/i-audio-handler.hpp"
 
 using namespace laar;
 
@@ -40,11 +43,25 @@ std::shared_ptr<SoundHandler> SoundHandler::configure(std::shared_ptr<laar::Conf
 
 SoundHandler::SoundHandler(
     std::shared_ptr<laar::ConfigHandler> configHandler,
-    Private access)
-: audio_(RtAudio::Api::LINUX_ALSA)
-, configHandler_(std::move(configHandler))
-, local_(nullptr)
-, init_(false)
+    Private access
+)
+    : audio_(RtAudio::Api::LINUX_ALSA)
+    , configHandler_(std::move(configHandler))
+    , bassDispatcher_(laar::BassRouterDispatcher::create(
+        ESamplesOrder::NONINTERLEAVED, 
+        TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
+        BaseSampleRate,
+        BassRouterDispatcher::BassRange(20, 250),
+        BassRouterDispatcher::ChannelInfo(0, 1))
+    )
+    , dispatcherManyToOne_(laar::TubeDispatcher::create(
+        TubeDispatcher::EDispatchingDirection::MANY2ONE, 
+        ESamplesOrder::NONINTERLEAVED, 
+        TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN, 
+        1) // should be allowed to change dynamically
+    )
+    , local_(nullptr)
+    , init_(false)
 {}
 
 void SoundHandler::init() {
@@ -112,7 +129,7 @@ void SoundHandler::init() {
         RtAudio::StreamParameters outParams;
         outParams.deviceId = outputDevice;
         outParams.firstChannel = 0;
-        outParams.nChannels = 1;
+        outParams.nChannels = 2;
         unsigned int bufferFrames = 256;
         RtAudio::StreamOptions options;
         options.numberOfBuffers = 1;
@@ -187,26 +204,34 @@ int laar::writeCallback(
     }
 
     auto result = (std::int32_t*) out;
+    auto squashed = std::make_unique<std::int32_t[]>(frames);
 
     for (std::size_t frame = 0; frame < frames; ++frame) {
         bool isFirst = true;
         for (auto& buffer : buffers) {
             if (isFirst) {
                 isFirst = false;
-                result[frame] = buffer[frame];
+                squashed[frame] = buffer[frame];
             } else {
-                result[frame] = 2 * ((std::int64_t) buffer[frame] + result[frame]) 
-                    - (std::int64_t) buffer[frame] * result[frame] / (INT32_MAX / 2) - INT32_MAX;
+                squashed[frame] = 2 * ((std::int64_t) buffer[frame] + squashed[frame]) 
+                    - (std::int64_t) buffer[frame] * squashed[frame] / (INT32_MAX / 2) - INT32_MAX;
             }
             // PLOG(plog::debug) << "writing byte (frame " << frame << "): " << result[frame];
         }
 
         if (buffers.empty()) {
             // put silence
-            result[frame] = Silence;
+            squashed[frame] = Silence;
         }
     }
     
+    // apply fft to data stream and route samples correctly
+    auto dispatchingResult = handler->bassDispatcher_->dispatch(squashed.get(), result, frames);
+    if (dispatchingResult.isError()) {
+        PLOG(plog::error) << "error during bass dispatching: " << dispatchingResult.getError();
+        return rtcontrol::ABORT;
+    }
+
     return rtcontrol::SUCCESS;
 
 }

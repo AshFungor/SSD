@@ -1,39 +1,44 @@
 #pragma once
 
 // STD
+#include <optional>
 #include <string>
-#include <type_traits>
+
 
 namespace laar {
 
-    class IErrorHolder {
+    class WrappedResult {
     public:
-        virtual bool holds() const = 0;
-        virtual std::string describe() const = 0;
+        // result builders
+        static WrappedResult wrapError(const std::string& what) { 
+            return WrappedResult(what); 
+        }
 
-    };
+        static WrappedResult wrapResult() { 
+            return WrappedResult(std::nullopt); 
+        }
 
-    class SimpleErrorHolder 
-        : IErrorHolder {
-    public:
-        SimpleErrorHolder() : holds_(false) {}
-        SimpleErrorHolder(const std::string& what) : what_(what), holds_(true) {}
-        virtual bool holds() const override { return holds_; }
-        virtual std::string describe() const override { return (holds_) ? what_ : "no error"; }
+        // result state
+        bool isError() { 
+            return result_.has_value(); 
+        }
+
+        std::string& getError() { 
+            return result_.value(); 
+        }
 
     private:
-        bool holds_;
-        std::string what_;
+        WrappedResult(std::optional<std::string> result) : result_(std::move(result)) {}
+
+    private:
+        std::optional<std::string> result_;
 
     };
 
-    template<typename ErrorHolder>
     class IDispatcher {
     public:
 
-        static_assert(std::is_base_of<IErrorHolder, ErrorHolder>(), "Error Holder must be derived from IErrrorHolder");
-
-        virtual IErrorHolder dispatch(void* in, void* out) = 0;
+        virtual WrappedResult dispatch(void* in, void* out, std::size_t samples) = 0;
         virtual ~IDispatcher() = default;
 
     };

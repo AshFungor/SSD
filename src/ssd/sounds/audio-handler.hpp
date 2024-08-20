@@ -1,6 +1,8 @@
 #pragma once
 
 // laar
+#include "sounds/dispatchers/tube-dispatcher.hpp"
+#include <sounds/dispatchers/bass-router-dispatcher.hpp>
 #include <sounds/interfaces/i-audio-handler.hpp>
 #include <common/callback-queue.hpp>
 #include <util/config-loader.hpp>
@@ -93,6 +95,9 @@ namespace laar {
 
         std::condition_variable cv_;
         bool init_;
+
+        std::shared_ptr<BassRouterDispatcher> bassDispatcher_;
+        std::shared_ptr<TubeDispatcher> dispatcherManyToOne_;
 
         std::vector<std::weak_ptr<IWriteHandle>> outHandles_;
         std::vector<std::weak_ptr<IReadHandle>> inHandles_;

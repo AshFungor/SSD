@@ -76,7 +76,8 @@ pa_simple* makeConnection(
     } else if (dir == PA_STREAM_RECORD) {
         config.set_direction(TSimpleMessage::TStreamConfiguration::RECORD);
     } else {
-        pcm_log::logError("unsupported stream direction", {});
+        int casted = dir;
+        pcm_log::logError("unsupported stream direction: {}", std::make_format_args(casted));
     }
 
     float scale = 1;
@@ -85,7 +86,7 @@ pa_simple* makeConnection(
         if (ss->rate == laar::BaseSampleRate) {
             config.mutable_sample_spec()->set_sample_rate(laar::BaseSampleRate);
         } else {
-            pcm_log::logError("unsupported rate", {});
+            pcm_log::logError("unsupported rate: {}", std::make_format_args(ss->rate));
         }
 
         if (ss->format == PA_SAMPLE_U8) {
@@ -116,13 +117,14 @@ pa_simple* makeConnection(
             config.mutable_sample_spec()->set_format(TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN);
             scale = sizeof (float);
         } else {
-            pcm_log::logError("unsupported sample type", {});
+            int format = ss->format;
+            pcm_log::logError("unsupported sample type: ", std::make_format_args(format));
         }
 
         if (ss->channels == 1) {
             config.mutable_sample_spec()->set_channels(ss->channels);
         } else {
-            pcm_log::logError("unsupported channel number", {});
+            pcm_log::logError("unsupported channel number: {}", std::make_format_args(ss->channels));
         }
     }
 
@@ -240,10 +242,10 @@ int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::siz
     const auto& singleFrameBytes = __internal_pcm::bytesPerTimeFrame_;
     int byteSize = size * connection->scale;
 
-    for (std::size_t frame = 0; frame < size; frame += singleFrameBytes) {
+    for (std::size_t frame = 0; frame < byteSize; frame += singleFrameBytes) {
         std::size_t current = (frame % singleFrameBytes) ? frame % singleFrameBytes : singleFrameBytes;
-        balancer.balance(current * byteSize);
-        auto returned = assembleAndWrite(connection, (std::uint8_t*) bytes + frame * byteSize, current);
+        balancer.balance(current);
+        auto returned = assembleAndWrite(connection, (std::uint8_t*) bytes + frame, current);
 
         if (!returned) {
             return returned;
