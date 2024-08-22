@@ -60,10 +60,11 @@ namespace {
 
         auto outCurrent = outWrappedStream.begin(routingInfo.routeTo);
         for (auto inCurrent = inWrappedStream.begin(); inCurrent != inWrappedStream.end(); ++inCurrent) {
-            *outCurrent = process(*inCurrent);
-            if (++outCurrent; outCurrent == outWrappedStream.end(routingInfo.routeTo)) {
+            if (outCurrent == outWrappedStream.end(routingInfo.routeTo)) {
                 return WrappedResult::wrapError("reached end of out stream unexpectedly");
             }
+            *outCurrent = process(*inCurrent);
+            ++outCurrent;
         }
         
         return WrappedResult::wrapResult();

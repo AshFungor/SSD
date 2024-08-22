@@ -41,6 +41,7 @@ namespace laar {
         };
 
         virtual void onClientMessage(std::unique_ptr<IResult> message) = 0;
+        virtual bool isAlive() = 0;
 
         virtual ~IProtocol() = default;
     };

@@ -60,6 +60,7 @@ namespace laar {
         
         // IProtocol implementation
         virtual void onClientMessage(std::unique_ptr<IResult> message) override;
+        virtual bool isAlive() override;
         // IStreamHandler::IHandle::IListener implementation
         virtual void onBufferDrained(int status) override;
         virtual void onBufferFlushed(int status) override;
@@ -80,6 +81,8 @@ namespace laar {
         std::shared_ptr<laar::IStreamHandler::IHandle> handle_;
         std::optional<NSound::NSimple::TSimpleMessage::TStreamConfiguration> config_;
         std::weak_ptr<IProtocol::IReplyListener> listener_;
+
+        bool isAlive_;
     };
 
 }

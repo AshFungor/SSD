@@ -131,6 +131,7 @@ SyncProtocol::SyncProtocol(
     Private access) 
 : listener_(std::move(listener))
 , soundHandler_(std::move(soundHandler))
+, isAlive_(true)
 {}
 
 void SyncProtocol::onClientMessage(std::unique_ptr<IResult> message) {
@@ -210,6 +211,7 @@ void SyncProtocol::onIOOperation(NSound::NSimple::TSimpleMessage::TPush message)
 
 void SyncProtocol::onClose(NSound::NSimple::TSimpleMessage::TClose message) {
     PLOG(plog::info) << "received close on protocol " << this;
+    isAlive_ = false;
 }
 
 void SyncProtocol::onError(std::exception error) {
@@ -229,3 +231,6 @@ void SyncProtocol::onBytesRequested(std::size_t size) {
     
 }
 
+bool SyncProtocol::isAlive() {
+    return isAlive_;
+}

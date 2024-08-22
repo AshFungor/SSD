@@ -113,7 +113,7 @@ int WriteHandle::write(const char* src, std::size_t size) {
         overrun = true;
     }
 
-    PLOG(plog::debug) << "receiving bytes in handle: ";
+    PLOG(plog::debug) << "receiving bytes in handle: " << size;
 
     for (std::size_t frame = 0; frame < size; ++frame) {
         if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8) {

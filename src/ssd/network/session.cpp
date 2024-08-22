@@ -81,6 +81,12 @@ bool ClientSession::update() {
     // try to read message, return if transmission is not completed yet
     std::unique_lock<std::mutex> locked (sessionLock_);
 
+    if (!protocol_->isAlive()) {
+        PLOG(plog::debug) << "Disconnecting client: " << sock_.address();
+        terminate();
+        return true;
+    }
+
     if (!sock_.is_open()) {
         PLOG(plog::debug) << "Socket " << sock_.address() << " was closed by peer";
         return true;
@@ -91,7 +97,7 @@ bool ClientSession::update() {
     
     if (res.is_error() || !res.value()) {
         if (!res.value()) {
-            return false;
+            return true;
         }
         if (res.error().value() != EWOULDBLOCK) {
             handleErrorState(std::move(res));

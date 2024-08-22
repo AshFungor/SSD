@@ -17,6 +17,10 @@ find_package(Boost REQUIRED VERSION 1.84.0)
 find_package(FFTW3 REQUIRED VERSION 3.3.10)
 
 set(ROOT ${CMAKE_SOURCE_DIR})
+set(DATA_DIR ${CMAKE_SOURCE_DIR}/data)
+
+file(COPY ${DATA_DIR}/default.cfg DESTINATION ${CMAKE_BINARY_DIR}/src/ssd)
+file(COPY ${DATA_DIR}/dynamic.cfg DESTINATION ${CMAKE_BINARY_DIR}/src/ssd)
 
 # contrib libs not on conan
 add_subdirectory(contrib)

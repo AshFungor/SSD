@@ -76,6 +76,7 @@ int playExponent() {
             auto val = std::clamp<int>(std::sin((double) j / period * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
             data[i * period + j] = val;
         }
+        samples += period;
         pa_simple_write(connection, data.get() + i * period, period, nullptr);
     }
 

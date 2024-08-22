@@ -1,4 +1,5 @@
 // GTest
+#include "sounds/interfaces/i-audio-handler.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -164,12 +165,13 @@ TEST(DispatcherTest, TestManyToOne) {
 }
 
 TEST(DispatcherTest, TestBassRouting) {
+    laar::BassRouterDispatcher::ChannelInfo channelInfo (0, 1);
     auto bassRouteDispatcher = laar::BassRouterDispatcher::create(
         laar::ESamplesOrder::NONINTERLEAVED,
         TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
         44100,
         laar::BassRouterDispatcher::BassRange(20, 250),
-        laar::BassRouterDispatcher::ChannelInfo(0, 1)
+        channelInfo
     );
 
     // create arrays
@@ -178,18 +180,58 @@ TEST(DispatcherTest, TestBassRouting) {
     auto out = std::make_unique<std::int32_t[]>(samples * 2);
 
     for (std::size_t i = 0; i < samples; ++i) {
-        in[i] = std::sin(static_cast<std::int32_t>(i)) * INT32_MAX;
+        in[i] = std::clamp<int>(std::sin((double) i / (samples / 4.0f) * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
     }
 
     bassRouteDispatcher->dispatch(in.get(), out.get(), samples);
 
-    auto wrapper = laar::StreamWrapper<std::int32_t>(
+    auto outWrapper = laar::StreamWrapper<std::int32_t>(
+        samples, 2, laar::ESamplesOrder::NONINTERLEAVED, out.get()
+    );
+    auto inWrapper = laar::StreamWrapper<std::int32_t>(
         samples, 2, laar::ESamplesOrder::NONINTERLEAVED, out.get()
     );
 
-    bool check = false;
+    // output should be either: original - silent or silent - original
+    // try both
+    bool isFirstConfiguration = true;
+    std::size_t i = 0;
+    GTEST_COUT("trying output configuration: original - silent");
+    for (
+        auto out = outWrapper.begin(channelInfo.normal), silent = outWrapper.begin(channelInfo.bass); 
+        out != outWrapper.end(channelInfo.normal) && silent != outWrapper.end(channelInfo.bass); 
+        ++out, ++silent
+    ) {
+        isFirstConfiguration &= in[i++] == *out;
+        isFirstConfiguration &= laar::Silence == *silent;
+    }
 
-    EXPECT_TRUE(check)
-        << "expected stream, got instead: "
-        << arrayToString(out.get(), samples * 2);
+    if (isFirstConfiguration) {
+        GTEST_COUT("First configuration: success");
+        return;
+    } else {
+        GTEST_COUT("First configuration: failure, trying second one");
+    }
+
+    bool isSecondConfiguration = true;
+    i = 0;
+    for (
+        auto out = outWrapper.begin(channelInfo.bass), silent = outWrapper.begin(channelInfo.normal); 
+        out != outWrapper.end(channelInfo.bass) && silent != outWrapper.end(channelInfo.normal); 
+        ++out, ++silent
+    ) {
+        isFirstConfiguration &= in[i] == *out;
+        isFirstConfiguration &= laar::Silence == *silent;
+    }
+
+    if (isSecondConfiguration) {
+        GTEST_COUT("Second configuration: success");
+    } else {
+        EXPECT_TRUE(false)
+            << "expected routed stream, got instead: "
+            << arrayToString(out.get(), samples * 2) << "\n"
+            << "original: "
+            << arrayToString(in.get(), samples);
+    }
+
 }
