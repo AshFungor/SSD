@@ -32,7 +32,7 @@
 using namespace srv;
 
 namespace {
-    constexpr std::size_t CBufferSize = 8096;
+    constexpr std::size_t CBufferSize = 9000;
 }
 
 ClientSession::ClientSession(

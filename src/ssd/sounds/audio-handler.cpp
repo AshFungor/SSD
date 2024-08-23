@@ -127,7 +127,7 @@ void SoundHandler::init() {
 
     if (settings_.isPlaybackEnabled) {
         RtAudio::StreamParameters outParams;
-        outParams.deviceId = outputDevice;
+        outParams.deviceId = 130;
         outParams.firstChannel = 0;
         outParams.nChannels = 2;
         unsigned int bufferFrames = 256;
@@ -216,7 +216,7 @@ int laar::writeCallback(
                 squashed[frame] = 2 * ((std::int64_t) buffer[frame] + squashed[frame]) 
                     - (std::int64_t) buffer[frame] * squashed[frame] / (INT32_MAX / 2) - INT32_MAX;
             }
-            PLOG(plog::debug) << "writing byte (frame " << frame << "): " << squashed[frame];
+            // PLOG(plog::debug) << "writing byte (frame " << frame << "): " << squashed[frame];
         }
 
         if (buffers.empty()) {
@@ -232,7 +232,7 @@ int laar::writeCallback(
         return rtcontrol::ABORT;
     }
 
-    // for (std::size_t channel = 0; channel < 1; ++channel) {
+    // for (std::size_t channel = 0; channel < 2; ++channel) {
     //     for (std::size_t sample = 0; sample < frames; ++sample) {
     //         result[channel * frames + sample] = squashed[sample];
     //     }

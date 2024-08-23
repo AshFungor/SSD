@@ -29,7 +29,7 @@ namespace __internal_pcm {
     inline constexpr int port = 5050;
     inline constexpr std::size_t headerSize = 6;
 
-    inline constexpr std::size_t bytesPerTimeFrame_ = 1024;
+    inline constexpr std::size_t bytesPerTimeFrame_ = 400;
     inline constexpr std::chrono::milliseconds timeFrame_ (1);
 
     class LoadBalancer {

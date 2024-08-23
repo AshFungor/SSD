@@ -125,7 +125,7 @@ bool BassRouterDispatcher::validateWindow(std::int32_t* in, std::size_t sampleRa
         maxAmplitude = std::max(maxAmplitude, amplitude);
     }
 
-    double threshold = 0.5 * maxAmplitude;
+    double threshold = 0.01 * maxAmplitude;
     // std::cerr << (std::size_t) maxBassAmplitude << " " << (std::size_t) maxAmplitude << "\n";
 
     fftw_destroy_plan(p);

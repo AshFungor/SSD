@@ -220,8 +220,8 @@ TEST(DispatcherTest, TestBassRouting) {
         out != outWrapper.end(channelInfo.bass) && silent != outWrapper.end(channelInfo.normal); 
         ++out, ++silent
     ) {
-        isFirstConfiguration &= in[i] == *out;
-        isFirstConfiguration &= laar::Silence == *silent;
+        isSecondConfiguration &= in[i++] == *out;
+        isSecondConfiguration &= laar::Silence == *silent;
     }
 
     if (isSecondConfiguration) {
