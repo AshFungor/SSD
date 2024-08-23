@@ -127,7 +127,9 @@ void SoundHandler::init() {
 
     if (settings_.isPlaybackEnabled) {
         RtAudio::StreamParameters outParams;
-        outParams.deviceId = outputDevice;
+        // outParams.deviceId = outputDevice;
+        // FIXME: use pulseaudio when available
+        outParams.deviceId = 130;
         outParams.firstChannel = 0;
         outParams.nChannels = 2;
         unsigned int bufferFrames = 256;
@@ -216,7 +218,7 @@ int laar::writeCallback(
                 squashed[frame] = 2 * ((std::int64_t) buffer[frame] + squashed[frame]) 
                     - (std::int64_t) buffer[frame] * squashed[frame] / (INT32_MAX / 2) - INT32_MAX;
             }
-            PLOG(plog::debug) << "writing byte (frame " << frame << "): " << squashed[frame];
+            // PLOG(plog::debug) << "writing byte (frame " << frame << "): " << squashed[frame];
         }
 
         if (buffers.empty()) {
@@ -237,6 +239,7 @@ int laar::writeCallback(
     //         result[channel * frames + sample] = squashed[sample];
     //     }
     // }
+    // PLOG(plog::debug) << "calling for " << frames << " frames";
 
     return rtcontrol::SUCCESS;
 

@@ -44,26 +44,19 @@ namespace {
 
     template<typename ResultingSampleType, typename FunctorType>
     WrappedResult typedRoute(void* in, void* out, std::size_t samples, TubeState state, RoutingChannelInfo routingInfo, FunctorType process) {
-        std::int32_t* original = static_cast<std::int32_t*>(in);
-        StreamWrapper<std::int32_t> inWrappedStream(
-            samples, 1, state.order_, original 
-        );
+        fftw_complex* original = static_cast<fftw_complex*>(in);
 
         ResultingSampleType* resulting = static_cast<ResultingSampleType*>(out);
         StreamWrapper<ResultingSampleType> outWrappedStream(
             samples, routingInfo.channelNum, state.order_, resulting 
         );
 
-        for (auto outCurrent = outWrappedStream.begin(routingInfo.leaveSilent); outCurrent != outWrappedStream.end(routingInfo.leaveSilent); ++outCurrent) {
-            *outCurrent = process(Silence);
-        }
-
         auto outCurrent = outWrappedStream.begin(routingInfo.routeTo);
-        for (auto inCurrent = inWrappedStream.begin(); inCurrent != inWrappedStream.end(); ++inCurrent) {
+        for (std::size_t sample = 0; sample < samples; ++sample) {
             if (outCurrent == outWrappedStream.end(routingInfo.routeTo)) {
                 return WrappedResult::wrapError("reached end of out stream unexpectedly");
             }
-            *outCurrent = process(*inCurrent);
+            *outCurrent = process(static_cast<std::int32_t>(original[sample][0] / samples));
             ++outCurrent;
         }
         
@@ -98,7 +91,7 @@ BassRouterDispatcher::BassRouterDispatcher(
     , info_(info)
 {}
 
-bool BassRouterDispatcher::validateWindow(std::int32_t* in, std::size_t sampleRate, std::size_t samples) {
+BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t* in, std::size_t sampleRate, std::size_t samples) {
     fftw_complex *complexIn = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * samples);
     fftw_complex *complexOut = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * samples);
 
@@ -111,35 +104,55 @@ bool BassRouterDispatcher::validateWindow(std::int32_t* in, std::size_t sampleRa
     fftw_execute(p);
 
     double resolution = static_cast<double>(sampleRate) / samples;
-
-    double maxBassAmplitude = 0.0;
-    double maxAmplitude = 0.0; 
+    Frequencies frequencies;
+    frequencies.bass = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * samples);
+    frequencies.normal = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * samples);
 
     for (int i = 0; i < samples / 2; ++i) {
         double freq = i * resolution;
-        double amplitude = std::sqrt(complexOut[i][0] * complexOut[i][0] + complexOut[i][1] * complexOut[i][1]);
 
         if (freq >= range_.lower && freq <= range_.higher) {
-            maxBassAmplitude = std::max(maxBassAmplitude, amplitude);
+            frequencies.bass[i][0] = complexOut[i][0];
+            frequencies.bass[i][1] = complexOut[i][1];
+            frequencies.normal[i][0] = 0;
+            frequencies.normal[i][1] = 0; 
+        } else {
+            frequencies.bass[i][0] = 0;
+            frequencies.bass[i][1] = 0;
+            frequencies.normal[i][0] = complexOut[i][0];
+            frequencies.normal[i][1] = complexOut[i][1];
         }
-        maxAmplitude = std::max(maxAmplitude, amplitude);
     }
 
-    double threshold = 0.5 * maxAmplitude;
-    // std::cerr << (std::size_t) maxBassAmplitude << " " << (std::size_t) maxAmplitude << "\n";
+    fftw_plan normalBackwardPlan = fftw_plan_dft_1d(samples, frequencies.normal, complexIn, FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftw_execute(normalBackwardPlan);
+
+    fftw_plan bassBackwardPlan = fftw_plan_dft_1d(samples, frequencies.bass, complexOut, FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftw_execute(bassBackwardPlan);
+
+    fftw_free(frequencies.normal);
+    fftw_free(frequencies.bass);
 
     fftw_destroy_plan(p);
-    fftw_free(complexIn);
-    fftw_free(complexOut);
+    fftw_destroy_plan(normalBackwardPlan);
+    fftw_destroy_plan(bassBackwardPlan);
 
-    return maxBassAmplitude > threshold;
+    frequencies.normal = complexIn;
+    frequencies.bass = complexOut;
+
+    return frequencies;
 }
 
 WrappedResult BassRouterDispatcher::dispatch(void* in, void* out, std::size_t samples) {
-    if (validateWindow(reinterpret_cast<std::int32_t*>(in), sampleRate_, samples)) {
-        return routeBass(in, out, samples);
+    auto data = splitWindow(reinterpret_cast<std::int32_t*>(in), sampleRate_, samples);
+    if (auto bassDispatching = routeBass(data.bass, out, samples); bassDispatching.isError()) {
+        fftw_free(data.normal);
+        fftw_free(data.bass);
+        return bassDispatching;
     }
-    return routeNormal(in, out, samples);
+    fftw_free(data.normal);
+    fftw_free(data.bass);
+    return routeNormal(data.normal, out, samples);
 }
 
 WrappedResult BassRouterDispatcher::routeBass(void* in, void* out, std::size_t samples){

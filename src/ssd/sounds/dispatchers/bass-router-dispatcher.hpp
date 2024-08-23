@@ -3,6 +3,7 @@
 // STD
 #include <cstddef>
 #include <cstdint>
+#include <fftw3.h>
 #include <memory>
 
 // protos
@@ -62,7 +63,13 @@ namespace laar {
         WrappedResult dispatch(void* in, void* out, std::size_t samples) override;
 
     private:
-        bool validateWindow(std::int32_t* in, std::size_t sampleRate, std::size_t samples);
+
+        struct Frequencies {
+            fftw_complex* bass;
+            fftw_complex* normal;
+        };
+
+        Frequencies splitWindow(std::int32_t* in, std::size_t sampleRate, std::size_t samples);
 
         WrappedResult routeBass(void* in, void* out, std::size_t samples);
         WrappedResult routeNormal(void* in, void* out, std::size_t samples);

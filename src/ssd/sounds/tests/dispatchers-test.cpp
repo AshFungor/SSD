@@ -181,6 +181,7 @@ TEST(DispatcherTest, TestBassRouting) {
 
     for (std::size_t i = 0; i < samples; ++i) {
         in[i] = std::clamp<int>(std::sin((double) i / (samples / 4.0f) * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
+        // in[i] = laar::Silence;
     }
 
     bassRouteDispatcher->dispatch(in.get(), out.get(), samples);
@@ -220,8 +221,8 @@ TEST(DispatcherTest, TestBassRouting) {
         out != outWrapper.end(channelInfo.bass) && silent != outWrapper.end(channelInfo.normal); 
         ++out, ++silent
     ) {
-        isFirstConfiguration &= in[i] == *out;
-        isFirstConfiguration &= laar::Silence == *silent;
+        isSecondConfiguration &= in[i] == *out;
+        isSecondConfiguration &= laar::Silence == *silent;
     }
 
     if (isSecondConfiguration) {
