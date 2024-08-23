@@ -216,7 +216,7 @@ int laar::writeCallback(
                 squashed[frame] = 2 * ((std::int64_t) buffer[frame] + squashed[frame]) 
                     - (std::int64_t) buffer[frame] * squashed[frame] / (INT32_MAX / 2) - INT32_MAX;
             }
-            // PLOG(plog::debug) << "writing byte (frame " << frame << "): " << result[frame];
+            PLOG(plog::debug) << "writing byte (frame " << frame << "): " << squashed[frame];
         }
 
         if (buffers.empty()) {
@@ -231,6 +231,12 @@ int laar::writeCallback(
         PLOG(plog::error) << "error during bass dispatching: " << dispatchingResult.getError();
         return rtcontrol::ABORT;
     }
+
+    // for (std::size_t channel = 0; channel < 1; ++channel) {
+    //     for (std::size_t sample = 0; sample < frames; ++sample) {
+    //         result[channel * frames + sample] = squashed[sample];
+    //     }
+    // }
 
     return rtcontrol::SUCCESS;
 

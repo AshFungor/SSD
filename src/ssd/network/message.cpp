@@ -72,7 +72,7 @@ namespace {
             default:
                 ss << "Undefined";
         }
-        ss << ";";
+        ss << "; Payload size: " << payloadSize << ";";
         return ss.str();
     }
 

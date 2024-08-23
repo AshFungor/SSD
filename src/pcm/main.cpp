@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <memory>
 
@@ -133,10 +134,13 @@ int playWav() {
 
     auto data = std::make_unique<std::int16_t[]>(period);
     auto samples = file.getNumSamplesPerChannel();
+
+    std::ofstream log ("record.txt");
     for (int sample = 0; sample < samples; sample += period) {
         std::memset(data.get(), 0, period);
         for (int j = sample; j < std::min(sample + period, samples); ++j) {
             data[j % period] = file.samples[0][j];
+            log << "writing sample: " << file.samples[0][j] << "\n";
         }
         pa_simple_write(connection, data.get(), period, nullptr);
     }

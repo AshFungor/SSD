@@ -31,12 +31,16 @@
 
 using namespace srv;
 
+namespace {
+    constexpr std::size_t CBufferSize = 8096;
+}
+
 ClientSession::ClientSession(
     sockpp::tcp_socket&& sock, 
     std::shared_ptr<laar::IStreamHandler> soundHandler,
     Private access) 
 : sock_(std::move(sock))
-, buffer_(std::make_shared<laar::PlainBuffer>(2200))
+, buffer_(std::make_shared<laar::PlainBuffer>(CBufferSize))
 , builder_(laar::MessageBuilder::configure(buffer_))
 , protocol_(laar::SyncProtocol::configure(weak_from_this(), std::move(soundHandler)))
 {}
@@ -70,6 +74,7 @@ void ClientSession::init() {
 
 void ClientSession::terminate() {
     std::unique_lock<std::mutex> locked (sessionLock_);
+    PLOG(plog::debug) << "Disconnecting client: " << sock_.address();
     auto result = sock_.close();
     if (result.is_ok()) {
         return;
@@ -82,9 +87,8 @@ bool ClientSession::update() {
     std::unique_lock<std::mutex> locked (sessionLock_);
 
     if (!protocol_->isAlive()) {
-        PLOG(plog::debug) << "Disconnecting client: " << sock_.address();
         terminate();
-        return true;
+        return false;
     }
 
     if (!sock_.is_open()) {
@@ -106,7 +110,16 @@ bool ClientSession::update() {
         }
     }
 
-    buffer_->advance(laar::PlainBuffer::EPosition::WPOS, res.value());
+    if (std::size_t bytes = buffer_->advance(laar::PlainBuffer::EPosition::WPOS, res.value()); bytes < res.value()) {
+        PLOG(plog::error) 
+            << "network buffer is full, though more bytes are being written to it, dumping specs: "
+            << "buffer writable size: " << buffer_->writableSize()
+            << ", buffer size total: " << CBufferSize
+            << ", left out: " << res.value() - bytes 
+            << ", written originally: " << res.value();
+        throw std::runtime_error("overflow on network buffer, is client misconfigured?");
+    }
+
     laar::MessageBuilder::Receive event (res.value());
     builder_->handle(event);
 

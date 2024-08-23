@@ -243,9 +243,9 @@ int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::siz
     int byteSize = size * connection->scale;
 
     for (std::size_t frame = 0; frame < byteSize; frame += singleFrameBytes) {
-        std::size_t current = (frame % singleFrameBytes) ? frame % singleFrameBytes : singleFrameBytes;
+        std::size_t current = (byteSize - frame < singleFrameBytes) ? byteSize - frame : singleFrameBytes;
         balancer.balance(current);
-        auto returned = assembleAndWrite(connection, (std::uint8_t*) bytes + frame, current);
+        auto returned = assembleAndWrite(connection, (std::uint8_t*) bytes + frame, current / connection->scale);
 
         if (!returned) {
             return returned;
