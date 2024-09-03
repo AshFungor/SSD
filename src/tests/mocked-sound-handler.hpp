@@ -38,6 +38,7 @@ namespace laar {
             MOCK_METHOD(int, write, (const std::int32_t* dest, std::size_t size), (override));
             MOCK_METHOD(int, flush, (), (override));
             MOCK_METHOD(ESampleType, format, (), (override, const));
+            MOCK_METHOD(bool, alive, (), (override, const, noexcept));
         };
 
         class MockWriteHandle : public IWriteHandle {
@@ -50,6 +51,7 @@ namespace laar {
             MOCK_METHOD(int, read, (std::int32_t* dest, std::size_t size), (override));
             MOCK_METHOD(int, flush, (), (override));
             MOCK_METHOD(ESampleType, format, (), (override, const));
+            MOCK_METHOD(bool, alive, (), (override, const, noexcept));
         };
 
         MockedSoundHandler(std::shared_ptr<laar::ConfigHandler> configHandler)

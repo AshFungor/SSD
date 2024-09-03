@@ -11,6 +11,7 @@ target_include_directories(sound PUBLIC ${SRC_ROOT})
 
 add_subdirectory(interfaces)
 add_subdirectory(dispatchers)
+add_subdirectory(jobs)
 add_subdirectory(tests)
 
 target_link_libraries(sound PUBLIC plog::plog)
@@ -19,3 +20,4 @@ target_link_libraries(sound PUBLIC protos)
 target_link_libraries(sound PUBLIC server-util)
 target_link_libraries(sound PUBLIC common)
 target_link_libraries(sound PUBLIC dispatchers)
+target_link_libraries(sound PUBLIC jobs)

@@ -64,6 +64,7 @@ namespace laar {
             virtual int read(std::int32_t* dest, std::size_t size) = 0;
             virtual int write(const std::int32_t* src, std::size_t size) = 0;
             virtual ESampleType format() const = 0;
+            virtual bool alive() const noexcept = 0;
 
             virtual ~IHandle() = default; 
         };
@@ -73,6 +74,7 @@ namespace laar {
             virtual ~IReadHandle() = default;
             virtual int read(char* src, std::size_t size) override = 0;
             virtual int write(const std::int32_t* dest, std::size_t size) override = 0;
+            virtual bool alive() const noexcept = 0;
 
         private:
             virtual int write(const char* src, std::size_t size) override { return status::NOT_IMPLEMENTED; }
@@ -84,6 +86,7 @@ namespace laar {
             virtual ~IWriteHandle() = default;
             virtual int write(const char* src, std::size_t size) override = 0;
             virtual int read(std::int32_t* dest, std::size_t size) override = 0;
+            virtual bool alive() const noexcept = 0;
 
         private:
             virtual int read(char* src, std::size_t size) override { return status::NOT_IMPLEMENTED; }
@@ -97,6 +100,7 @@ namespace laar {
         virtual std::shared_ptr<IWriteHandle> acquireWriteHandle(
             TSimpleMessage::TStreamConfiguration config,
             std::weak_ptr<IHandle::IListener> owner) = 0;
+
         virtual ~IStreamHandler() = default;
 
     };

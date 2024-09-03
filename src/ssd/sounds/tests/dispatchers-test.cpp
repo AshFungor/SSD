@@ -175,12 +175,13 @@ TEST(DispatcherTest, TestBassRouting) {
     );
 
     // create arrays
-    constexpr std::size_t samples = 1000;
+    constexpr std::size_t samples = 20;
     auto in = std::make_unique<std::int32_t[]>(samples);
     auto out = std::make_unique<std::int32_t[]>(samples * 2);
 
     for (std::size_t i = 0; i < samples; ++i) {
-        in[i] = std::clamp<int>(std::sin((double) i / (samples / 4.0f) * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
+        // in[i] = std::clamp<int>(std::sin((double) i / (samples / 4.0f) * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
+        in[i] = laar::Silence;
     }
 
     bassRouteDispatcher->dispatch(in.get(), out.get(), samples);

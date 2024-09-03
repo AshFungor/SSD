@@ -26,6 +26,7 @@ namespace laar {
         virtual int flush() override;
         virtual int read(char* dest, std::size_t size) override;
         virtual int write(const std::int32_t* src, std::size_t size) override;
+        virtual bool alive() const noexcept override;
         virtual ESampleType format() const override;
 
     private:

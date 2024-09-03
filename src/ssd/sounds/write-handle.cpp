@@ -159,3 +159,7 @@ int WriteHandle::write(const char* src, std::size_t size) {
 ESampleType WriteHandle::format() const {
     return format_;
 }
+
+bool WriteHandle::alive() const noexcept {
+    return owner_.lock().get();
+}

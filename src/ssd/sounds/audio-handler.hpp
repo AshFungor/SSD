@@ -1,12 +1,14 @@
 #pragma once
 
 // laar
-#include "sounds/dispatchers/tube-dispatcher.hpp"
+#include <common/thread-pool.hpp>
+#include <common/exceptions.hpp>
+#include <common/callback-queue.hpp>
+#include <sounds/dispatchers/tube-dispatcher.hpp>
+#include <sounds/jobs/async-dispatching-job.hpp>
 #include <sounds/dispatchers/bass-router-dispatcher.hpp>
 #include <sounds/interfaces/i-audio-handler.hpp>
-#include <common/callback-queue.hpp>
 #include <util/config-loader.hpp>
-#include <common/exceptions.hpp>
 
 // RtAudio
 #include <RtAudio.h>
@@ -54,8 +56,16 @@ namespace laar {
     private: struct Private {};
     public:
 
-        static std::shared_ptr<SoundHandler> configure(std::shared_ptr<laar::ConfigHandler> configHandler);
-        SoundHandler(std::shared_ptr<laar::ConfigHandler> configHandler, Private access);
+        static std::shared_ptr<SoundHandler> configure(
+            std::shared_ptr<laar::ConfigHandler> configHandler,
+            std::shared_ptr<laar::ThreadPool> pool
+        );
+
+        SoundHandler(
+            std::shared_ptr<laar::ConfigHandler> configHandler, 
+            std::shared_ptr<laar::ThreadPool> pool,
+            Private access
+        );
 
         void init() override;
         virtual std::shared_ptr<IReadHandle> acquireReadHandle(
@@ -90,8 +100,11 @@ namespace laar {
         std::unique_ptr<LocalData> makeLocalData();
 
         void parseDefaultConfig(const nlohmann::json& config);
+        std::unique_ptr<std::int32_t[]> squash(SoundHandler::LocalData* data, std::size_t frames);
 
     private:
+
+        std::shared_ptr<laar::ThreadPool> pool_;
 
         std::condition_variable cv_;
         bool init_;
@@ -108,7 +121,11 @@ namespace laar {
             std::weak_ptr<SoundHandler> object;
             std::atomic<bool> abort;
             std::mutex handlerLock;
+
+            std::unique_ptr<laar::AsyncDispatchingJob> job;
         };
+
+        std::vector<std::unique_ptr<laar::AsyncDispatchingJob>> jobs_;
 
         struct Settings {
             bool isPlaybackEnabled;
@@ -118,8 +135,6 @@ namespace laar {
         std::unique_ptr<LocalData> local_;
         
         RtAudio audio_;
-        
-
     };
 
 }

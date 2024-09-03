@@ -5,13 +5,16 @@
 #include <sounds/read-handle.hpp>
 #include <sounds/write-handle.hpp>
 #include <sounds/dispatchers/bass-router-dispatcher.hpp>
+#include <sounds/dispatchers/tube-dispatcher.hpp>
+#include <sounds/interfaces/i-audio-handler.hpp>
+#include <sounds/jobs/async-dispatching-job.hpp>
 
 // std
+#include <mutex>
+#include <string>
+#include <memory>
 #include <climits>
 #include <cstdint>
-#include <memory>
-#include <string>
-#include <mutex>
 
 // proto
 #include <protos/client/simple/simple.pb.h>
@@ -22,11 +25,10 @@
 
 // RtAudio
 #include <RtAudio.h>
+#include <vector>
 
 // local
 #include "audio-handler.hpp"
-#include "sounds/dispatchers/tube-dispatcher.hpp"
-#include "sounds/interfaces/i-audio-handler.hpp"
 
 using namespace laar;
 
@@ -36,13 +38,16 @@ namespace {
 
 }
 
-std::shared_ptr<SoundHandler> SoundHandler::configure(std::shared_ptr<laar::ConfigHandler> configHandler)
-{
-    return std::make_shared<SoundHandler>(std::move(configHandler), Private());    
+std::shared_ptr<SoundHandler> SoundHandler::configure(
+    std::shared_ptr<laar::ConfigHandler> configHandler,
+    std::shared_ptr<laar::ThreadPool> pool
+) {
+    return std::make_shared<SoundHandler>(std::move(configHandler), std::move(pool), Private());    
 }
 
 SoundHandler::SoundHandler(
     std::shared_ptr<laar::ConfigHandler> configHandler,
+    std::shared_ptr<laar::ThreadPool> pool,
     Private access
 )
     : audio_(RtAudio::Api::LINUX_ALSA)
@@ -62,6 +67,7 @@ SoundHandler::SoundHandler(
     )
     , local_(nullptr)
     , init_(false)
+    , pool_(std::move(pool))
 {}
 
 void SoundHandler::init() {
@@ -84,14 +90,21 @@ void SoundHandler::init() {
         return init_;
     });
 
+    auto inputDevice = audio_.getDefaultInputDevice();
+    auto outputDevice = audio_.getDefaultOutputDevice();
+
     auto devices = audio_.getDeviceIds();
     for (auto& id : devices) {
         auto info = audio_.getDeviceInfo(id);
         PLOG(plog::debug) << "Available device with id: " << id << ", name: " << info.name;
+
+        std::string match {"pulseaudio"};
+        if (auto result = info.name.find(match); result != std::string::npos) {
+            PLOG(plog::debug) << "found pulseaudio sink, using it";
+            outputDevice = id;
+        }
     }
 
-    auto inputDevice = audio_.getDefaultInputDevice();
-    auto outputDevice = audio_.getDefaultOutputDevice();
 
     if (!(inputDevice && outputDevice)) {
         onError(laar::LaarSoundHandlerError("Device for IO was not acquired"));
@@ -102,7 +115,7 @@ void SoundHandler::init() {
         inputParams.deviceId = inputDevice;
         inputParams.firstChannel = 0;
         inputParams.nChannels = 1;
-        unsigned int bufferFrames = 0;
+        unsigned int bufferFrames = 1000;
         auto inputStreamError = audio_.openStream(
             nullptr, 
             &inputParams, 
@@ -127,12 +140,11 @@ void SoundHandler::init() {
 
     if (settings_.isPlaybackEnabled) {
         RtAudio::StreamParameters outParams;
-        outParams.deviceId = 130;
+        outParams.deviceId = outputDevice;
         outParams.firstChannel = 0;
         outParams.nChannels = 2;
-        unsigned int bufferFrames = 256;
+        unsigned int bufferFrames = 1000;
         RtAudio::StreamOptions options;
-        options.numberOfBuffers = 1;
         options.flags = RTAUDIO_NONINTERLEAVED;
         auto outStreamError = audio_.openStream(
             &outParams, 
@@ -161,6 +173,8 @@ std::unique_ptr<SoundHandler::LocalData> SoundHandler::makeLocalData() {
     auto data = std::make_unique<LocalData>();
     data->object = shared_from_this();
     data->abort = false;
+    data->job = nullptr;
+
     return data;
 }
 
@@ -192,54 +206,55 @@ int laar::writeCallback(
         return rtcontrol::DRAIN;
     }
 
-    std::vector<std::unique_ptr<std::int32_t[]>> buffers;
-    {
-        std::unique_lock<std::mutex> locked(data->handlerLock);
-        for (auto& handle : handler->outHandles_) {
-            if (auto lockedHandle = handle.lock()) {
-                buffers.emplace_back(std::make_unique<std::int32_t[]>(frames));
-                lockedHandle->read(buffers.back().get(), frames);
-            }
-        }
-    }
-
     auto result = (std::int32_t*) out;
-    auto squashed = std::make_unique<std::int32_t[]>(frames);
 
-    for (std::size_t frame = 0; frame < frames; ++frame) {
-        bool isFirst = true;
-        for (auto& buffer : buffers) {
-            if (isFirst) {
-                isFirst = false;
-                squashed[frame] = buffer[frame];
-            } else {
-                squashed[frame] = 2 * ((std::int64_t) buffer[frame] + squashed[frame]) 
-                    - (std::int64_t) buffer[frame] * squashed[frame] / (INT32_MAX / 2) - INT32_MAX;
-            }
-            // PLOG(plog::debug) << "writing byte (frame " << frame << "): " << squashed[frame];
-        }
+    std::unique_ptr<int32_t[]> buffer;
+    PLOG(plog::debug) << "running iteration";
 
-        if (buffers.empty()) {
-            // put silence
-            squashed[frame] = Silence;
+    if (!data->job) {
+        // pass data to avoid blocking
+        buffer = handler->squash(data, frames);
+        PLOG(plog::debug) << "job was not assigned last iteration";
+    } else {
+        // extract data
+        buffer = data->job->result();
+        PLOG(plog::debug) << "job found";
+        if (!data->job->ready()) {
+            handler->jobs_.push_back(std::move(data->job));
+            PLOG(plog::debug) << "job was not completed";
         }
     }
-    
-    // apply fft to data stream and route samples correctly
-    auto dispatchingResult = handler->bassDispatcher_->dispatch(squashed.get(), result, frames);
-    if (dispatchingResult.isError()) {
-        PLOG(plog::error) << "error during bass dispatching: " << dispatchingResult.getError();
-        return rtcontrol::ABORT;
+
+    PLOG(plog::debug) << "running current iteration";
+    for (std::size_t channel = 0; channel < 2; ++channel) {
+        for (std::size_t sample = 0; sample < frames; ++sample) {
+            // result[channel * frames + sample] = (buffer[sample] != 0 ) ? buffer[sample] : laar::Silence;
+            result[channel * frames + sample] = buffer[sample];
+        }
     }
 
-    // for (std::size_t channel = 0; channel < 2; ++channel) {
-    //     for (std::size_t sample = 0; sample < frames; ++sample) {
-    //         result[channel * frames + sample] = squashed[sample];
-    //     }
-    // }
+    PLOG(plog::debug) << "trying to assign next job";
+    if (handler->jobs_.size()) {
+        PLOG(plog::debug) << "found unfinished jobs, finishing them";
+        std::erase_if(handler->jobs_, [](auto& job) {
+            return job->ready();
+        });
+        data->job = nullptr;
+        
+        PLOG(plog::debug) << "skipping job assignment";
+        return rtcontrol::SUCCESS;
+    }
+
+    auto squashed = handler->squash(data, frames);
+    data->job = std::make_unique<laar::AsyncDispatchingJob>(
+        handler->pool_,
+        handler->bassDispatcher_,
+        frames,
+        std::move(squashed)
+    );
+    PLOG(plog::debug) << "assigned next job";
 
     return rtcontrol::SUCCESS;
-
 }
 
 int laar::readCallback(
@@ -303,4 +318,46 @@ std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(
     auto handle = std::make_shared<laar::WriteHandle>(std::move(config), std::move(owner));
     outHandles_.push_back(handle);
     return handle;
+}
+
+std::unique_ptr<std::int32_t[]> SoundHandler::squash(SoundHandler::LocalData* data, std::size_t frames) {
+    std::vector<std::unique_ptr<std::int32_t[]>> buffers;
+    {
+        std::unique_lock<std::mutex> locked(data->handlerLock);
+
+        std::vector<std::shared_ptr<laar::IStreamHandler::IWriteHandle>> expired;
+        for (auto& handle : outHandles_) {
+            if (auto lockedHandle = handle.lock()) {
+                if (!lockedHandle->alive()) {
+                    expired.push_back(lockedHandle);
+                }
+
+                buffers.emplace_back(std::make_unique<std::int32_t[]>(frames));
+                lockedHandle->read(buffers.back().get(), frames);
+            }
+        }
+    }
+
+    auto squashed = std::make_unique<std::int32_t[]>(frames);
+
+    for (std::size_t frame = 0; frame < frames; ++frame) {
+        bool isFirst = true;
+        for (auto& buffer : buffers) {
+            if (isFirst) {
+                isFirst = false;
+                squashed[frame] = buffer[frame];
+            } else {
+                squashed[frame] = 2 * ((std::int64_t) buffer[frame] + squashed[frame]) 
+                    - (std::int64_t) buffer[frame] * squashed[frame] / (INT32_MAX / 2) - INT32_MAX;
+            }
+            // PLOG(plog::debug) << "writing byte (frame " << frame << "): " << squashed[frame];
+        }
+
+        if (buffers.empty()) {
+            // put silence
+            squashed[frame] = Silence;
+        }
+    }
+
+    return squashed;
 }

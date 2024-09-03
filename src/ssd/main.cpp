@@ -29,7 +29,7 @@ int main() {
     
     PLOG(plog::debug) << "module created: " << "ThreadPool; instance: " << threadPool.get();
 
-    auto soundHandler = laar::SoundHandler::configure(configHandler);
+    auto soundHandler = laar::SoundHandler::configure(configHandler, threadPool);
     soundHandler->init();
 
     PLOG(plog::debug) << "module created: " << "SoundHandler; instance: " << soundHandler.get();

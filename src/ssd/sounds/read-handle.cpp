@@ -141,3 +141,7 @@ int ReadHandle::write(const std::int32_t* src, std::size_t size) {
 ESampleType ReadHandle::format() const {
     return format_;
 }
+
+bool ReadHandle::alive() const noexcept {
+    return owner_.lock().get();
+}

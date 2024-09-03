@@ -29,8 +29,13 @@ namespace __internal_pcm {
     inline constexpr int port = 5050;
     inline constexpr std::size_t headerSize = 6;
 
-    inline constexpr std::size_t bytesPerTimeFrame_ = 400;
-    inline constexpr std::chrono::milliseconds timeFrame_ (1);
+    // robust - 2 secs of playback, so
+    // 44000 * 2 / 1000 = 88 calls
+    // 1 / 88 => every 10 ms 1000 samples
+    // in reality this should be managed by server 
+    // via two-sided protocol, but this one works fine for now
+    inline constexpr std::size_t bytesPerTimeFrame_ = 1000;
+    inline constexpr std::chrono::milliseconds timeFrame_ (10);
 
     class LoadBalancer {
     public:
