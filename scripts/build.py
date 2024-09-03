@@ -1,8 +1,9 @@
-#!/bin/python3
+#!/usr/bin/env python
 
 import os
 import sys
 import shutil
+import typing
 import argparse
 import subprocess
 import multiprocessing
@@ -11,7 +12,7 @@ import multiprocessing
 usage = """
 Usage
 
-    CLI SSD & PCM builder is used to set up build environment, check all 
+    CLI builder is used to set up build environment, check all 
     dependencies and run CMake build/configure routines.
     -b --build          run CMake build routine. Requires configured environment.
     -c --configure      configure CMake and check environment utils.
@@ -22,6 +23,12 @@ Usage
        --link           create symlink in project root to Debug compile commands.
 
 """
+
+
+def handle_subprocess(process: subprocess.CompletedProcess) -> None:
+    if process.returncode != 0:
+        print(f'execution error: subprocess returned error code {process.returncode}')
+        sys.exit(1)
 
 
 def configure(args: argparse.Namespace) -> None:
@@ -44,32 +51,31 @@ def configure(args: argparse.Namespace) -> None:
 
     print('[configure] configuring for CMake build configs: ' + ', '.join(configs))
 
-    cmake_args = []
-    print('[configure] running cmake with args: ' + ', '.join(cmake_args))
     env_conan_args = os.environ.get('CONAN_ARGS')
     for config in configs:
         print(f'[configure] installing conan deps...')
-        subprocess.run([
+        handle_subprocess(subprocess.run([
                 'conan',
                 'install',
                 os.curdir,
-                '--build=missing'
+                '--build=missing',
                 # Additional args passed by env
                 ] + ([env_conan_args] if env_conan_args else []), 
-                encoding='UTF-8', stderr=subprocess.STDOUT
-        )
+                encoding='UTF-8', stderr=subprocess.STDOUT, env=os.environ
+        ))
 
         print(f'[configure] running configure command for config {config}...')
-        subprocess.run([
+        handle_subprocess(subprocess.run([
                 'cmake',
                 '--preset',
                 f'conan-{config.lower()}', 
-                f'-B{directory}/{config}', 
-                f'-S{os.curdir}', 
-                f'-DCMAKE_BUILD_TYPE={config}', 
-                *cmake_args
-            ], encoding='UTF-8', stderr=subprocess.STDOUT
-        )
+                '-B',
+                f'{directory}/{config}',
+                '-S', 
+                f'{os.curdir}', 
+                f'-DCMAKE_BUILD_TYPE={config}',
+            ], encoding='UTF-8', stderr=subprocess.STDOUT, env=os.environ
+        ))
 
 
 def build(args: argparse.Namespace) -> None:
@@ -94,7 +100,7 @@ def build(args: argparse.Namespace) -> None:
     
     for config in configs:
         print(f'[build] running build command for config {config}...')
-        subprocess.run([
+        handle_subprocess(subprocess.run([
                 'cmake', 
                 '--build', 
                 f'{directory}/{config}', 
@@ -102,8 +108,8 @@ def build(args: argparse.Namespace) -> None:
                 str(cores),
                 '--preset',
                 f'conan-{config.lower()}'
-            ], encoding='UTF-8', stderr=subprocess.STDOUT
-        )
+            ], encoding='UTF-8', stderr=subprocess.STDOUT, env=os.environ
+        ))
 
 
 def cmake_var_decorator(var: str, value: str, type: str = 'STRING') -> str:
@@ -140,10 +146,11 @@ def parse_cli_args() -> argparse.Namespace:
     parser.add_argument('--config', action='append', dest='config')
     parser.add_argument('--link', action='store_true', dest='link')
     parser.add_argument('-j', action='store', dest='cores')
+
     return parser.parse_args()
 
 
-def get_common(args: argparse.Namespace) -> list[str | list[str]]:
+def get_common(args: argparse.Namespace) -> list[typing.Tuple[str, list[str]]]:
     directory = getattr(args, 'directory', None)
     if not directory:
         directory = 'build'
@@ -171,7 +178,10 @@ if __name__ == '__main__':
         build(args)
 
     if getattr(args, 'link'):
-        directory, _ = get_common(args)
-        link_compile_commands(directory + '/Debug/compile_commands.json')
+        directory, configs = get_common(args)
+        if 'Debug' in configs:
+            link_compile_commands(directory + '/Debug/compile_commands.json')
+        else:
+            link_compile_commands(directory + '/Release/compile_commands.json')
 
     print('finished.')
