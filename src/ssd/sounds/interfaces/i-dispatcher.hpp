@@ -19,12 +19,29 @@ namespace laar {
         }
 
         // result state
-        bool isError() { 
+        bool isError() const { 
             return result_.has_value(); 
         }
 
-        std::string& getError() { 
+        const std::string& getError() const { 
             return result_.value(); 
+        }
+
+        WrappedResult operator&(const WrappedResult& other) const {
+            if (other.isError() && isError()) {
+                return WrappedResult::wrapError("joined errors: " + other.getError() + "; " + getError());
+            } else if (other.isError()) {
+                return other;
+            } else if (isError()) {
+                return *this;
+            }
+
+            return WrappedResult::wrapResult();
+        }
+
+        const WrappedResult& operator&=(const WrappedResult& other) {
+            *this = operator&(other);
+            return *this;
         }
 
     private:

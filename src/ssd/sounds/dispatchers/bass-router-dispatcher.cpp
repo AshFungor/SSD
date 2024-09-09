@@ -108,6 +108,8 @@ BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t
     frequencies.bass = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * samples);
     frequencies.normal = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * samples);
 
+    bool bassEmpty = true;
+    bool normalEmpty = true;
     for (int i = 0; i < samples / 2; ++i) {
         double freq = i * resolution;
 
@@ -115,27 +117,42 @@ BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t
             frequencies.bass[i][0] = complexOut[i][0];
             frequencies.bass[i][1] = complexOut[i][1];
             frequencies.normal[i][0] = 0;
-            frequencies.normal[i][1] = 0; 
+            frequencies.normal[i][1] = 0;
+            bassEmpty = false; 
         } else {
             frequencies.bass[i][0] = 0;
             frequencies.bass[i][1] = 0;
             frequencies.normal[i][0] = complexOut[i][0];
             frequencies.normal[i][1] = complexOut[i][1];
+            normalEmpty = false;
+        }
+    }
+    if (!normalEmpty) {
+        fftw_plan normalBackwardPlan = fftw_plan_dft_1d(samples, frequencies.normal, complexIn, FFTW_BACKWARD, FFTW_ESTIMATE);
+        fftw_execute(normalBackwardPlan);
+        fftw_destroy_plan(normalBackwardPlan);
+    } else {
+        for (int i = 0; i < samples; ++i) {
+            complexIn[i][0] = laar::Silence * samples;
+            complexIn[i][1] = 0;
         }
     }
 
-    fftw_plan normalBackwardPlan = fftw_plan_dft_1d(samples, frequencies.normal, complexIn, FFTW_BACKWARD, FFTW_ESTIMATE);
-    fftw_execute(normalBackwardPlan);
-
-    fftw_plan bassBackwardPlan = fftw_plan_dft_1d(samples, frequencies.bass, complexOut, FFTW_BACKWARD, FFTW_ESTIMATE);
-    fftw_execute(bassBackwardPlan);
+    if (!bassEmpty) {
+        fftw_plan bassBackwardPlan = fftw_plan_dft_1d(samples, frequencies.bass, complexOut, FFTW_BACKWARD, FFTW_ESTIMATE);
+        fftw_execute(bassBackwardPlan);
+        fftw_destroy_plan(bassBackwardPlan);
+    } else {
+        for (int i = 0; i < samples; ++i) {
+            complexOut[i][0] = laar::Silence * samples;
+            complexOut[i][1] = 0;
+        }
+    }
 
     fftw_free(frequencies.normal);
     fftw_free(frequencies.bass);
 
     fftw_destroy_plan(p);
-    fftw_destroy_plan(normalBackwardPlan);
-    fftw_destroy_plan(bassBackwardPlan);
 
     frequencies.normal = complexIn;
     frequencies.bass = complexOut;
@@ -145,14 +162,13 @@ BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t
 
 WrappedResult BassRouterDispatcher::dispatch(void* in, void* out, std::size_t samples) {
     auto data = splitWindow(reinterpret_cast<std::int32_t*>(in), sampleRate_, samples);
-    if (auto bassDispatching = routeBass(data.bass, out, samples); bassDispatching.isError()) {
-        fftw_free(data.normal);
-        fftw_free(data.bass);
-        return bassDispatching;
-    }
+
+    WrappedResult result = WrappedResult::wrapResult();
+    result &= routeBass(data.bass, out, samples);
+    result &= routeNormal(data.normal, out, samples);
     fftw_free(data.normal);
     fftw_free(data.bass);
-    return routeNormal(data.normal, out, samples);
+    return result;
 }
 
 WrappedResult BassRouterDispatcher::routeBass(void* in, void* out, std::size_t samples){

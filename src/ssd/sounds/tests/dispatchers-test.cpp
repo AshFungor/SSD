@@ -180,8 +180,8 @@ TEST(DispatcherTest, TestBassRouting) {
     auto out = std::make_unique<std::int32_t[]>(samples * 2);
 
     for (std::size_t i = 0; i < samples; ++i) {
-        // in[i] = std::clamp<int>(std::sin((double) i / (samples / 4.0f) * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
-        in[i] = laar::Silence;
+        in[i] = std::clamp<int>(std::sin((double) i / (samples / 4.0f) * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
+        // in[i] = laar::Silence;
     }
 
     bassRouteDispatcher->dispatch(in.get(), out.get(), samples);
@@ -190,7 +190,7 @@ TEST(DispatcherTest, TestBassRouting) {
         samples, 2, laar::ESamplesOrder::NONINTERLEAVED, out.get()
     );
     auto inWrapper = laar::StreamWrapper<std::int32_t>(
-        samples, 2, laar::ESamplesOrder::NONINTERLEAVED, out.get()
+        samples, 1, laar::ESamplesOrder::NONINTERLEAVED, out.get()
     );
 
     // output should be either: original - silent or silent - original
