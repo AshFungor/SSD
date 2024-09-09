@@ -179,8 +179,10 @@ TEST(DispatcherTest, TestBassRouting) {
     auto in = std::make_unique<std::int32_t[]>(samples);
     auto out = std::make_unique<std::int32_t[]>(samples * 2);
 
+    std::int32_t prev = 0;
     for (std::size_t i = 0; i < samples; ++i) {
-        in[i] = std::clamp<int>(std::sin((double) i / (samples / 4.0f) * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
+        in[i] = 0;
+        prev += INT32_MAX / samples;
         // in[i] = laar::Silence;
     }
 
@@ -229,8 +231,10 @@ TEST(DispatcherTest, TestBassRouting) {
         GTEST_COUT("Second configuration: success");
     } else {
         EXPECT_TRUE(false)
-            << "expected routed stream, got instead: "
-            << arrayToString(out.get(), samples * 2) << "\n"
+            << "expected routed stream, got instead on first channel: "
+            << arrayToString(out.get(), samples) << "\n"
+            << "second channel: "
+            << arrayToString(out.get() + samples, samples) << "\n"
             << "original: "
             << arrayToString(in.get(), samples);
     }

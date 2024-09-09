@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -150,7 +150,7 @@ def parse_cli_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_common(args: argparse.Namespace) -> list[typing.Tuple[str, list[str]]]:
+def get_common(args: argparse.Namespace) -> typing.List[typing.Tuple[str, typing.List[str]]]:
     directory = getattr(args, 'directory', None)
     if not directory:
         directory = 'build'
