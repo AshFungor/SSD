@@ -1,13 +1,13 @@
 // standard
-#include <functional>
-#include <cstddef>
+#include <mutex>
 #include <memory>
 #include <thread>
-#include <mutex>
+#include <cstddef>
+#include <functional>
 
-// local
-#include "thread-pool.hpp"
-#include "common/callback.hpp"
+// laar
+#include <src/common/callback.hpp>
+#include <src/common/thread-pool.hpp>
 
 using namespace laar;
 

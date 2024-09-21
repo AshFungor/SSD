@@ -1,26 +1,24 @@
 // standard
-#include <condition_variable>
-#include <functional>
+#include <mutex>
 #include <chrono>
 #include <thread>
 #include <memory>
-#include <mutex>
-#include <queue>
+#include <functional>
+#include <condition_variable>
 
 // laar
-#include <common/exceptions.hpp>
-#include <common/callback.hpp>
-#include <common/macros.hpp>
-
-// local
-#include "callback-queue.hpp"
+#include <src/common/macros.hpp>
+#include <src/common/callback.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/common/callback-queue.hpp>
 
 using namespace laar;
 
+
 CallbackQueue::CallbackQueue(CallbackQueueSettings settings, Private access)
-    : settings_(std::move(settings))
-    , abort_(false)
+    : abort_(false)
     , initiated_(false)
+    , settings_(std::move(settings))
 {}
 
 std::shared_ptr<CallbackQueue> CallbackQueue::configure(CallbackQueueSettings settings) {

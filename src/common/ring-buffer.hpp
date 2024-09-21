@@ -1,15 +1,14 @@
 #pragma once
 
-// laar
-#include <common/callback-queue.hpp>
-#include <common/exceptions.hpp>
-
 // std
-#include <memory>
 #include <mutex>
+#include <memory>
 
-// local
-#include "plain-buffer.hpp"
+// laar
+#include <src/common/exceptions.hpp>
+#include <src/common/plain-buffer.hpp>
+#include <src/common/callback-queue.hpp>
+
 
 namespace laar {
 

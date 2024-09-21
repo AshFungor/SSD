@@ -1,9 +1,9 @@
 #pragma once
 
 // standard
-#include <exception>
 #include <format>
 #include <string>
+#include <exception>
 
 
 namespace laar {

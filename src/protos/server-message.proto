@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package NSound;
+
+import "protos/service/base.proto"; 
+
+message TServiceMessage {
+
+    oneof Request {
+        NService.NBase.TBaseMessage BaseMessage = 1;
+    }
+}

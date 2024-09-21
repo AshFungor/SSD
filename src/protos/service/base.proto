@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package NSound.NService.NBase;
+
+/*
+This file provides basic server responses, similar to client ones.
+*/
+
+// Base message - holder for base messages.
+message TBaseMessage {
+
+    // Dummy message, possibly holding server error
+    message TConfirm {
+        // empty
+        optional string error = 1;
+    }
+
+    oneof Request {
+        TConfirm Confirm = 1;
+    }
+}

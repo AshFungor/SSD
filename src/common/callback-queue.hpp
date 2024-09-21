@@ -1,19 +1,19 @@
 #pragma once
 
 // standard
-#include <condition_variable>
-#include <functional>
-#include <cstddef>
+#include <mutex>
+#include <queue>
 #include <chrono>
 #include <vector>
 #include <thread>
 #include <memory>
-#include <mutex>
-#include <queue>
+#include <cstddef>
+#include <functional>
+#include <condition_variable>
 
 // laar
-#include <common/callback.hpp>
-#include <common/macros.hpp>
+#include <src/common/macros.hpp>
+#include <src/common/callback.hpp>
 
 
 namespace laar {
@@ -31,6 +31,7 @@ namespace laar {
         using BoundCallback = class BoundCallback<>;
         using ICallback = class ICallback<>;
 
+        // Base configuration for Callback queue
         struct CallbackQueueSettings {
             std::size_t maxSize = 1024;
             std::size_t maxScheduled = 256;

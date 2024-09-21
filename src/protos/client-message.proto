@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package NSound;
+
+import "protos/client/base.proto"; 
+
+message TClientMessage {
+
+    oneof Request {
+        NClient.NBase.TBaseMessage BaseMessage = 1;
+    }
+}
