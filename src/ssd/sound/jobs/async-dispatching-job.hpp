@@ -1,12 +1,12 @@
 #pragma once
 
 // STD
-#include <cstdint>
 #include <memory>
+#include <cstdint>
 
 // laar
-#include <common/thread-pool.hpp>
-#include <sounds/dispatchers/bass-router-dispatcher.hpp>
+#include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
 
 namespace laar {
@@ -15,7 +15,7 @@ namespace laar {
     public:
 
         AsyncDispatchingJob(
-            std::shared_ptr<laar::ThreadPool> pool,
+            std::shared_ptr<laar::CallbackQueue> cbQueue,
             std::shared_ptr<laar::BassRouterDispatcher> dispatcher, 
             std::size_t samples, 
             std::unique_ptr<std::int32_t[]> buffer
@@ -31,7 +31,7 @@ namespace laar {
 
     private:
 
-        std::shared_ptr<laar::ThreadPool> pool_;
+        std::shared_ptr<laar::CallbackQueue> cbQueue_;
 
         std::shared_ptr<laar::BassRouterDispatcher> dispatcher_;
         std::unique_ptr<std::int32_t[]> inBuffer_;

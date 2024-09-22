@@ -8,31 +8,30 @@
 #include <plog/Severity.h>
 
 // laar
-#include <common/thread-pool.hpp>
-#include <sounds/dispatchers/bass-router-dispatcher.hpp>
-
-// local
-#include "async-dispatching-job.hpp"
+#include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
+#include <src/ssd/sound/jobs/async-dispatching-job.hpp>
 
 using namespace laar;
 
 namespace {
 
     constexpr int channelsOut = 2;
+    // actually, can be run run with only 1 thread (fftw has some sort builtin async APIs)
     constexpr int threads = 1;
 
 }
 
 
 AsyncDispatchingJob::AsyncDispatchingJob(
-    std::shared_ptr<laar::ThreadPool> pool,
+    std::shared_ptr<laar::CallbackQueue> cbQueue,
     std::shared_ptr<laar::BassRouterDispatcher> dispatcher, 
     std::size_t samples, 
     std::unique_ptr<std::int32_t[]> buffer
 ) 
-    : dispatcher_(std::move(dispatcher))
+    : cbQueue_(std::move(cbQueue))
+    , dispatcher_(std::move(dispatcher))
     , inBuffer_(std::move(buffer))
-    , pool_(std::move(pool))
     , outBuffer_(std::make_unique<std::int32_t[]>(samples * channelsOut))
     , check_(0)
     , samples_(samples)
@@ -45,10 +44,10 @@ void AsyncDispatchingJob::initialize(std::size_t samples) {
     for (std::size_t thread = 0; thread < threads; ++thread) {
         std::size_t from = samples / threads * thread;
         std::size_t to = from + samples / threads;
-        auto runner = [this, samples, from, to]() {
+        auto runner = [this, from, to]() {
             auto result = dispatcher_->dispatch(inBuffer_.get() + from, outBuffer_.get() + from * channelsOut, to - from);
-            if (result.isError()) {
-                PLOG(plog::error) << "error during bass dispatching: " << result.getError();
+            if (!result.ok()) {
+                PLOG(plog::error) << "error during bass dispatching: " << result.message();
                 std::abort();
             }
 
@@ -59,7 +58,7 @@ void AsyncDispatchingJob::initialize(std::size_t samples) {
     }
 
     for (auto& job : jobs) {
-        pool_->query(std::move(job));
+        cbQueue_->query(std::move(job));
     }
 }
 

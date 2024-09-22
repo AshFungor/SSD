@@ -1,9 +1,18 @@
 cmake_minimum_required(VERSION 3.15)
 
-project(sound LANGUAGES CXX VERSION 0.0)
+set(SOURCES 
+    audio-handler.cpp 
+    read-handle.cpp 
+    write-handle.cpp 
+    converter.cpp
+)
 
-set(SOURCES audio-handler.cpp read-handle.cpp write-handle.cpp converter.cpp)
-set(HEADERS audio-handler.hpp read-handle.hpp write-handle.hpp converter.hpp)
+set(HEADERS 
+    audio-handler.hpp 
+    read-handle.hpp 
+    write-handle.hpp 
+    converter.hpp
+)
 
 add_library(sound STATIC ${SOURCES} ${HEADERS})
 
@@ -14,10 +23,12 @@ add_subdirectory(dispatchers)
 add_subdirectory(jobs)
 add_subdirectory(tests)
 
-target_link_libraries(sound PUBLIC plog::plog)
-target_link_libraries(sound PUBLIC rtaudio)
-target_link_libraries(sound PUBLIC protos)
-target_link_libraries(sound PUBLIC server-util)
-target_link_libraries(sound PUBLIC common)
-target_link_libraries(sound PUBLIC dispatchers)
-target_link_libraries(sound PUBLIC jobs)
+target_link_libraries(sound PUBLIC 
+    plog::plog
+    rtaudio
+    protos
+    server-util
+    common
+    dispatchers
+    jobs
+)

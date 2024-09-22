@@ -1,14 +1,14 @@
 #pragma once
 
 // laar
-#include <common/thread-pool.hpp>
-#include <common/exceptions.hpp>
-#include <common/callback-queue.hpp>
-#include <sounds/dispatchers/tube-dispatcher.hpp>
-#include <sounds/jobs/async-dispatching-job.hpp>
-#include <sounds/dispatchers/bass-router-dispatcher.hpp>
-#include <sounds/interfaces/i-audio-handler.hpp>
-#include <util/config-loader.hpp>
+#include <src/common/thread-pool.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
+#include <src/ssd/sound/jobs/async-dispatching-job.hpp>
+#include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+#include <src/ssd/util/config-loader.hpp>
 
 // RtAudio
 #include <RtAudio.h>

@@ -7,8 +7,11 @@ set(HEADERS async-dispatching-job.hpp)
 
 add_library(jobs STATIC ${SOURCES} ${HEADERS})
 
-target_include_directories(jobs PUBLIC ${SRC_ROOT})
+target_include_directories(jobs PUBLIC ${CMAKE_SOURCE_DIR})
 
-target_link_libraries(jobs PUBLIC common)
-target_link_libraries(jobs PUBLIC dispatchers)
-target_link_libraries(jobs PUBLIC fftw::fftw)
+target_link_libraries(jobs PUBLIC 
+    common
+    dispatchers
+    fftw::fftw
+    plog::plog
+)
