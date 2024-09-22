@@ -1,25 +1,25 @@
-// STD
-#include <cstddef>
-#include <cstdint>
-#include <memory>
+// abseil
+#include <absl/status/status.h>
 
-// protos
-#include <protos/client/simple/simple.pb.h>
-
-// laar
-#include <common/exceptions.hpp>
-#include <sounds/interfaces/i-dispatcher.hpp>
-#include <sounds/interfaces/i-audio-handler.hpp>
-
-// fft
+// fftw3
 #include <fftw3.h>
 
-// local
-#include "tube-dispatcher.hpp"
-#include "bass-router-dispatcher.hpp"
+// STD
+#include <memory>
+#include <cstddef>
+#include <cstdint>
+
+// laar
+#include <src/common/exceptions.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/ssd/sound/interfaces/i-dispatcher.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+#include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
+#include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
 using namespace laar;
-using namespace NSound::NSimple;
+using ESamples = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+
 
 namespace {
 
@@ -43,7 +43,7 @@ namespace {
     };
 
     template<typename ResultingSampleType, typename FunctorType>
-    WrappedResult typedRoute(void* in, void* out, std::size_t samples, TubeState state, RoutingChannelInfo routingInfo, FunctorType process) {
+    absl::Status typedRoute(void* in, void* out, std::size_t samples, TubeState state, RoutingChannelInfo routingInfo, FunctorType process) {
         fftw_complex* original = static_cast<fftw_complex*>(in);
 
         ResultingSampleType* resulting = static_cast<ResultingSampleType*>(out);
@@ -54,13 +54,13 @@ namespace {
         auto outCurrent = outWrappedStream.begin(routingInfo.routeTo);
         for (std::size_t sample = 0; sample < samples; ++sample) {
             if (outCurrent == outWrappedStream.end(routingInfo.routeTo)) {
-                return WrappedResult::wrapError("reached end of out stream unexpectedly");
+                return absl::OutOfRangeError("reached end of out stream unexpectedly");
             }
             *outCurrent = process(static_cast<std::int32_t>(original[sample][0] / samples));
             ++outCurrent;
         }
         
-        return WrappedResult::wrapResult();
+        return absl::OkStatus();
     }
 
 }
@@ -68,7 +68,7 @@ namespace {
 
 std::shared_ptr<BassRouterDispatcher> BassRouterDispatcher::create(
     const ESamplesOrder& order, 
-    const TSampleFormat& format,
+    const ESampleType& format,
     std::size_t sampleRate,
     BassRange range,
     ChannelInfo info
@@ -78,7 +78,7 @@ std::shared_ptr<BassRouterDispatcher> BassRouterDispatcher::create(
 
 BassRouterDispatcher::BassRouterDispatcher(
     const ESamplesOrder& order, 
-    const TSampleFormat& format,
+    const ESampleType& format,
     std::size_t sampleRate,
     BassRange range,
     ChannelInfo info,
@@ -160,62 +160,62 @@ BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t
     return frequencies;
 }
 
-WrappedResult BassRouterDispatcher::dispatch(void* in, void* out, std::size_t samples) {
+absl::Status BassRouterDispatcher::dispatch(void* in, void* out, std::size_t samples) {
     auto data = splitWindow(reinterpret_cast<std::int32_t*>(in), sampleRate_, samples);
 
-    WrappedResult result = WrappedResult::wrapResult();
-    result &= routeBass(data.bass, out, samples);
-    result &= routeNormal(data.normal, out, samples);
+    absl::Status result = absl::OkStatus();
+    result.Update(routeBass(data.bass, out, samples));
+    result.Update(routeNormal(data.normal, out, samples));
     fftw_free(data.normal);
     fftw_free(data.bass);
     return result;
 }
 
-WrappedResult BassRouterDispatcher::routeBass(void* in, void* out, std::size_t samples){
+absl::Status BassRouterDispatcher::routeBass(void* in, void* out, std::size_t samples){
     TubeState state (order_);
     RoutingChannelInfo routingInfo (info_.bass, info_.normal, info_);
 
     switch (format_) {
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN:
+        case ESamples::FLOAT_32_BIG_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToFloat32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN:
+        case ESamples::FLOAT_32_LITTLE_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToFloat32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8:
+        case ESamples::UNSIGNED_8:
             return typedRoute<std::uint8_t>(in, out, samples, state, routingInfo, &convertToUnsigned8);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN:
+        case ESamples::SIGNED_32_BIG_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToSigned32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN:
+        case ESamples::SIGNED_32_LITTLE_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToSigned32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN:
+        case ESamples::SIGNED_16_BIG_ENDIAN:
             return typedRoute<std::uint16_t>(in, out, samples, state, routingInfo, &convertToSigned16BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN:
+        case ESamples::SIGNED_16_LITTLE_ENDIAN:
             return typedRoute<std::uint16_t>(in, out, samples, state, routingInfo, &convertToSigned16LE);
         default:
-            return WrappedResult::wrapError("format is not supported");
+            return absl::InvalidArgumentError("format is not supported");
     }
 }
 
-WrappedResult BassRouterDispatcher::routeNormal(void* in, void* out, std::size_t samples){
+absl::Status BassRouterDispatcher::routeNormal(void* in, void* out, std::size_t samples){
     TubeState state (order_);
     RoutingChannelInfo routingInfo (info_.normal, info_.bass, info_);
 
     switch (format_) {
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN:
+        case ESamples::FLOAT_32_BIG_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToFloat32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN:
+        case ESamples::FLOAT_32_LITTLE_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToFloat32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8:
+        case ESamples::UNSIGNED_8:
             return typedRoute<std::uint8_t>(in, out, samples, state, routingInfo, &convertToUnsigned8);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN:
+        case ESamples::SIGNED_32_BIG_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToSigned32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN:
+        case ESamples::SIGNED_32_LITTLE_ENDIAN:
             return typedRoute<std::uint32_t>(in, out, samples, state, routingInfo, &convertToSigned32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN:
+        case ESamples::SIGNED_16_BIG_ENDIAN:
             return typedRoute<std::uint16_t>(in, out, samples, state, routingInfo, &convertToSigned16BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN:
+        case ESamples::SIGNED_16_LITTLE_ENDIAN:
             return typedRoute<std::uint16_t>(in, out, samples, state, routingInfo, &convertToSigned16LE);
         default:
-            return WrappedResult::wrapError("format is not supported");
+            return absl::InvalidArgumentError("format is not supported");
     }
 }
 

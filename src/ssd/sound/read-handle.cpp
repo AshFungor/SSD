@@ -1,51 +1,51 @@
+// abseil
+#include <absl/status/status.h>
+
 // laar
-#include <sounds/interfaces/i-audio-handler.hpp>
-#include <common/callback-queue.hpp>
-#include <common/exceptions.hpp>
-#include <sounds/converter.hpp>
-#include <sounds/audio-handler.hpp>
+#include <absl/status/statusor.h>
+#include <src/common/exceptions.hpp>
+#include <src/common/ring-buffer.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/ssd/sound/read-handle.hpp>
+#include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
-// RtAudio
-#include <RtAudio.h>
-
-// std
-#include <cstdint>
-#include <memory>
-#include <mutex>
-
-// plog
-#include <plog/Severity.h>
+// Plog
 #include <plog/Log.h>
 
-// proto
-#include <protos/client/simple/simple.pb.h>
+// std
+#include <memory>
 
-// local
-#include "read-handle.hpp"
+// proto
+#include <protos/client/base.pb.h>
 
 using namespace laar;
 
-using TSampleSpec = TSimpleMessage::TStreamConfiguration::TSampleSpecification;
+using ESamples = 
+    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
 
-ReadHandle::ReadHandle(TSimpleMessage::TStreamConfiguration config, std::weak_ptr<IListener> owner) 
-: sampleSize_(getSampleSize(config.sample_spec().format()))
-, format_(config.sample_spec().format())
-, owner_(std::move(owner))
+
+ReadHandle::ReadHandle(
+    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config, 
+    std::weak_ptr<IListener> owner
+) 
+    : format_(config.samplespec().format())
+    , sampleSize_(getSampleSize(config.samplespec().format()))
+    , owner_(std::move(owner))
 {}
 
-int ReadHandle::flush() {
+absl::Status ReadHandle::flush() {
     std::unique_lock<std::mutex> locked(lock_);
 
     buffer_->drop(buffer_->readableSize());
-    return status::SUCCESS;
+    return absl::OkStatus();
 }
 
-int ReadHandle::read(char* dest, std::size_t size) {
+absl::StatusOr<int> ReadHandle::read(char* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
     std::int32_t baseSample; 
-
-    std::size_t trail = size - buffer_->readableSize() / 4;
+    std::size_t trail = size - buffer_->readableSize() / BaseSampleSize;
 
     if (trail) {
         PLOG(plog::warning) << "underrun on handle: " << this
@@ -54,94 +54,82 @@ int ReadHandle::read(char* dest, std::size_t size) {
 
     for (std::size_t frame = 0; frame < size - trail; ++frame) {
         buffer_->read((char*) &baseSample, sizeof(std::int32_t));
-        if (format_ == TSampleSpec::UNSIGNED_8) {
+        if (format_ == ESamples::UNSIGNED_8) {
             auto converted = convertToUnsigned8(baseSample);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_16_BIG_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_16_BIG_ENDIAN) {
             auto converted = convertToSigned32BE(baseSample);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_16_LITTLE_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_16_LITTLE_ENDIAN) {
             auto converted = convertToSigned32LE(baseSample);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::FLOAT_32_BIG_ENDIAN) {
+        } else if (format_ == ESamples::FLOAT_32_BIG_ENDIAN) {
             auto converted = convertToFloat32BE(baseSample);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::FLOAT_32_LITTLE_ENDIAN) {
+        } else if (format_ == ESamples::FLOAT_32_LITTLE_ENDIAN) {
             auto converted = convertToFloat32LE(baseSample);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_32_BIG_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_32_BIG_ENDIAN) {
             auto converted = convertToSigned32BE(baseSample);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_32_LITTLE_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_32_LITTLE_ENDIAN) {
             auto converted = convertToSigned32LE(baseSample);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
         } else {
-            throw laar::LaarSoundHandlerError("sample type is not supported");
+            throw absl::InvalidArgumentError("sample type is not supported");
         }
     }
 
     for (std::size_t frame = size - trail; frame < size; ++frame) {
-        if (format_ == TSampleSpec::UNSIGNED_8) {
+        if (format_ == ESamples::UNSIGNED_8) {
             auto converted = convertToUnsigned8(Silence);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_16_BIG_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_16_BIG_ENDIAN) {
             auto converted = convertToSigned32BE(Silence);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_16_LITTLE_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_16_LITTLE_ENDIAN) {
             auto converted = convertToSigned32LE(Silence);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::FLOAT_32_BIG_ENDIAN) {
+        } else if (format_ == ESamples::FLOAT_32_BIG_ENDIAN) {
             auto converted = convertToFloat32BE(Silence);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::FLOAT_32_LITTLE_ENDIAN) {
+        } else if (format_ == ESamples::FLOAT_32_LITTLE_ENDIAN) {
             auto converted = convertToFloat32LE(Silence);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_32_BIG_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_32_BIG_ENDIAN) {
             auto converted = convertToSigned32BE(Silence);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
-        } else if (format_ == TSampleSpec::SIGNED_32_LITTLE_ENDIAN) {
+        } else if (format_ == ESamples::SIGNED_32_LITTLE_ENDIAN) {
             auto converted = convertToSigned32LE(Silence);
             std::memcpy(dest + frame * sampleSize_, &converted, sizeof(converted));
         } else {
-            throw laar::LaarSoundHandlerError("sample type is not supported");
+            throw absl::InvalidArgumentError("sample type is not supported");
         }
     }
 
-    if (trail) {
-        // underrun
-        return status::UNDERRUN;
-    }
-
-    return status::SUCCESS;
+    return absl::StatusOr<int>(size - trail);
 }
 
-int ReadHandle::write(const std::int32_t* src, std::size_t size) {
+absl::StatusOr<int> ReadHandle::write(const std::int32_t* src, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
-    bool overrun = false;
     if (size > buffer_->writableSize()) {
         PLOG(plog::warning) << "overrun on handle: " << this 
             << "; cutting " << size - buffer_->writableSize() << " samples on stream";
         size = buffer_->writableSize();
-        overrun = true;
     }
 
     for (std::size_t frame = 0; frame < size; ++frame) {
         buffer_->write((char*) (src + frame), sizeof(std::int32_t));
     }
 
-    if (overrun) {
-        // overrun
-        return status::OVERRUN;
-    }
-
-    return status::SUCCESS;
+    return absl::StatusOr<int>(size);
 }
 
-ESampleType ReadHandle::format() const {
+ESampleType ReadHandle::getFormat() const {
     return format_;
 }
 
-bool ReadHandle::alive() const noexcept {
+bool ReadHandle::isAlive() const noexcept {
     return owner_.lock().get();
 }

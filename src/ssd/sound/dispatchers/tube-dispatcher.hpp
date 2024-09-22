@@ -1,17 +1,18 @@
 #pragma once
 
+// abseil
+#include <absl/status/status.h>
+
 // STD
+#include <memory>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <memory>
-
-// protos
-#include <protos/client/simple/simple.pb.h>
 
 // Local
-#include <common/exceptions.hpp>
-#include <sounds/interfaces/i-dispatcher.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/ssd/sound/interfaces/i-dispatcher.hpp>
 
 
 namespace laar {
@@ -100,8 +101,6 @@ namespace laar {
     private: struct Private { };
     public:
 
-        using TSampleFormat = NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::TFormat;
-
         enum class EDispatchingDirection : std::int_fast8_t {
             ONE2MANY, MANY2ONE
         };
@@ -109,29 +108,29 @@ namespace laar {
         static std::shared_ptr<TubeDispatcher> create(
             const EDispatchingDirection& dir, 
             const ESamplesOrder& order, 
-            const TSampleFormat& format,
+            const ESampleType& format,
             const std::size_t& channels
         );
 
         TubeDispatcher(
             const EDispatchingDirection& dir, 
             const ESamplesOrder& order, 
-            const TSampleFormat& format,
+            const ESampleType& format,
             const std::size_t& channels,
             Private access
         );
 
         // IDispatcher implementation
-        WrappedResult dispatch(void* in, void* out, std::size_t samples) override;
+        absl::Status dispatch(void* in, void* out, std::size_t samples) override;
 
     private:
-        WrappedResult dispatchOneToMany(void* in, void* out, std::size_t samples) noexcept;
-        WrappedResult dispatchManyToOne(void* in, void* out, std::size_t samples) noexcept;
+        absl::Status dispatchOneToMany(void* in, void* out, std::size_t samples) noexcept;
+        absl::Status dispatchManyToOne(void* in, void* out, std::size_t samples) noexcept;
 
     private:
         const EDispatchingDirection dir_;
         const ESamplesOrder order_;
-        const TSampleFormat format_;
+        const ESampleType format_;
         const std::size_t channels_;
 
     };
@@ -209,7 +208,7 @@ laar::ChannelIterator<SampleType>::reference laar::ChannelIterator<SampleType>::
 
 template<typename SampleType>
 SampleType* laar::ChannelIterator<SampleType>::advance(std::uint32_t distance) {
-    if (distance + shift() > samples_ && distance > 0 || shift() + distance < 0 && distance < 0) {
+    if ((distance + shift() > samples_ && distance > 0) || (shift() + distance < 0 && distance < 0)) {
         throw laar::LaarSoundHandlerError("channel read out of bounds");
     }
 

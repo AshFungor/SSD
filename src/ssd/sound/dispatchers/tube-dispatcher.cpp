@@ -1,22 +1,20 @@
-// STD
-#include <vector>
-#include <cstddef>
-#include <cstdint>
+// abseil
+#include <absl/status/status.h>
 
 // protos
-#include <memory>
-#include <protos/client/simple/simple.pb.h>
+#include <protos/client/base.pb.h>
 
-// laar
-#include <sounds/converter.hpp>
-#include <common/exceptions.hpp>
-#include <sounds/interfaces/i-dispatcher.hpp>
+// STD
+#include <cstdint>
 
-// local
-#include "tube-dispatcher.hpp"
+// Local
+#include <src/common/exceptions.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/ssd/sound/interfaces/i-dispatcher.hpp>
+#include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
 
 using namespace laar;
-using namespace NSound::NSimple;
+using ESamples = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
 
 
 namespace {
@@ -32,7 +30,7 @@ namespace {
     };
 
     template<typename ResultingSampleType, typename FunctorType>
-    WrappedResult typedDispatchOneToMany(void* in, void* out, std::size_t samples, TubeState state, FunctorType process) {
+    absl::Status typedDispatchOneToMany(void* in, void* out, std::size_t samples, TubeState state, FunctorType process) {
         std::int32_t* original = static_cast<std::int32_t*>(in);
         StreamWrapper<std::int32_t> inWrappedStream(
             samples, 1, state.order_, original 
@@ -55,11 +53,11 @@ namespace {
             }
         }
 
-        return WrappedResult::wrapResult();
+        return absl::OkStatus();
     }
 
     template<typename IncomingSampleType, typename FunctorType>
-    WrappedResult typedDispatchManyToOne(void* in, void* out, std::size_t samples, TubeState state, FunctorType process) {
+    absl::Status typedDispatchManyToOne(void* in, void* out, std::size_t samples, TubeState state, FunctorType process) {
         std::int32_t* resulting = static_cast<std::int32_t*>(out);
         StreamWrapper<std::int32_t> outWrappedStream(
             samples, 1, state.order_, resulting 
@@ -90,73 +88,73 @@ namespace {
             }
         }
 
-        return WrappedResult::wrapResult();
+        return absl::OkStatus();
     }
 
 }
 
 
-WrappedResult TubeDispatcher::dispatch(void* in, void* out, std::size_t samples) {
+absl::Status TubeDispatcher::dispatch(void* in, void* out, std::size_t samples) {
     switch (dir_) {
         case EDispatchingDirection::MANY2ONE:
             return dispatchManyToOne(in, out, samples);
         case EDispatchingDirection::ONE2MANY:
             return dispatchOneToMany(in, out, samples);
         default:
-            return WrappedResult::wrapError("unsupported direction");
+            return absl::InvalidArgumentError("unsupported direction");
     }
 }
 
-WrappedResult TubeDispatcher::dispatchOneToMany(void* in, void* out, std::size_t samples) noexcept {
+absl::Status TubeDispatcher::dispatchOneToMany(void* in, void* out, std::size_t samples) noexcept {
     TubeState state (order_, channels_);
 
     switch (format_) {
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN:
+        case ESamples::FLOAT_32_BIG_ENDIAN:
             return typedDispatchOneToMany<std::uint32_t>(in, out, samples, state, &convertToFloat32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN:
+        case ESamples::FLOAT_32_LITTLE_ENDIAN:
             return typedDispatchOneToMany<std::uint32_t>(in, out, samples, state, &convertToFloat32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8:
+        case ESamples::UNSIGNED_8:
             return typedDispatchOneToMany<std::uint8_t>(in, out, samples, state, &convertToUnsigned8);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN:
+        case ESamples::SIGNED_32_BIG_ENDIAN:
             return typedDispatchOneToMany<std::uint32_t>(in, out, samples, state, &convertToSigned32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN:
+        case ESamples::SIGNED_32_LITTLE_ENDIAN:
             return typedDispatchOneToMany<std::uint32_t>(in, out, samples, state, &convertToSigned32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN:
+        case ESamples::SIGNED_16_BIG_ENDIAN:
             return typedDispatchOneToMany<std::uint16_t>(in, out, samples, state, &convertToSigned16BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN:
+        case ESamples::SIGNED_16_LITTLE_ENDIAN:
             return typedDispatchOneToMany<std::uint16_t>(in, out, samples, state, &convertToSigned16LE);
         default:
-            return WrappedResult::wrapError("format is not supported");
+            return absl::InvalidArgumentError("format is not supported");
     }
 }
 
-WrappedResult TubeDispatcher::dispatchManyToOne(void* in, void* out, std::size_t samples) noexcept {
+absl::Status TubeDispatcher::dispatchManyToOne(void* in, void* out, std::size_t samples) noexcept {
     TubeState state (order_, channels_);
 
     switch (format_) {
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN:
+        case ESamples::FLOAT_32_BIG_ENDIAN:
             return typedDispatchManyToOne<std::uint32_t>(in, out, samples, state, &convertFromFloat32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN:
+        case ESamples::FLOAT_32_LITTLE_ENDIAN:
             return typedDispatchManyToOne<std::uint32_t>(in, out, samples, state, &convertFromFloat32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8:
+        case ESamples::UNSIGNED_8:
             return typedDispatchManyToOne<std::uint8_t>(in, out, samples, state, &convertFromUnsigned8);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN:
+        case ESamples::SIGNED_32_BIG_ENDIAN:
             return typedDispatchManyToOne<std::uint32_t>(in, out, samples, state, &convertFromSigned32BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN:
+        case ESamples::SIGNED_32_LITTLE_ENDIAN:
             return typedDispatchManyToOne<std::uint32_t>(in, out, samples, state, &convertFromSigned32LE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN:
+        case ESamples::SIGNED_16_BIG_ENDIAN:
             return typedDispatchManyToOne<std::uint16_t>(in, out, samples, state, &convertFromSigned16BE);
-        case TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN:
+        case ESamples::SIGNED_16_LITTLE_ENDIAN:
             return typedDispatchManyToOne<std::uint16_t>(in, out, samples, state, &convertFromSigned16LE);
         default:
-            return WrappedResult::wrapError("format is not supported");
+            return absl::InvalidArgumentError("format is not supported");
     }
 }
 
 TubeDispatcher::TubeDispatcher(
     const EDispatchingDirection& dir, 
     const ESamplesOrder& order, 
-    const TSampleFormat& format,
+    const ESampleType& format,
     const std::size_t& channels,
     Private access
 )
@@ -169,7 +167,7 @@ TubeDispatcher::TubeDispatcher(
 std::shared_ptr<TubeDispatcher> TubeDispatcher::create(
     const EDispatchingDirection& dir, 
     const ESamplesOrder& order, 
-    const TSampleFormat& format,
+    const ESampleType& format,
     const std::size_t& channels
 ) {
     return std::make_shared<TubeDispatcher>(dir, order, format, channels, Private());

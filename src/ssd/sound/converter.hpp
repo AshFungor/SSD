@@ -7,12 +7,14 @@
 #include <cstdint>
 
 // proto
-#include <protos/client/simple/simple.pb.h>
+#include <protos/client/base.pb.h>
 
 namespace laar {
 
-    using ESampleType = NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::TFormat;
+    using ESampleType =
+        NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification::TFormat;
 
+    // endianess
     std::uint16_t convertToLE(std::uint16_t data);
     std::uint16_t convertToBE(std::uint16_t data);
     std::uint32_t convertToLE(std::uint32_t data);
@@ -40,6 +42,7 @@ namespace laar {
     std::int32_t convertFromSigned16BE(std::uint16_t sample);
     std::int32_t convertFromSigned16LE(std::uint16_t sample);
 
+    // get sample size on bytes
     std::size_t getSampleSize(ESampleType format);
 
 };

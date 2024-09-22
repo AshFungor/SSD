@@ -2,18 +2,17 @@
 #include <gtest/gtest.h>
 
 // standard
-#include <condition_variable>
-#include <iostream>
+#include <mutex>
+#include <vector>
 #include <memory>
 #include <chrono>
-#include <mutex>
-#include <thread>
-#include <vector>
+#include <iostream>
+#include <condition_variable>
 
 // laar
-#include <common/thread-pool.hpp>
-#include <common/exceptions.hpp>
-#include <common/macros.hpp>
+#include <src/common/thread-pool.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/common/macros.hpp>
 
 using namespace std::chrono;
 

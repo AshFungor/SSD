@@ -2,17 +2,17 @@
 #include <gtest/gtest.h>
 
 // standard
-#include <iostream>
 #include <atomic>
 #include <memory>
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <iostream>
 
 // laar
-#include <common/callback-queue.hpp>
-#include <common/exceptions.hpp>
-#include <common/macros.hpp>
+#include <src/common/callback-queue.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/common/macros.hpp>
 
 using namespace std::chrono;
 
@@ -50,7 +50,7 @@ TEST_F(CallbackQueueTest, TimedCallbackTest) {
     std::vector<milliseconds> durations = {10ms, 200ms, 100ms};
     std::atomic_int callbackCount = 0;
     for (const auto& duration : durations) {
-        cbQueue->query([this, ts = ts, duration = duration, &callbackCount]() {
+        cbQueue->query([ts = ts, duration = duration, &callbackCount]() {
             auto actualDuration = high_resolution_clock::now() - ts;
             ++callbackCount;
             GTEST_COUT("Callback executed after: " << duration_cast<milliseconds>(actualDuration) << ", requested: " << duration_cast<milliseconds>(duration))

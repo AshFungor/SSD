@@ -1,16 +1,19 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(SOURCES )
-set(HEADERS 
-    interfaces/i-protocol.hpp
+set(SOURCES 
+    routing-service.cpp
 )
 
-# add_library(core STATIC ${SOURCES} ${HEADERS})
+set(HEADERS 
+    routing-service.hpp
+)
 
-# target_include_directories(core PUBLIC ${SRC_ROOT})
+add_library(core STATIC ${SOURCES} ${HEADERS})
 
-# target_link_libraries(core PUBLIC 
-#     utils
-#     protos
-#     sound
-# )
+target_include_directories(core PUBLIC ${CMAKE_SOURCE_DIR})
+
+target_link_libraries(core PUBLIC 
+    utils
+    protos
+    sound
+)

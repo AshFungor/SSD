@@ -1,31 +1,30 @@
+// abseil
+#include <absl/status/statusor.h>
+#include <absl/status/status.h>
+
 // laar
-#include <chrono>
-#include <sounds/interfaces/i-audio-handler.hpp>
-#include <sounds/audio-handler.hpp> 
-#include <common/ring-buffer.hpp>
-#include <common/exceptions.hpp>
-#include <sounds/converter.hpp>
+#include <src/common/macros.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/common/ring-buffer.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/write-handle.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
-// RtAudio
-#include <RtAudio.h>
-
-// std
-#include <cstdint>
-#include <memory>
-#include <mutex>
-
-// plog
-#include <plog/Severity.h>
+// Plog
 #include <plog/Log.h>
 
-// proto
-#include <protos/client/simple/simple.pb.h>
-#include <thread>
+// std
+#include <memory>
 
-// local
-#include "write-handle.hpp"
+// proto
+#include <protos/client/base.pb.h>
 
 using namespace laar;
+
+using ESamples = 
+    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+
 
 namespace {
 
@@ -40,64 +39,58 @@ namespace {
 
 }
 
-WriteHandle::WriteHandle(TSimpleMessage::TStreamConfiguration config, std::weak_ptr<IListener> owner) 
-: sampleSize_(getSampleSize(config.sample_spec().format()))
-, format_(config.sample_spec().format())
-, buffer_(std::make_unique<laar::RingBuffer>(44100 * 4 * 120)) // think of config here
-, owner_(std::move(owner))
-, bufferConfig_(config.buffer_config())
+WriteHandle::WriteHandle(
+    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config, 
+    std::weak_ptr<IListener> owner
+) 
+    : sampleSize_(getSampleSize(config.samplespec().format()))
+    , config_(std::move(config)) // think of config here
+    , buffer_(std::make_unique<laar::RingBuffer>(44100 * 4 * 120))
+    , owner_(std::move(owner))
 {}
 
-int WriteHandle::flush() {
+absl::Status WriteHandle::flush() {
     std::unique_lock<std::mutex> locked(lock_);
 
     buffer_->drop(buffer_->readableSize());
-    return status::SUCCESS;
+    return absl::OkStatus();
 }
 
-int WriteHandle::read(std::int32_t* dest, std::size_t size) {
-    again:
-    {
-        std::unique_lock<std::mutex> locked(lock_);
+absl::StatusOr<int> WriteHandle::read(std::int32_t* dest, std::size_t size) {
+    std::unique_lock<std::mutex> locked(lock_);
 
-        if (buffer_->readableSize() / sizeof (std::int32_t) < bufferConfig_.prebuffing_size()) {
-            PLOG(plog::debug) << "handle " << this << " is stalled, "
-                << "waiting for " << bufferConfig_.prebuffing_size() - buffer_->readableSize() / sizeof (std::int32_t)
-                << " samples (prebuffing size is " << bufferConfig_.prebuffing_size() 
-                << "; readable size is " << buffer_->readableSize() / sizeof (std::int32_t) << ")";
-            return status::STALLED;
-        } else {
-            bufferConfig_.set_prebuffing_size(0);
-        }
-
-        std::size_t trail = 0;
-        if (size > buffer_->readableSize() / sizeof (std::int32_t)) {
-            trail = size - buffer_->readableSize() / sizeof (std::int32_t);
-        }
-
-        if (trail) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            goto again;
-            PLOG(plog::debug) << "underrun on handle: " << this
-                << " filling " << trail << " extra samples, avail: " << size - trail;
-        }
-
-        for (std::size_t frame = 0; frame < size - trail; ++frame) {
-            buffer_->read((char*) (dest + frame), sizeof(std::int32_t));
-        }
-
-        for (std::size_t frame = size - trail; frame < size; ++frame) {
-            std::memcpy(dest + frame, &Silence, sizeof(std::int32_t));
-        }
-
-        if (trail) {
-            return status::UNDERRUN;
-        }
-        return status::SUCCESS;
+    if (buffer_->readableSize() / sizeof (std::int32_t) < config_.bufferconfig().prebuffingsize()) {
+        PLOG(plog::debug) << "handle " << this << " is stalled, "
+            << "waiting for " << config_.bufferconfig().prebuffingsize() - buffer_->readableSize() / sizeof (std::int32_t)
+            << " samples (prebuffing size is " << config_.bufferconfig().prebuffingsize()
+            << "; readable size is " << buffer_->readableSize() / sizeof (std::int32_t) << ")";
+        return absl::DataLossError("handle is stalled, await");
+    } else {
+        config_.mutable_bufferconfig()->set_prebuffingsize(0);
     }
+
+    std::size_t trail = 0;
+    if (size > buffer_->readableSize() / sizeof (std::int32_t)) {
+        trail = size - buffer_->readableSize() / sizeof (std::int32_t);
+    }
+
+    if (trail) {
+        PLOG(plog::debug) << "underrun on handle: " << this
+            << " filling " << trail << " extra samples, avail: " << size - trail;
+    }
+
+    for (std::size_t frame = 0; frame < size - trail; ++frame) {
+        buffer_->read((char*) (dest + frame), sizeof(std::int32_t));
+    }
+
+    for (std::size_t frame = size - trail; frame < size; ++frame) {
+        std::memcpy(dest + frame, &Silence, sizeof(std::int32_t));
+    }
+
+    return absl::StatusOr<int>(size - trail);
 }
 
-int WriteHandle::write(const char* src, std::size_t size) {
+absl::StatusOr<int> WriteHandle::write(const char* src, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
     std::uint8_t sample8 = 0;
@@ -105,61 +98,57 @@ int WriteHandle::write(const char* src, std::size_t size) {
     std::uint32_t sample32 = 0;
     std::int32_t converted = 0;
 
-    bool overrun = false;
     if (size > buffer_->writableSize()) {
         PLOG(plog::warning) << "overrun on handle: " << this 
             << "; cutting " << size - buffer_->writableSize() << " samples on stream";
         size = buffer_->writableSize();
-        overrun = true;
     }
 
     PLOG(plog::debug) << "receiving bytes in handle: " << size;
 
     for (std::size_t frame = 0; frame < size; ++frame) {
-        if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8) {
-            std::memcpy(&sample8, src + frame * sizeof(sample8), sizeof(sample8));
-            converted = convertFromUnsigned8(sample8);
-            // PLOG(plog::debug) << "U8: converted: " << converted;
-        } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN) {
-            std::memcpy(&sample16, src + frame * sizeof(sample16), sizeof(sample16));
-            converted = convertFromSigned16BE(sample16);
-            // PLOG(plog::debug) << "S16BE: converted: " << converted;
-        } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN) {
-            std::memcpy(&sample16, src + frame * sizeof(sample16), sizeof(sample16));
-            converted = convertFromSigned16LE(sample16);
-            // PLOG(plog::debug) << "S16LE: converted: " << converted;
-        } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN) {
-            std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
-            converted = convertFromFloat32BE(sample32);
-            // PLOG(plog::debug) << "F32LE: converted: " << converted;
-        } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN) {
-            std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
-            converted = convertFromFloat32LE(sample32);
-            // PLOG(plog::debug) << "F32LE: converted: " << converted;
-        } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN) {
-            std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
-            converted = convertFromSigned32BE(sample32);
-            // PLOG(plog::debug) << "S32BE: converted: " << converted;
-        } else if (format_ == TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN) {
-            std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
-            converted = convertFromSigned32LE(sample32);
-            // PLOG(plog::debug) << "S32LE: converted: " << converted;
-        } else {
-            throw laar::LaarSoundHandlerError("sample type is not supported");
+        switch (config_.samplespec().format()) {
+            case ESamples::UNSIGNED_8:
+                std::memcpy(&sample8, src + frame * sizeof(sample8), sizeof(sample8));
+                converted = convertFromUnsigned8(sample8);
+                break;
+            case ESamples::SIGNED_16_BIG_ENDIAN:
+                std::memcpy(&sample16, src + frame * sizeof(sample16), sizeof(sample16));
+                converted = convertFromSigned16BE(sample16);
+                break;
+            case ESamples::SIGNED_16_LITTLE_ENDIAN:
+                std::memcpy(&sample16, src + frame * sizeof(sample16), sizeof(sample16));
+                converted = convertFromSigned16LE(sample16);
+                break;
+            case ESamples::FLOAT_32_BIG_ENDIAN:
+                std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
+                converted = convertFromFloat32BE(sample32);
+                break;
+            case ESamples::FLOAT_32_LITTLE_ENDIAN:
+                std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
+                converted = convertFromFloat32LE(sample32);
+                break;
+            case ESamples::SIGNED_32_BIG_ENDIAN:
+                std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
+                converted = convertFromSigned32BE(sample32);
+                break;
+            case ESamples::SIGNED_32_LITTLE_ENDIAN:
+                std::memcpy(&sample32, src + frame * sizeof(sample32), sizeof(sample32));
+                converted = convertFromSigned32LE(sample32);
+                break;
+            default:
+                SSD_ABORT_UNLESS(false);
         }
         buffer_->write((char*) &converted, sizeof(std::uint32_t));
     }
 
-    if (overrun) {
-        return status::OVERRUN;
-    }
-    return status::SUCCESS;
+    return absl::StatusOr<int>(size);
 }
 
-ESampleType WriteHandle::format() const {
-    return format_;
+ESampleType WriteHandle::getFormat() const {
+    return config_.samplespec().format();
 }
 
-bool WriteHandle::alive() const noexcept {
+bool WriteHandle::isAlive() const noexcept {
     return owner_.lock().get();
 }

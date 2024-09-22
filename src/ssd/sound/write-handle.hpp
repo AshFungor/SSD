@@ -1,11 +1,15 @@
 #pragma once
 
+// abseil
+#include <absl/status/status.h>
+
 // laar
-#include <sounds/interfaces/i-audio-handler.hpp>
-#include <common/callback-queue.hpp>
-#include <common/ring-buffer.hpp>
-#include <common/exceptions.hpp>
-#include <sounds/converter.hpp>
+#include <absl/status/statusor.h>
+#include <src/common/exceptions.hpp>
+#include <src/common/ring-buffer.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
 // RtAudio
 #include <RtAudio.h>
@@ -14,26 +18,39 @@
 #include <memory>
 
 // proto
-#include <protos/client/simple/simple.pb.h>
+#include <protos/client/base.pb.h>
 
 namespace laar {
 
     class WriteHandle : public IStreamHandler::IWriteHandle {
     public:
 
-        WriteHandle(TSimpleMessage::TStreamConfiguration config, std::weak_ptr<IListener> owner);
+        using TStreamConfiguration = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration;
+
+        WriteHandle(
+            TStreamConfiguration config, 
+            std::weak_ptr<IListener> owner
+        );
+
         // IStreamHandler::IReadHandle implementation
-        virtual int flush() override;
-        virtual int read(std::int32_t* dest, std::size_t size) override;
-        virtual int write(const char* src, std::size_t size) override;
-        virtual bool alive() const noexcept override;
-        virtual ESampleType format() const override;
+        virtual absl::Status flush() override;
+        virtual absl::Status drain() override;
+        // IO operations
+        virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) override;
+        virtual absl::StatusOr<int> write(const char* src, std::size_t size) override;
+        // setters
+        virtual float getVolume() const override;
+        // getters
+        virtual void setVolume(float volume) const override;
+        virtual ESampleType getFormat() const override;
+        // condition
+        virtual bool isAlive() const noexcept override;
 
     private:
-        TSimpleMessage::TStreamConfiguration::TBufferConfiguration bufferConfig_;
-
-        ESampleType format_;
         std::size_t sampleSize_;
+
+        // buffer config
+        TStreamConfiguration config_;
 
         std::mutex lock_;
         std::unique_ptr<laar::RingBuffer> buffer_;

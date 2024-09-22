@@ -5,7 +5,7 @@
 #include <cstring>
 
 // laar
-#include <common/plain-buffer.hpp>
+#include <src/common/plain-buffer.hpp>
 
 TEST(PlainBufferTest, IOOperationsTest) {
     std::size_t bufferSize = 20;

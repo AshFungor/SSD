@@ -5,7 +5,7 @@
 #include <cstring>
 
 // laar
-#include <common/ring-buffer.hpp>
+#include <src/common/ring-buffer.hpp>
 
 TEST(RingBufferTest, IOOperationsTest) {
     std::size_t bufferSize = 20;

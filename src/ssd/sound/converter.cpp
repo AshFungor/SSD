@@ -1,23 +1,24 @@
-// laar
-#include <common/exceptions.hpp>
-
-// RtAudio
-#include <RtAudio.h>
-
 // std
 #include <cstdint>
 
-// proto
-#include <protos/client/simple/simple.pb.h>
+// laar
+#include <src/common/macros.hpp>
+#include <src/ssd/sound/converter.hpp>
 
-// local
-#include "converter.hpp"
+// abseil
+#include <absl/base/internal/endian.h>
+
+// proto
+#include <protos/client/base.pb.h>
+
+using ESamples = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+
 
 std::uint16_t laar::convertToLE(std::uint16_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
         return data;
     #elif __BYTE_ORDER == __BIG_ENDIAN
-        return __builtin_bswap16(data);
+        return absl::gbswap_16(data);
     #else
         #error Endianess is unsupported
     #endif
@@ -25,7 +26,7 @@ std::uint16_t laar::convertToLE(std::uint16_t data) {
 
 std::uint16_t laar::convertToBE(std::uint16_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
-        return __builtin_bswap16(data);
+        return absl::gbswap_16(data);
     #elif __BYTE_ORDER == __BIG_ENDIAN
         return data;
     #else
@@ -37,7 +38,7 @@ std::uint32_t laar::convertToLE(std::uint32_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
         return data;
     #elif __BYTE_ORDER == __BIG_ENDIAN
-        return __builtin_bswap32(data);
+        return absl::gbswap_32(data);
     #else
         #error Endianess is unsupported
     #endif
@@ -45,7 +46,7 @@ std::uint32_t laar::convertToLE(std::uint32_t data) {
 
 std::uint32_t laar::convertToBE(std::uint32_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
-        return __builtin_bswap32(data);
+        return absl::gbswap_32(data);
     #elif __BYTE_ORDER == __BIG_ENDIAN
         return data;
     #else
@@ -57,7 +58,7 @@ std::uint16_t laar::convertFromLE(std::uint16_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
         return data;
     #elif __BYTE_ORDER == __BIG_ENDIAN
-        return __builtin_bswap16(data);
+        return absl::gbswap_16(data);
     #else
         #error Endianess is unsupported
     #endif
@@ -65,7 +66,7 @@ std::uint16_t laar::convertFromLE(std::uint16_t data) {
 
 std::uint16_t laar::convertFromBE(std::uint16_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
-        return __builtin_bswap16(data);
+        return absl::gbswap_16(data);
     #elif __BYTE_ORDER == __BIG_ENDIAN
         return data;
     #else
@@ -77,7 +78,7 @@ std::uint32_t laar::convertFromLE(std::uint32_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
         return data;
     #elif __BYTE_ORDER == __BIG_ENDIAN
-        return __builtin_bswap32(data);
+        return absl::gbswap_32(data);
     #else
         #error Endianess is unsupported
     #endif
@@ -85,7 +86,7 @@ std::uint32_t laar::convertFromLE(std::uint32_t data) {
 
 std::uint32_t laar::convertFromBE(std::uint32_t data) {
     #if __BYTE_ORDER == __LITTLE_ENDIAN
-        return __builtin_bswap32(data);
+        return absl::gbswap_32(data);
     #elif __BYTE_ORDER == __BIG_ENDIAN
         return data;
     #else
@@ -118,7 +119,7 @@ std::uint16_t laar::convertToSigned16BE(std::int32_t sample) {
     constexpr auto positiveScale = (((std::int64_t) INT32_MAX - INT32_MIN) / INT16_MAX);
     constexpr auto negativeScale = (((std::int64_t) INT32_MAX - INT32_MIN) / -INT16_MIN);
     auto result = (sample > 0) ? (sample / positiveScale) : (sample / negativeScale);
-    return convertToBE(reinterpret_cast<std::uint16_t&>(sample));
+    return convertToBE(reinterpret_cast<std::uint16_t&>(result));
 }
 
 std::uint16_t laar::convertToSigned16LE(std::int32_t sample) {
@@ -127,22 +128,18 @@ std::uint16_t laar::convertToSigned16LE(std::int32_t sample) {
 
 std::size_t laar::getSampleSize(ESampleType format) {
     switch(format) {
-        case NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8:
+        case ESamples::UNSIGNED_8:
             return sizeof(std::uint8_t);
-        case NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN:
+        case ESamples::SIGNED_16_BIG_ENDIAN:
+        case ESamples::SIGNED_16_LITTLE_ENDIAN:
             return sizeof(std::uint16_t);
-        case NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN:
-            return sizeof(std::uint16_t);
-        case NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN:
-            return sizeof(std::uint32_t);
-        case NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN:
-            return sizeof(std::uint32_t);
-        case NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN:
-            return sizeof(std::uint32_t);
-        case NSound::NSimple::TSimpleMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN:
+        case ESamples::SIGNED_32_LITTLE_ENDIAN:
+        case ESamples::SIGNED_32_BIG_ENDIAN:
+        case ESamples::FLOAT_32_BIG_ENDIAN:
+        case ESamples::FLOAT_32_LITTLE_ENDIAN:
             return sizeof(std::uint32_t);
         default:
-            throw laar::LaarSoundHandlerError("unsupported format");
+            SSD_ABORT_UNLESS(false);
     }
 }
 
