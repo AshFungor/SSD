@@ -24,11 +24,12 @@ add_subdirectory(jobs)
 add_subdirectory(tests)
 
 target_link_libraries(sound PUBLIC 
-    plog::plog
-    rtaudio
-    protos
-    server-util
-    common
-    dispatchers
     jobs
+    common
+    protos
+    rtaudio
+    plog::plog
+    dispatchers
+    server-util
+    nlohmann_json::nlohmann_json
 )

@@ -46,12 +46,12 @@ namespace laar {
             virtual absl::Status flush() = 0;
             virtual absl::Status drain() = 0;
 
-            // getters
-            virtual float getVolume() const = 0;
+            // // getters
+            // virtual float getVolume() const = 0;
             virtual ESampleType getFormat() const = 0;
 
-            // setters
-            virtual void setVolume(float volume) const = 0;
+            // // setters
+            // virtual void setVolume(float volume) const = 0;
 
             // status
             virtual bool isAlive() const noexcept = 0;
@@ -75,11 +75,11 @@ namespace laar {
 
         virtual void init() = 0;
 
-        // getters
-        virtual float getVolume() const = 0;
+        // // getters
+        // virtual float getVolume() const = 0;
 
-        // setters
-        virtual void setVolume(float volume) const = 0;
+        // // setters
+        // virtual void setVolume(float volume) const = 0;
 
         virtual std::shared_ptr<IReadHandle> acquireReadHandle(
             NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,

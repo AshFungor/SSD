@@ -38,10 +38,10 @@ namespace laar {
         // IO operations
         virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) override;
         virtual absl::StatusOr<int> write(const char* src, std::size_t size) override;
-        // setters
-        virtual float getVolume() const override;
-        // getters
-        virtual void setVolume(float volume) const override;
+        // // setters
+        // virtual float getVolume() const override;
+        // // getters
+        // virtual void setVolume(float volume) const override;
         virtual ESampleType getFormat() const override;
         // condition
         virtual bool isAlive() const noexcept override;

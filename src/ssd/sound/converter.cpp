@@ -11,7 +11,8 @@
 // proto
 #include <protos/client/base.pb.h>
 
-using ESamples = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+using ESamples = 
+    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
 
 
 std::uint16_t laar::convertToLE(std::uint16_t data) {

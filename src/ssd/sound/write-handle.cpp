@@ -25,20 +25,6 @@ using namespace laar;
 using ESamples = 
     NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
 
-
-namespace {
-
-    constexpr std::size_t threshold = 16;
-
-    std::size_t getBufferSize(std::size_t proposed, std::size_t minRequested) {
-        if (proposed < minRequested || proposed / 1024 > threshold) {
-            return minRequested;
-        }
-        return proposed;
-    }
-
-}
-
 WriteHandle::WriteHandle(
     NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config, 
     std::weak_ptr<IListener> owner

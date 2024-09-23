@@ -1,14 +1,15 @@
 #pragma once
 
 // laar
-#include <src/common/thread-pool.hpp>
+#include <absl/status/status.h>
 #include <src/common/exceptions.hpp>
+#include <src/common/thread-pool.hpp>
 #include <src/common/callback-queue.hpp>
-#include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
-#include <src/ssd/sound/jobs/async-dispatching-job.hpp>
-#include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
-#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 #include <src/ssd/util/config-loader.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+#include <src/ssd/sound/jobs/async-dispatching-job.hpp>
+#include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
+#include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
 // RtAudio
 #include <RtAudio.h>
@@ -17,17 +18,17 @@
 #include <nlohmann/json_fwd.hpp>
 
 // std
-#include <condition_variable>
-#include <exception>
-#include <cstdint>
 #include <memory>
+#include <cstdint>
+#include <exception>
+#include <condition_variable>
 
 // plog
-#include <plog/Severity.h>
 #include <plog/Log.h>
+#include <plog/Severity.h>
 
 // proto
-#include <protos/client/simple/simple.pb.h>
+#include <protos/client/base.pb.h>
 
 
 namespace laar {
@@ -50,6 +51,15 @@ namespace laar {
         void* local
     );
 
+    int duplexCallback(
+        void* out, 
+        void* in, 
+        unsigned int frames, 
+        double streamTime, 
+        RtAudioStreamStatus status,
+        void* local
+    );
+
     class SoundHandler 
         : public std::enable_shared_from_this<SoundHandler> 
         , public laar::IStreamHandler {
@@ -58,22 +68,24 @@ namespace laar {
 
         static std::shared_ptr<SoundHandler> configure(
             std::shared_ptr<laar::ConfigHandler> configHandler,
-            std::shared_ptr<laar::ThreadPool> pool
+            std::shared_ptr<laar::CallbackQueue> cbQueue
         );
 
         SoundHandler(
             std::shared_ptr<laar::ConfigHandler> configHandler, 
-            std::shared_ptr<laar::ThreadPool> pool,
+            std::shared_ptr<laar::CallbackQueue> cbQueue,
             Private access
         );
 
         void init() override;
         virtual std::shared_ptr<IReadHandle> acquireReadHandle(
-            TSimpleMessage::TStreamConfiguration config,
-            std::weak_ptr<IStreamHandler::IHandle::IListener> owner) override;
+            NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+            std::weak_ptr<IStreamHandler::IHandle::IListener> owner
+        ) override;
         virtual std::shared_ptr<IWriteHandle> acquireWriteHandle(
-            TSimpleMessage::TStreamConfiguration config,
-            std::weak_ptr<IStreamHandler::IHandle::IListener> owner) override;
+            NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+            std::weak_ptr<IStreamHandler::IHandle::IListener> owner
+        ) override;
 
         friend int laar::writeCallback(
             void* out, 
@@ -93,24 +105,43 @@ namespace laar {
             void* local
         );
 
+        friend int laar::duplexCallback(
+            void* out, 
+            void* in, 
+            unsigned int frames, 
+            double streamTime, 
+            RtAudioStreamStatus status,
+            void* local
+        );
+
     private:
         struct LocalData;
 
         void onError(std::exception error);
         std::unique_ptr<LocalData> makeLocalData();
 
+        unsigned int probeDevices(bool isInput) noexcept;
+
+        // builder stages
+        bool checkSampleRate(const RtAudio::DeviceInfo& info, std::string& verdict) noexcept;
+        bool checkName(const RtAudio::DeviceInfo& info, std::string& verdict) noexcept;
+        bool checkSampleFormat(const RtAudio::DeviceInfo& info, std::string& verdict) noexcept;
+
+        absl::Status openDuplexStream(unsigned int devInput, unsigned int devOutput);
+        absl::Status openPlayback(unsigned int dev);
+        absl::Status openCapture(unsigned int dev);
+
         void parseDefaultConfig(const nlohmann::json& config);
         std::unique_ptr<std::int32_t[]> squash(SoundHandler::LocalData* data, std::size_t frames);
 
     private:
 
-        std::shared_ptr<laar::ThreadPool> pool_;
+        std::shared_ptr<laar::CallbackQueue> cbQueue_;
 
         std::condition_variable cv_;
         bool init_;
 
         std::shared_ptr<BassRouterDispatcher> bassDispatcher_;
-        std::shared_ptr<TubeDispatcher> dispatcherManyToOne_;
 
         std::vector<std::weak_ptr<IWriteHandle>> outHandles_;
         std::vector<std::weak_ptr<IReadHandle>> inHandles_;
