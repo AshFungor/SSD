@@ -1,16 +1,16 @@
 // GTest
-#include <cmath>
-#include <cstdint>
 #include <gtest/gtest.h>
 
 // standard
+#include <cmath>
+#include <cstdint>
 #include <iostream>
+#include <type_traits>
 
 // laar
-#include <common/exceptions.hpp>
-#include <sounds/converter.hpp>
-#include <common/macros.hpp>
-#include <type_traits>
+#include <src/common/macros.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/ssd/sound/converter.hpp>
 
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
@@ -29,14 +29,6 @@ namespace {
             values.push_back(i);
         }
         return values;
-    }
-
-    std::int32_t round(std::int32_t num, int precision) {
-        num = num / std::pow(10, precision - 1);
-        if (num % 10 >= 5) {
-            return num / 10 + 1;
-        }
-        return num / 10;
     }
 
     template<typename SampleHolder>

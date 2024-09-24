@@ -45,6 +45,7 @@ namespace laar {
             // discard buffer
             virtual absl::Status flush() = 0;
             virtual absl::Status drain() = 0;
+            virtual void abort() = 0;
 
             // // getters
             // virtual float getVolume() const = 0;
@@ -54,7 +55,7 @@ namespace laar {
             // virtual void setVolume(float volume) const = 0;
 
             // status
-            virtual bool isAlive() const noexcept = 0;
+            virtual bool isAlive() noexcept = 0;
 
             virtual ~IHandle() = default; 
         };

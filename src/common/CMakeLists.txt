@@ -10,7 +10,8 @@ set(SOURCES
 set(HEADERS 
     thread-pool.hpp 
     callback-queue.hpp 
-    callback.hpp macros.hpp 
+    callback.hpp 
+    macros.hpp 
     exceptions.hpp 
     ring-buffer.hpp 
     plain-buffer.hpp
@@ -19,5 +20,7 @@ set(HEADERS
 add_library(common STATIC ${HEADERS} ${SOURCES})
 
 target_include_directories(common PUBLIC ${CMAKE_SOURCE_DIR})
+
+add_library(laar::common ALIAS common)
 
 add_subdirectory(tests)

@@ -34,6 +34,7 @@ namespace laar {
         // manipulation
         virtual absl::Status flush() override;
         virtual absl::Status drain() override;
+        virtual void abort() override;
         // IO operations
         virtual absl::StatusOr<int> read(char* dest, std::size_t size) override;
         virtual absl::StatusOr<int> write(const std::int32_t* src, std::size_t size) override;
@@ -43,9 +44,11 @@ namespace laar {
         // virtual void setVolume(float volume) const override;
         virtual ESampleType getFormat() const override;
         // condition
-        virtual bool isAlive() const noexcept override;
+        virtual bool isAlive() noexcept override;
 
     private:
+        bool isAlive_;
+
         ESampleType format_;
         std::size_t sampleSize_;
 

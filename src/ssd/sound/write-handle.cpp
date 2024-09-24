@@ -42,6 +42,12 @@ absl::Status WriteHandle::flush() {
     return absl::OkStatus();
 }
 
+void WriteHandle::abort() {
+    std::unique_lock<std::mutex> locked(lock_);
+
+    isAlive_ = false;
+}
+
 absl::StatusOr<int> WriteHandle::read(std::int32_t* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
@@ -135,6 +141,8 @@ ESampleType WriteHandle::getFormat() const {
     return config_.samplespec().format();
 }
 
-bool WriteHandle::isAlive() const noexcept {
-    return owner_.lock().get();
+bool WriteHandle::isAlive() noexcept {
+    std::unique_lock<std::mutex> locked(lock_);
+
+    return isAlive_;
 }

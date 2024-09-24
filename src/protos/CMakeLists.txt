@@ -50,3 +50,5 @@ target_include_directories(protos PUBLIC
     # used to override system protobuf libs if necessery
     ${protobuf_INCLUDE_DIR}
 )
+
+add_library(laar::protos ALIAS protos)

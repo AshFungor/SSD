@@ -41,6 +41,12 @@ absl::Status ReadHandle::flush() {
     return absl::OkStatus();
 }
 
+void ReadHandle::abort() {
+    std::unique_lock<std::mutex> locked(lock_);
+
+    isAlive_ = false;
+}
+
 absl::StatusOr<int> ReadHandle::read(char* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
@@ -130,6 +136,8 @@ ESampleType ReadHandle::getFormat() const {
     return format_;
 }
 
-bool ReadHandle::isAlive() const noexcept {
-    return owner_.lock().get();
+bool ReadHandle::isAlive() noexcept {
+    std::unique_lock<std::mutex> locked(lock_);
+
+    return isAlive_;
 }

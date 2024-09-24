@@ -1,45 +1,55 @@
-// server
-#include <network/server.hpp>
+// grpc
+#include "grpcpp/server_builder.h"
+#include <grpcpp/grpcpp.h>
+
+// standard
+#include <memory>
 
 // plog
-#include <plog/Initializers/RollingFileInitializer.h>
-#include <plog/Severity.h>
 #include <plog/Log.h>
+#include <plog/Severity.h>
+#include <plog/Initializers/RollingFileInitializer.h>
 
 // laar
-#include <common/callback-queue.hpp>
-#include <sounds/audio-handler.hpp>
-#include <common/thread-pool.hpp>
-#include <util/config-loader.hpp>
+#include <src/common/thread-pool.hpp>
+#include <src/common/callback-queue.hpp>
+#include <src/ssd/util/config-loader.hpp>
+#include <src/ssd/sound/audio-handler.hpp>
+#include <src/ssd/core/routing-service.hpp>
 
 int main() {
 
     plog::init(plog::Severity::debug, "server.log", 1024 * 1024, 2);
 
-    auto SharedCallbackQueue = laar::CallbackQueue::configure({});
-    PLOG(plog::debug) << "module created: " << "SharedCallbackQueue; instance: " << SharedCallbackQueue.get();
-    auto configHandler = laar::ConfigHandler::configure("", SharedCallbackQueue);
+    auto sharedCallbackQueue = laar::CallbackQueue::configure({});
+    PLOG(plog::debug) << "module created: " << "SharedCallbackQueue; instance: " << sharedCallbackQueue.get();
+    auto configHandler = laar::ConfigHandler::configure("", sharedCallbackQueue);
     PLOG(plog::debug) << "module created: " << "ConfigHandler; instance: " << configHandler.get();
 
-    SharedCallbackQueue->init();
+    sharedCallbackQueue->init();
     configHandler->init();
 
-    auto threadPool = laar::ThreadPool::configure({});
-    threadPool->init();
-    
-    PLOG(plog::debug) << "module created: " << "ThreadPool; instance: " << threadPool.get();
-
-    auto soundHandler = laar::SoundHandler::configure(configHandler, threadPool);
+    auto soundHandler = laar::SoundHandler::configure(configHandler, sharedCallbackQueue);
     soundHandler->init();
 
     PLOG(plog::debug) << "module created: " << "SoundHandler; instance: " << soundHandler.get();
 
-    auto server = srv::Server::configure(SharedCallbackQueue, threadPool, configHandler, soundHandler);
-    PLOG(plog::debug) << "module created: " << "Server; instance: " << server.get();
+    auto routingService = std::make_shared<laar::RoutingService>(soundHandler);
+    grpc::ServerBuilder builder;
 
+    builder.AddListeningPort("localhost:7777", grpc::InsecureServerCredentials());
+    builder.RegisterService(routingService.get());
 
-    server->init();
-    server->run();
+    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+
+    if (!server) {
+        PLOG(plog::error) << "failed to start server, builder returned nullptr";
+        return 1;
+    } else {
+        PLOG(plog::info) << "server started, blocking main thread";
+    }
+
+    server->Wait();
 
     return 0;
 }

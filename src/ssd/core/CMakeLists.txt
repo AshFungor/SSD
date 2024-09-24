@@ -2,18 +2,17 @@ cmake_minimum_required(VERSION 3.15)
 
 set(SOURCES 
     routing-service.cpp
+    session.cpp
 )
 
 set(HEADERS 
     routing-service.hpp
+    session.hpp
 )
 
 add_library(core STATIC ${SOURCES} ${HEADERS})
 
 target_include_directories(core PUBLIC ${CMAKE_SOURCE_DIR})
+target_link_libraries(core PUBLIC laar::util laar::protos laar::sound)
 
-target_link_libraries(core PUBLIC 
-    utils
-    protos
-    sound
-)
+add_library(laar::core ALIAS core)

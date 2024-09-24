@@ -6,8 +6,4 @@ add_subdirectory(util)
 add_subdirectory(core)
 add_subdirectory(sound)
 
-target_link_libraries(sound-server-daemon PRIVATE 
-    service
-    sound
-    utils
-)
+target_link_libraries(sound-server-daemon PRIVATE laar::core laar::sound laar::util)

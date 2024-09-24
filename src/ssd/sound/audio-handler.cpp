@@ -1,23 +1,23 @@
 // laar
-#include "src/common/macros.hpp"
-#include "src/ssd/sound/read-handle.hpp"
-#include "src/ssd/sound/write-handle.hpp"
-#include <absl/status/status.h>
-#include <absl/status/statusor.h>
-#include <absl/strings/match.h>
-#include <absl/strings/str_cat.h>
-#include <absl/strings/str_format.h>
-#include <algorithm>
-#include <cctype>
+#include <src/common/macros.hpp>
 #include <src/common/exceptions.hpp>
 #include <src/common/thread-pool.hpp>
 #include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/read-handle.hpp>
+#include <src/ssd/sound/write-handle.hpp>
 #include <src/ssd/util/config-loader.hpp>
 #include <src/ssd/sound/audio-handler.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 #include <src/ssd/sound/jobs/async-dispatching-job.hpp>
 #include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
 #include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
+
+// abseil
+#include <absl/status/status.h>
+#include <absl/strings/match.h>
+#include <absl/status/statusor.h>
+#include <absl/strings/str_cat.h>
+#include <absl/strings/str_format.h>
 
 // RtAudio
 #include <RtAudio.h>
@@ -26,9 +26,11 @@
 #include <nlohmann/json_fwd.hpp>
 
 // std
+#include <cctype>
 #include <memory>
 #include <cstdint>
 #include <exception>
+#include <algorithm>
 #include <condition_variable>
 
 // plog
@@ -37,6 +39,7 @@
 
 // proto
 #include <protos/client/base.pb.h>
+#include <vector>
 
 using namespace laar;
 
@@ -442,9 +445,15 @@ int laar::readCallback(
 
     auto result = (std::int32_t*) in;
     {
+        std::vector<std::shared_ptr<IStreamHandler::IReadHandle>> expired;
         std::unique_lock<std::mutex> locked(data->handlerLock);
         for (auto& handle : handler->inHandles_) {
             if (auto lockedHandle = handle.lock()) {
+                if (!lockedHandle->isAlive()) {
+                    expired.push_back(lockedHandle);
+                    continue;
+                }
+
                 if (absl::StatusOr<int> bytes = lockedHandle->write(result, frames); !bytes.ok() || bytes.value() < frames) {
                     if (!bytes.ok()) {
                         PLOG(plog::warning) 
@@ -459,6 +468,19 @@ int laar::readCallback(
                         SSD_ABORT_UNLESS(false);
                     }
                 }
+            }
+
+            for (auto& handle : expired) {
+                auto iter = std::find_if(handler->inHandles_.begin(), handler->inHandles_.end(), [&handle](auto& currentHandle) {
+                    if (auto locked = currentHandle.lock()) {
+                        return locked == handle;
+                    }
+                    // this case should not be possible
+                    SSD_ABORT_UNLESS(false);
+                });
+
+                std::iter_swap(iter, std::next(handler->inHandles_.end(), -1));
+                handler->inHandles_.pop_back();
             }
         }
     }
@@ -514,6 +536,19 @@ std::unique_ptr<std::int32_t[]> SoundHandler::squash(SoundHandler::LocalData* da
                         << "; error: " << bytes.status().message();
                 }
             }
+        }
+
+        for (auto& handle : expired) {
+            auto iter = std::find_if(outHandles_.begin(), outHandles_.end(), [&handle](auto& currentHandle) {
+                if (auto locked = currentHandle.lock()) {
+                    return locked == handle;
+                }
+                // this case should not be possible
+                SSD_ABORT_UNLESS(false);
+            });
+
+            std::iter_swap(iter, std::next(outHandles_.end(), -1));
+            outHandles_.pop_back();
         }
     }
 

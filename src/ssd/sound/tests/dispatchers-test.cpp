@@ -1,25 +1,25 @@
 // GTest
-#include "sounds/interfaces/i-audio-handler.hpp"
-#include <cstddef>
-#include <cstdint>
 #include <gtest/gtest.h>
 
 // standard
 #include <cmath>
+#include <string>
 #include <memory>
+#include <cstddef>
+#include <cstdint>
 #include <climits>
 
 // laar
-#include <common/macros.hpp>
-#include <common/exceptions.hpp>
-#include <sounds/dispatchers/tube-dispatcher.hpp>
-#include <sounds/dispatchers/bass-router-dispatcher.hpp>
+#include <src/common/macros.hpp>
+#include <src/common/exceptions.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+#include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
+#include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
 // protos
-#include <protos/client/simple/simple.pb.h>
-#include <string>
+#include <protos/client/base.pb.h>
 
-using namespace NSound::NSimple;
+using namespace NSound::NClient::NBase;
 
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
@@ -99,7 +99,7 @@ TEST(DispatcherTest, TestOneToMany) {
     auto dispatcherOneToMany = laar::TubeDispatcher::create(
         laar::TubeDispatcher::EDispatchingDirection::ONE2MANY,
         laar::ESamplesOrder::NONINTERLEAVED,
-        TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
+        TBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
         channels
     );
 
@@ -112,7 +112,8 @@ TEST(DispatcherTest, TestOneToMany) {
         in[i] = INT32_MAX;
     }
 
-    dispatcherOneToMany->dispatch(in.get(), out.get(), samples);
+    auto status = dispatcherOneToMany->dispatch(in.get(), out.get(), samples);
+    EXPECT_TRUE(status.ok()) << "error while dispatching stream: " << status.message();
 
     auto wrapper = laar::StreamWrapper<std::int32_t>(
         samples, channels, laar::ESamplesOrder::NONINTERLEAVED, out.get()
@@ -135,7 +136,7 @@ TEST(DispatcherTest, TestManyToOne) {
     auto dispatcherManyToOne = laar::TubeDispatcher::create(
         laar::TubeDispatcher::EDispatchingDirection::MANY2ONE,
         laar::ESamplesOrder::NONINTERLEAVED,
-        TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
+        TBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
         channels
     );
 
@@ -148,7 +149,8 @@ TEST(DispatcherTest, TestManyToOne) {
         in[i] = INT32_MAX;
     }
 
-    dispatcherManyToOne->dispatch(in.get(), out.get(), samples);
+    auto status = dispatcherManyToOne->dispatch(in.get(), out.get(), samples);
+    EXPECT_TRUE(status.ok()) << "error while dispatching stream: " << status.message();
 
     auto wrapper = laar::StreamWrapper<std::int32_t>(
         samples, 1, laar::ESamplesOrder::NONINTERLEAVED, out.get()
@@ -168,7 +170,7 @@ TEST(DispatcherTest, TestBassRouting) {
     laar::BassRouterDispatcher::ChannelInfo channelInfo (0, 1);
     auto bassRouteDispatcher = laar::BassRouterDispatcher::create(
         laar::ESamplesOrder::NONINTERLEAVED,
-        TSimpleMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
+        TBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
         44100,
         laar::BassRouterDispatcher::BassRange(20, 250),
         channelInfo
@@ -181,12 +183,12 @@ TEST(DispatcherTest, TestBassRouting) {
 
     std::int32_t prev = 0;
     for (std::size_t i = 0; i < samples; ++i) {
-        in[i] = 0;
+        in[i] = prev;
         prev += INT32_MAX / samples;
-        // in[i] = laar::Silence;
     }
 
-    bassRouteDispatcher->dispatch(in.get(), out.get(), samples);
+    auto status = bassRouteDispatcher->dispatch(in.get(), out.get(), samples);
+    EXPECT_TRUE(status.ok()) << "error while dispatching stream: " << status.message();
 
     auto outWrapper = laar::StreamWrapper<std::int32_t>(
         samples, 2, laar::ESamplesOrder::NONINTERLEAVED, out.get()
