@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(SOURCES
-    # jobs
-    jobs/async-dispatching-job.cpp
     # dispatchers
     dispatchers/bass-router-dispatcher.cpp dispatchers/tube-dispatcher.cpp
     # sound
@@ -10,8 +8,6 @@ set(SOURCES
 )
 
 set(HEADERS
-    # jobs
-    jobs/async-dispatching-job.hpp
     # interfaces
     interfaces/i-audio-handler.hpp interfaces/i-dispatcher.hpp
     # dispatchers
@@ -23,9 +19,9 @@ set(HEADERS
 add_library(sound STATIC ${SOURCES} ${HEADERS})
 
 # local deps
-target_link_libraries(sound PUBLIC laar::util laar::common laar::protos)
+target_link_libraries(sound PUBLIC laar::util laar::protos)
 # external deps
-target_link_libraries(sound PUBLIC rtaudio plog::plog fftw::fftw nlohmann_json::nlohmann_json)
+target_link_libraries(sound PUBLIC rtaudio ${SSD_EXTERNAL_DEPS})
 # includes
 target_include_directories(sound PUBLIC ${SRC_ROOT})
 

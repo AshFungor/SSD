@@ -13,6 +13,11 @@ set(HEADERS
 add_library(core STATIC ${SOURCES} ${HEADERS})
 
 target_include_directories(core PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(core PUBLIC laar::util laar::protos laar::sound)
+target_link_libraries(core PUBLIC 
+    ${SSD_EXTERNAL_DEPS} 
+    laar::util 
+    laar::protos 
+    laar::sound
+)
 
 add_library(laar::core ALIAS core)

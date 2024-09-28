@@ -6,7 +6,9 @@ set(HEADERS config-loader.hpp)
 add_library(util STATIC ${SOURCES} ${HEADERS})
 
 target_include_directories(util PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(util PUBLIC laar::common plog::plog nlohmann_json::nlohmann_json)
+target_link_libraries(util PUBLIC 
+    ${SSD_EXTERNAL_DEPS}
+)
 
 add_library(laar::util ALIAS util)
 

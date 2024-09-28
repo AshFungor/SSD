@@ -8,12 +8,6 @@
 // // STD
 // #include <memory>
 
-// // sockpp
-// #include <sockpp/tcp_connector.h>
-// #include <sockpp/inet_address.h>
-// #include <sockpp/tcp_acceptor.h>
-// #include <sockpp/tcp_socket.h>
-
 // // laar
 // #include <network/interfaces/i-message.hpp>
 

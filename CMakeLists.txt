@@ -16,11 +16,20 @@ endif (CMAKE_COMPILER_IS_GNUCXX)
 
 # packages
 find_package(absl CONFIG REQUIRED)
+find_package(Boost CONFIG REQUIRED VERSION 1.86.0)
 find_package(protobuf CONFIG REQUIRED VERSION 5.27.0)
 find_package(nlohmann_json CONFIG REQUIRED VERSION 3.11.3)
 find_package(GTest CONFIG REQUIRED VERSION 1.14.0)
 find_package(plog CONFIG REQUIRED VERSION 1.1.10)
 find_package(FFTW3 CONFIG REQUIRED VERSION 3.3.10)
+
+set(SSD_EXTERNAL_DEPS 
+	plog::plog 
+	fftw::fftw 
+	boost::boost
+	protobuf::libprotobuf
+	nlohmann_json::nlohmann_json
+)
 
 set(DATA_DIR ${CMAKE_SOURCE_DIR}/data)
 

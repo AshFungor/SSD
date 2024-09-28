@@ -1,14 +1,12 @@
+// boost
+#include <boost/asio/dispatch.hpp>
+
 // laar
-#include <src/common/macros.hpp>
-#include <src/common/exceptions.hpp>
-#include <src/common/thread-pool.hpp>
-#include <src/common/callback-queue.hpp>
 #include <src/ssd/sound/read-handle.hpp>
 #include <src/ssd/sound/write-handle.hpp>
 #include <src/ssd/util/config-loader.hpp>
 #include <src/ssd/sound/audio-handler.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
-#include <src/ssd/sound/jobs/async-dispatching-job.hpp>
 #include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
 #include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
@@ -26,12 +24,15 @@
 #include <nlohmann/json_fwd.hpp>
 
 // std
+#include <mutex>
 #include <cctype>
 #include <memory>
+#include <future>
+#include <vector>
 #include <cstdint>
 #include <exception>
 #include <algorithm>
-#include <condition_variable>
+#include <functional>
 
 // plog
 #include <plog/Log.h>
@@ -39,7 +40,6 @@
 
 // proto
 #include <protos/client/base.pb.h>
-#include <vector>
 
 using namespace laar;
 
@@ -60,18 +60,18 @@ namespace {
 
 std::shared_ptr<SoundHandler> SoundHandler::configure(
     std::shared_ptr<laar::ConfigHandler> configHandler,
-    std::shared_ptr<laar::CallbackQueue> cbQueue
+    std::shared_ptr<boost::asio::io_context> context
 ) {
-    return std::make_shared<SoundHandler>(std::move(configHandler), std::move(cbQueue), Private());    
+    return std::make_shared<SoundHandler>(std::move(configHandler), std::move(context), Private());    
 }
 
 SoundHandler::SoundHandler(
     std::shared_ptr<laar::ConfigHandler> configHandler,
-    std::shared_ptr<laar::CallbackQueue> cbQueue,
+   std::shared_ptr<boost::asio::io_context> context,
     Private access
 )
-    : cbQueue_(std::move(cbQueue))
-    , init_(false)
+    : context_(std::move(context))
+    , configHandler_(std::move(configHandler))
     , bassDispatcher_(laar::BassRouterDispatcher::create(
         ESamplesOrder::NONINTERLEAVED, 
         ESamples::SIGNED_32_LITTLE_ENDIAN,
@@ -79,56 +79,49 @@ SoundHandler::SoundHandler(
         BassRouterDispatcher::BassRange(20, 250),
         BassRouterDispatcher::ChannelInfo(0, 1))
     )
-    , configHandler_(std::move(configHandler))
     , local_(nullptr)
     , audio_(RtAudio::Api::LINUX_ALSA)
 {}
 
 void SoundHandler::init() {
-    local_ = makeLocalData();
+    std::call_once(init_, [this](){
+            local_ = makeLocalData();
 
-    configHandler_->subscribeOnDefaultConfig(
-        SOUND_SECTION, 
-        [&](const auto& config) {
-            parseDefaultConfig(config);
-        }, 
-        weak_from_this()
+            configHandler_->subscribeOnDefaultConfig(
+                SOUND_SECTION, 
+                [&](const auto& config) {
+                    parseDefaultConfig(config);
+                }, 
+                weak_from_this()
+            );
+
+            auto inputDevice = probeDevices(true);
+            auto outputDevice = probeDevices(false);
+
+            if (!(inputDevice && outputDevice)) {
+                onError(laar::LaarSoundHandlerError("Device for IO was not acquired"));
+            }
+
+            if (settings_.isCaptureEnabled && settings_.isPlaybackEnabled) {
+                PLOG(plog::info) << "opening duplex stream";
+                if (absl::Status status = openDuplexStream(inputDevice, outputDevice); !status.ok()) {
+                    onError(laar::LaarSoundHandlerError(status.message().data()));
+                }
+            } else if (settings_.isCaptureEnabled) {
+                PLOG(plog::info) << "opening capture stream";
+                if (absl::Status status = openCapture(inputDevice); !status.ok()) {
+                    onError(laar::LaarSoundHandlerError(status.message().data()));
+                }
+            } else if (settings_.isPlaybackEnabled) {
+                PLOG(plog::info) << "opening playback stream";
+                if (absl::Status status = openPlayback(outputDevice); !status.ok()) {
+                    onError(laar::LaarSoundHandlerError(status.message().data()));
+                }
+            } else {
+                onError(laar::LaarSoundHandlerError("at least one option for stream type must be enabled"));
+            }
+        }
     );
-
-    std::unique_lock<std::mutex> locked(local_->handlerLock);
-    cv_.wait(locked, [&]{
-        return init_;
-    });
-
-    if (init_) {
-        throw laar::LaarBadInit();
-    }
-
-    auto inputDevice = probeDevices(true);
-    auto outputDevice = probeDevices(false);
-
-    if (!(inputDevice && outputDevice)) {
-        onError(laar::LaarSoundHandlerError("Device for IO was not acquired"));
-    }
-
-    if (settings_.isCaptureEnabled && settings_.isPlaybackEnabled) {
-        PLOG(plog::info) << "opening duplex stream";
-        if (absl::Status status = openDuplexStream(inputDevice, outputDevice); !status.ok()) {
-            onError(laar::LaarSoundHandlerError(status.message().data()));
-        }
-    } else if (settings_.isCaptureEnabled) {
-        PLOG(plog::info) << "opening capture stream";
-        if (absl::Status status = openCapture(inputDevice); !status.ok()) {
-            onError(laar::LaarSoundHandlerError(status.message().data()));
-        }
-    } else if (settings_.isPlaybackEnabled) {
-        PLOG(plog::info) << "opening playback stream";
-        if (absl::Status status = openPlayback(outputDevice); !status.ok()) {
-            onError(laar::LaarSoundHandlerError(status.message().data()));
-        }
-    } else {
-        onError(laar::LaarSoundHandlerError("at least one option for stream type must be enabled"));
-    }
 }
 
 absl::Status SoundHandler::openDuplexStream(unsigned int devInput, unsigned int devOutput) {
@@ -270,16 +263,16 @@ bool SoundHandler::checkSampleRate(const RtAudio::DeviceInfo& info, std::string&
         iter == info.sampleRates.end()
     ) {
         std::string available;
-        for (int i = 0; i < info.sampleRates.size(); ++i) {
+        for (std::size_t i = 0; i < info.sampleRates.size(); ++i) {
             if (i == info.sampleRates.size() - 1) {
-                available = absl::StrCat(available, absl::StrFormat("%d; ", info.sampleRates[i]));
+                absl::StrAppend(&available, absl::StrFormat("%d; ", info.sampleRates[i]));
             } else {
-                available = absl::StrCat(available, absl::StrFormat("%d, ", info.sampleRates[i]));
+                absl::StrAppend(&available, absl::StrFormat("%d, ", info.sampleRates[i]));
             }
         }
 
-        verdict = absl::StrCat(
-            verdict, 
+        absl::StrAppend(
+            &verdict, 
             absl::StrFormat(
                 "device does not have %d sample rate available, only the following are supported: %s",
                 laar::BaseSampleRate,
@@ -290,12 +283,12 @@ bool SoundHandler::checkSampleRate(const RtAudio::DeviceInfo& info, std::string&
         return false;
     }
 
-    verdict = absl::StrCat(verdict, absl::StrFormat("device supports requested sample rate: %d; ", laar::BaseSampleRate));
+    absl::StrAppend(&verdict, absl::StrFormat("device supports requested sample rate: %d; ", laar::BaseSampleRate));
     return true;
 }
 
 bool SoundHandler::checkSampleFormat(const RtAudio::DeviceInfo& info, std::string& verdict) noexcept {
-    verdict = absl::StrCat(verdict, "native sample rates: ");
+    absl::StrAppend(&verdict, "native sample rates: ");
     for (const RtAudioFormat& format : {
         RTAUDIO_SINT8, 
         RTAUDIO_SINT16,
@@ -305,14 +298,14 @@ bool SoundHandler::checkSampleFormat(const RtAudio::DeviceInfo& info, std::strin
         RTAUDIO_FLOAT64
     }) {
         if (format & info.nativeFormats) {
-            verdict = absl::StrCat(verdict, absl::StrFormat("%d, ", format));
+            absl::StrAppend(&verdict, absl::StrFormat("%d, ", format));
         }
     }
 
     if (RTAUDIO_SINT32 & info.nativeFormats) {
-        verdict = absl::StrCat(verdict, absl::StrFormat("required format is native %d; ", RTAUDIO_SINT32));
+        absl::StrAppend(&verdict, absl::StrFormat("required format is native %d; ", RTAUDIO_SINT32));
     } else {
-        verdict = absl::StrCat(verdict, absl::StrFormat("required format is non-native %d; ", RTAUDIO_SINT32));
+        absl::StrAppend(&verdict, absl::StrFormat("required format is non-native %d; ", RTAUDIO_SINT32));
         // return false; ?
     }
 
@@ -333,7 +326,6 @@ std::unique_ptr<SoundHandler::LocalData> SoundHandler::makeLocalData() {
     auto data = std::make_unique<LocalData>();
     data->object = shared_from_this();
     data->abort = false;
-    data->job = nullptr;
 
     return data;
 }
@@ -343,7 +335,7 @@ void SoundHandler::onError(std::exception error) {
     throw error;
 }
 
-int duplexCallback(
+int laar::duplexCallback(
     void* out, 
     void* in, 
     unsigned int frames, 
@@ -382,18 +374,13 @@ int laar::writeCallback(
     }
 
     auto result = (std::int32_t*) out;
-
     std::unique_ptr<int32_t[]> buffer;
 
-    if (!data->job) {
-        // pass data to avoid blocking
-        buffer = handler->squash(data, frames);
+    if (!handler->future_.valid()) {
+        // future is empty, task was not run yet
+        buffer = handler->squash(frames);
     } else {
-        // extract data
-        buffer = data->job->result();
-        if (!data->job->ready()) {
-            handler->jobs_.push_back(std::move(data->job));
-        }
+        buffer = handler->future_.get();
     }
 
     for (std::size_t channel = 0; channel < 2; ++channel) {
@@ -402,21 +389,12 @@ int laar::writeCallback(
         }
     }
 
-    if (handler->jobs_.size()) {
-        std::erase_if(handler->jobs_, [](auto& job) {
-            return job->ready();
-        });
-        data->job = nullptr;
-        
-        return rtcontrol::SUCCESS;
-    }
-
-    auto squashed = handler->squash(data, frames);
-    data->job = std::make_unique<laar::AsyncDispatchingJob>(
-        handler->cbQueue_,
-        handler->bassDispatcher_,
-        frames,
-        std::move(squashed)
+    // request more data to dispatch it in async manner
+    buffer = handler->squash(frames);
+    handler->future_ = boost::asio::post(*handler->context_, 
+        std::packaged_task<std::unique_ptr<std::int32_t[]>(std::unique_ptr<std::int32_t[]>)>(
+            std::bind(&SoundHandler::dispatchAsync, handler.get(), std::move(buffer))
+        )
     );
 
     return rtcontrol::SUCCESS;
@@ -444,45 +422,10 @@ int laar::readCallback(
     }
 
     auto result = (std::int32_t*) in;
-    {
-        std::vector<std::shared_ptr<IStreamHandler::IReadHandle>> expired;
-        std::unique_lock<std::mutex> locked(data->handlerLock);
-        for (auto& handle : handler->inHandles_) {
-            if (auto lockedHandle = handle.lock()) {
-                if (!lockedHandle->isAlive()) {
-                    expired.push_back(lockedHandle);
-                    continue;
-                }
-
-                if (absl::StatusOr<int> bytes = lockedHandle->write(result, frames); !bytes.ok() || bytes.value() < frames) {
-                    if (!bytes.ok()) {
-                        PLOG(plog::warning) 
-                            << "Read Callback: encountered error while writing bytes to handle: "
-                            << lockedHandle.get() << ", message: " << bytes.status().message();
-                    } else {
-                        PLOG(plog::warning)
-                            << "Read Callback: only " << bytes.value() << " bytes were written to handle; expected " << frames;
-                    }
-                    if (absl::Status status = lockedHandle->flush(); !status.ok()) {
-                        PLOG(plog::error) << "Read Callback: failed to recover handle, aborting";
-                        SSD_ABORT_UNLESS(false);
-                    }
-                }
-            }
-
-            for (auto& handle : expired) {
-                auto iter = std::find_if(handler->inHandles_.begin(), handler->inHandles_.end(), [&handle](auto& currentHandle) {
-                    if (auto locked = currentHandle.lock()) {
-                        return locked == handle;
-                    }
-                    // this case should not be possible
-                    SSD_ABORT_UNLESS(false);
-                });
-
-                std::iter_swap(iter, std::next(handler->inHandles_.end(), -1));
-                handler->inHandles_.pop_back();
-            }
-        }
+    
+    if (absl::Status status = handler->unfetter(result, frames); !status.ok()) {
+        PLOG(plog::error) << "Read Callback: failed to unfetter data, aborting";
+        std::abort();
     }
 
     return rtcontrol::SUCCESS;
@@ -491,9 +434,6 @@ int laar::readCallback(
 void SoundHandler::parseDefaultConfig(const nlohmann::json& config) {
     settings_.isCaptureEnabled = config.value<bool>("isCaptureEnabled", true);
     settings_.isPlaybackEnabled = config.value<bool>("isPlaybackEnabled", true);
-
-    init_ = true;
-    cv_.notify_one();
 }
 
 std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle(
@@ -516,39 +456,27 @@ std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(
     return handle;
 }
 
-std::unique_ptr<std::int32_t[]> SoundHandler::squash(SoundHandler::LocalData* data, std::size_t frames) {
+std::unique_ptr<std::int32_t[]> SoundHandler::squash(std::size_t frames) {
     std::vector<std::unique_ptr<std::int32_t[]>> buffers;
     {
-        std::unique_lock<std::mutex> locked(data->handlerLock);
+        std::unique_lock<std::mutex> locked(local_->handlerLock);
 
-        std::vector<std::shared_ptr<laar::IStreamHandler::IWriteHandle>> expired;
-        for (auto& handle : outHandles_) {
-            if (auto lockedHandle = handle.lock()) {
-                if (!lockedHandle->isAlive()) {
-                    expired.push_back(lockedHandle);
+        for (std::size_t i = 0; i < outHandles_.size(); ++i) {
+            if (auto handle = outHandles_[i].lock()) {
+                if (!handle->isAlive()) {
+                    std::swap(outHandles_[i], outHandles_.back());
+                    outHandles_.pop_back();
+                    continue;
                 }
 
                 buffers.emplace_back(std::make_unique<std::int32_t[]>(frames));
-                if (absl::StatusOr<int> bytes = lockedHandle->read(buffers.back().get(), frames); !bytes.ok()) {
+                if (absl::StatusOr<int> bytes = handle->read(buffers.back().get(), frames); !bytes.ok()) {
                     PLOG(plog::warning) 
                         << "Write Callback: failed to get " << frames 
-                        << " bytes from handle: " << lockedHandle.get() 
+                        << " bytes from handle: " << handle.get() 
                         << "; error: " << bytes.status().message();
                 }
             }
-        }
-
-        for (auto& handle : expired) {
-            auto iter = std::find_if(outHandles_.begin(), outHandles_.end(), [&handle](auto& currentHandle) {
-                if (auto locked = currentHandle.lock()) {
-                    return locked == handle;
-                }
-                // this case should not be possible
-                SSD_ABORT_UNLESS(false);
-            });
-
-            std::iter_swap(iter, std::next(outHandles_.end(), -1));
-            outHandles_.pop_back();
         }
     }
 
@@ -579,4 +507,35 @@ std::unique_ptr<std::int32_t[]> SoundHandler::squash(SoundHandler::LocalData* da
     }
 
     return squashed;
+}
+
+absl::Status SoundHandler::unfetter(std::int32_t* source, std::size_t frames) {
+    std::unique_lock<std::mutex> locked(local_->handlerLock);
+
+    for (std::size_t i = 0; i < inHandles_.size(); ++i) {
+        if (auto handle = inHandles_[i].lock()) {
+            if (!handle->isAlive()) {
+                std::swap(inHandles_[i], inHandles_.back());
+                inHandles_.pop_back();
+                continue;
+            }
+
+            if (absl::StatusOr<int> bytes = handle->write(source, frames); !bytes.ok() || static_cast<unsigned int>(bytes.value()) < frames) {
+                if (!bytes.ok()) {
+                    PLOG(plog::warning) 
+                        << "unfetter: encountered error while writing bytes to handle: "
+                        << handle.get() << ", message: " << bytes.status().message();
+                } else {
+                    PLOG(plog::warning)
+                        << "unfetter: only " << bytes.value() << " bytes were written to handle; expected " << frames;
+                }
+                if (absl::Status status = handle->flush(); !status.ok()) {
+                    PLOG(plog::error) << "unfetter: failed to recover handle, aborting";
+                    return absl::InternalError("failed to recover handle, unfetter failed");
+                }
+            }
+        }
+    }
+
+    return absl::OkStatus();
 }

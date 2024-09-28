@@ -1,13 +1,16 @@
 #pragma once
 
-// laar
+// Boost
+#include <boost/asio.hpp>
+#include <boost/asio/executor.hpp>
+
+// Abseil
 #include <absl/status/status.h>
-#include <src/common/exceptions.hpp>
-#include <src/common/thread-pool.hpp>
-#include <src/common/callback-queue.hpp>
+
+// laar
+#include <boost/asio/io_context.hpp>
 #include <src/ssd/util/config-loader.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
-#include <src/ssd/sound/jobs/async-dispatching-job.hpp>
 #include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
 #include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
@@ -18,10 +21,10 @@
 #include <nlohmann/json_fwd.hpp>
 
 // std
+#include <mutex>
 #include <memory>
 #include <cstdint>
 #include <exception>
-#include <condition_variable>
 
 // plog
 #include <plog/Log.h>
@@ -68,12 +71,12 @@ namespace laar {
 
         static std::shared_ptr<SoundHandler> configure(
             std::shared_ptr<laar::ConfigHandler> configHandler,
-            std::shared_ptr<laar::CallbackQueue> cbQueue
+            std::shared_ptr<boost::asio::io_context> context
         );
 
         SoundHandler(
             std::shared_ptr<laar::ConfigHandler> configHandler, 
-            std::shared_ptr<laar::CallbackQueue> cbQueue,
+            std::shared_ptr<boost::asio::io_context> context,
             Private access
         );
 
@@ -132,31 +135,29 @@ namespace laar {
         absl::Status openCapture(unsigned int dev);
 
         void parseDefaultConfig(const nlohmann::json& config);
-        std::unique_ptr<std::int32_t[]> squash(SoundHandler::LocalData* data, std::size_t frames);
+
+        std::unique_ptr<std::int32_t[]> dispatchAsync(std::unique_ptr<std::int32_t[]> in);
+        std::unique_ptr<std::int32_t[]> squash(std::size_t frames);
+        absl::Status unfetter(std::int32_t* source, std::size_t frames);
 
     private:
 
-        std::shared_ptr<laar::CallbackQueue> cbQueue_;
+        std::future<std::unique_ptr<std::int32_t[]>> future_;
 
-        std::condition_variable cv_;
-        bool init_;
-
-        std::shared_ptr<BassRouterDispatcher> bassDispatcher_;
+        std::once_flag init_;
+        std::shared_ptr<boost::asio::io_context> context_;
 
         std::vector<std::weak_ptr<IWriteHandle>> outHandles_;
         std::vector<std::weak_ptr<IReadHandle>> inHandles_;
 
         std::shared_ptr<laar::ConfigHandler> configHandler_;
+        std::shared_ptr<BassRouterDispatcher> bassDispatcher_;
 
         struct LocalData {
             std::weak_ptr<SoundHandler> object;
             std::atomic<bool> abort;
             std::mutex handlerLock;
-
-            std::unique_ptr<laar::AsyncDispatchingJob> job;
         };
-
-        std::vector<std::unique_ptr<laar::AsyncDispatchingJob>> jobs_;
 
         struct Settings {
             bool isPlaybackEnabled;
