@@ -30,6 +30,7 @@
 #include <future>
 #include <vector>
 #include <cstdint>
+#include <stdexcept>
 #include <exception>
 #include <algorithm>
 #include <functional>
@@ -99,26 +100,26 @@ void SoundHandler::init() {
             auto outputDevice = probeDevices(false);
 
             if (!(inputDevice && outputDevice)) {
-                onError(laar::LaarSoundHandlerError("Device for IO was not acquired"));
+                onError(std::runtime_error("Device for IO was not acquired"));
             }
 
             if (settings_.isCaptureEnabled && settings_.isPlaybackEnabled) {
                 PLOG(plog::info) << "opening duplex stream";
                 if (absl::Status status = openDuplexStream(inputDevice, outputDevice); !status.ok()) {
-                    onError(laar::LaarSoundHandlerError(status.message().data()));
+                    onError(std::runtime_error(status.message().data()));
                 }
             } else if (settings_.isCaptureEnabled) {
                 PLOG(plog::info) << "opening capture stream";
                 if (absl::Status status = openCapture(inputDevice); !status.ok()) {
-                    onError(laar::LaarSoundHandlerError(status.message().data()));
+                    onError(std::runtime_error(status.message().data()));
                 }
             } else if (settings_.isPlaybackEnabled) {
                 PLOG(plog::info) << "opening playback stream";
                 if (absl::Status status = openPlayback(outputDevice); !status.ok()) {
-                    onError(laar::LaarSoundHandlerError(status.message().data()));
+                    onError(std::runtime_error(status.message().data()));
                 }
             } else {
-                onError(laar::LaarSoundHandlerError("at least one option for stream type must be enabled"));
+                onError(std::runtime_error("at least one option for stream type must be enabled"));
             }
         }
     );
@@ -389,11 +390,13 @@ int laar::writeCallback(
         }
     }
 
-    // request more data to dispatch it in async manner
-    buffer = handler->squash(frames);
     handler->future_ = boost::asio::post(*handler->context_, 
-        std::packaged_task<std::unique_ptr<std::int32_t[]>(std::unique_ptr<std::int32_t[]>)>(
-            std::bind(&SoundHandler::dispatchAsync, handler.get(), std::move(buffer))
+        std::packaged_task<std::unique_ptr<std::int32_t[]>()>(
+            [frames, handler]() {
+                // request more data to dispatch it in async manner
+                auto buffer = handler->squash(frames);
+                return handler->dispatchAsync(std::move(buffer));
+            }
         )
     );
 

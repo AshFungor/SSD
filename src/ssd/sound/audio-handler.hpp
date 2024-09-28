@@ -3,12 +3,12 @@
 // Boost
 #include <boost/asio.hpp>
 #include <boost/asio/executor.hpp>
+#include <boost/asio/io_context.hpp>
 
 // Abseil
 #include <absl/status/status.h>
 
 // laar
-#include <boost/asio/io_context.hpp>
 #include <src/ssd/util/config-loader.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 #include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>

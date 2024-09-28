@@ -3,11 +3,9 @@
 #include <absl/status/statusor.h>
 
 // laar
-#include <src/common/exceptions.hpp>
-#include <src/common/ring-buffer.hpp>
 #include <src/ssd/sound/converter.hpp>
+#include <src/ssd/sound/ring-buffer.hpp>
 #include <src/ssd/sound/read-handle.hpp>
-#include <src/common/callback-queue.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
 // Plog

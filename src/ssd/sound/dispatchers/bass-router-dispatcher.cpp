@@ -10,7 +10,6 @@
 #include <cstdint>
 
 // laar
-#include <src/common/exceptions.hpp>
 #include <src/ssd/sound/converter.hpp>
 #include <src/ssd/sound/interfaces/i-dispatcher.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
@@ -110,7 +109,7 @@ BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t
 
     bool bassEmpty = true;
     bool normalEmpty = true;
-    for (int i = 0; i < samples / 2; ++i) {
+    for (std::size_t i = 0; i < samples / 2; ++i) {
         double freq = i * resolution;
 
         if (freq >= range_.lower && freq <= range_.higher) {
@@ -132,7 +131,7 @@ BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t
         fftw_execute(normalBackwardPlan);
         fftw_destroy_plan(normalBackwardPlan);
     } else {
-        for (int i = 0; i < samples; ++i) {
+        for (std::size_t i = 0; i < samples; ++i) {
             complexIn[i][0] = laar::Silence * samples;
             complexIn[i][1] = 0;
         }
@@ -143,7 +142,7 @@ BassRouterDispatcher::Frequencies BassRouterDispatcher::splitWindow(std::int32_t
         fftw_execute(bassBackwardPlan);
         fftw_destroy_plan(bassBackwardPlan);
     } else {
-        for (int i = 0; i < samples; ++i) {
+        for (std::size_t i = 0; i < samples; ++i) {
             complexOut[i][0] = laar::Silence * samples;
             complexOut[i][1] = 0;
         }

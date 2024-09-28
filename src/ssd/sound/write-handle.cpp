@@ -3,11 +3,8 @@
 #include <absl/status/status.h>
 
 // laar
-#include <src/common/macros.hpp>
-#include <src/common/exceptions.hpp>
-#include <src/common/ring-buffer.hpp>
 #include <src/ssd/sound/converter.hpp>
-#include <src/common/callback-queue.hpp>
+#include <src/ssd/sound/ring-buffer.hpp>
 #include <src/ssd/sound/write-handle.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
@@ -129,7 +126,7 @@ absl::StatusOr<int> WriteHandle::write(const char* src, std::size_t size) {
                 converted = convertFromSigned32LE(sample32);
                 break;
             default:
-                SSD_ABORT_UNLESS(false);
+                std::abort();
         }
         buffer_->write((char*) &converted, sizeof(std::uint32_t));
     }

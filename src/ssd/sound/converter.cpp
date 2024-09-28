@@ -2,7 +2,6 @@
 #include <cstdint>
 
 // laar
-#include <src/common/macros.hpp>
 #include <src/ssd/sound/converter.hpp>
 
 // abseil
@@ -140,7 +139,7 @@ std::size_t laar::getSampleSize(ESampleType format) {
         case ESamples::FLOAT_32_LITTLE_ENDIAN:
             return sizeof(std::uint32_t);
         default:
-            SSD_ABORT_UNLESS(false);
+            std::abort();
     }
 }
 

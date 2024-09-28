@@ -1,12 +1,9 @@
 #pragma once
 
 // std
-#include <memory>
 #include <mutex>
-
-// laar
-#include <src/common/exceptions.hpp>
-#include <src/common/callback-queue.hpp>
+#include <vector>
+#include <memory>
 
 
 namespace laar {
@@ -25,10 +22,10 @@ namespace laar {
         virtual ~IBuffer() = default;
     };
 
-    class PlainBuffer : public IBuffer {
+    class RingBuffer : public IBuffer {
     public:
 
-        PlainBuffer(std::size_t size);
+        RingBuffer(std::size_t size);
 
         // IBuffer implementation
         virtual std::size_t writableSize() override;
@@ -38,17 +35,6 @@ namespace laar {
         virtual std::size_t peek(char* dest, std::size_t size) override;
         virtual std::size_t drop(std::size_t size) override;
 
-        char* rPosition();
-        char* wPosition();
-
-        enum class EPosition {
-            WPOS,
-            RPOS
-        };
-
-        std::size_t advance(EPosition position, std::size_t size);
-        void reset();
-
     private:
         // No private methods
 
@@ -57,6 +43,7 @@ namespace laar {
         std::recursive_mutex lock_;
         std::size_t wPos_;
         std::size_t rPos_;
+        bool empty_;
 
     };
 

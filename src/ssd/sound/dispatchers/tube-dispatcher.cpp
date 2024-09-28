@@ -8,7 +8,6 @@
 #include <cstdint>
 
 // Local
-#include <src/common/exceptions.hpp>
 #include <src/ssd/sound/converter.hpp>
 #include <src/ssd/sound/interfaces/i-dispatcher.hpp>
 #include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>

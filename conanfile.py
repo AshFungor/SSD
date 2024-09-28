@@ -9,7 +9,7 @@ class SoundServer(ConanFile):
 
     def requirements(self):
         for req in [
-            'boost/1.86.0',         # Extension to STL: https://conan.io/center/recipes/boost
+            'boost/1.80.0',         # Extension to STL: https://conan.io/center/recipes/boost
             'zlib/1.3.1',           # Deflate-based compression library: https://conan.io/center/recipes/zlib
             'c-ares/1.33.1',        # Async DNS requests: https://conan.io/center/recipes/c-ares
             're2/20240702',         # Regular Expressions: https://conan.io/center/recipes/re2

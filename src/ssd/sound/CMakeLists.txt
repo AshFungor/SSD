@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(SOURCES
+    # buffer (inherited from common)
+    ring-buffer.cpp
     # dispatchers
     dispatchers/bass-router-dispatcher.cpp dispatchers/tube-dispatcher.cpp
     # sound
@@ -8,6 +10,8 @@ set(SOURCES
 )
 
 set(HEADERS
+    # buffer (inherited from common)
+    ring-buffer.hpp
     # interfaces
     interfaces/i-audio-handler.hpp interfaces/i-dispatcher.hpp
     # dispatchers

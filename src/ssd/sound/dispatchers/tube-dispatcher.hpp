@@ -10,7 +10,6 @@
 #include <iterator>
 
 // Local
-#include <src/common/exceptions.hpp>
 #include <src/ssd/sound/converter.hpp>
 #include <src/ssd/sound/interfaces/i-dispatcher.hpp>
 
@@ -209,7 +208,7 @@ laar::ChannelIterator<SampleType>::reference laar::ChannelIterator<SampleType>::
 template<typename SampleType>
 SampleType* laar::ChannelIterator<SampleType>::advance(std::uint32_t distance) {
     if ((distance + shift() > samples_ && distance > 0) || (shift() + distance < 0 && distance < 0)) {
-        throw laar::LaarSoundHandlerError("channel read out of bounds");
+        throw std::runtime_error("channel read out of bounds");
     }
 
     switch (order_) {

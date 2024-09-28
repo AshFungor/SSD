@@ -44,7 +44,7 @@ std::shared_ptr<ConfigHandler> ConfigHandler::configure(
     std::string_view configRootDirectory,
     std::shared_ptr<boost::asio::io_context> context
 ) {
-    return std::make_shared<ConfigHandler>(configRootDirectory, std::move(context));
+    return std::shared_ptr<ConfigHandler>(new ConfigHandler{configRootDirectory, std::move(context)});
 }
 
 ConfigHandler::ConfigHandler(
