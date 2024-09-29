@@ -6,6 +6,7 @@
 #include <absl/status/status.h>
 #include <absl/strings/string_view.h>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 namespace laar {
@@ -45,8 +46,10 @@ namespace laar {
         Session(absl::string_view client);
 
     private:
+        std::once_flag init_;
+
         std::string client_;
-        std::weak_ptr<IStreamHandler::IHandle> handle_;
+        std::shared_ptr<IStreamHandler::IHandle> handle_;
         
         TBaseMessage::TStreamConfiguration streamConfig_;
 

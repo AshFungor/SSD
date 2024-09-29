@@ -3,6 +3,7 @@
 // #include "src/ssd/sound/interfaces/i-audio-handler.hpp"
 #include <absl/status/status.h>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <src/ssd/core/session.hpp>
 
@@ -24,7 +25,23 @@ std::shared_ptr<Session> Session::make(absl::string_view  client) {
 }
 
 absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
-    return absl::OkStatus();
+    absl::Status result = absl::OkStatus();
+    std::call_once(init_, [this, soundHandler, &result]() {
+        if (auto locked = soundHandler.lock()) {
+            switch (streamConfig_.direction()) {
+                case NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::PLAYBACK:
+                    handle_ = locked->acquireWriteHandle(streamConfig_, weak_from_this());
+                    break;
+                case NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::RECORD:
+                    handle_ = locked->acquireReadHandle(streamConfig_, weak_from_this());
+                    break;
+                default:
+                    result = absl::InvalidArgumentError("Steam direction is unsupported");
+            }
+        }
+    });
+
+    return result;
 }
 
 absl::Status Session::onIOOperation(TBaseMessage::TPull message) {
