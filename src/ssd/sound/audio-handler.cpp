@@ -395,7 +395,7 @@ int laar::writeCallback(
             [frames, handler]() {
                 // request more data to dispatch it in async manner
                 auto buffer = handler->squash(frames);
-                return handler->dispatchAsync(std::move(buffer));
+                return handler->dispatchAsync(std::move(buffer), frames);
             }
         )
     );
@@ -457,6 +457,14 @@ std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(
     auto handle = std::make_shared<laar::WriteHandle>(std::move(config), std::move(owner));
     outHandles_.push_back(handle);
     return handle;
+}
+
+std::unique_ptr<std::int32_t[]> SoundHandler::dispatchAsync(std::unique_ptr<std::int32_t[]> in, std::size_t samples) {
+    auto out = std::make_unique<std::int32_t[]>(samples * 2);
+    if (absl::Status status = bassDispatcher_->dispatch(in.get(), out.get(), samples); !status.ok()) {
+        return nullptr;
+    }
+    return out;
 }
 
 std::unique_ptr<std::int32_t[]> SoundHandler::squash(std::size_t frames) {

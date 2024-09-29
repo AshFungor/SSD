@@ -136,7 +136,7 @@ namespace laar {
 
         void parseDefaultConfig(const nlohmann::json& config);
 
-        std::unique_ptr<std::int32_t[]> dispatchAsync(std::unique_ptr<std::int32_t[]> in);
+        std::unique_ptr<std::int32_t[]> dispatchAsync(std::unique_ptr<std::int32_t[]> in, std::size_t samples);
         std::unique_ptr<std::int32_t[]> squash(std::size_t frames);
         absl::Status unfetter(std::int32_t* source, std::size_t frames);
 

@@ -45,6 +45,10 @@ void WriteHandle::abort() {
     isAlive_ = false;
 }
 
+absl::Status WriteHandle::drain() {
+    return absl::OkStatus();
+}
+
 absl::StatusOr<int> WriteHandle::read(std::int32_t* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 

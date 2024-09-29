@@ -20,13 +20,41 @@ std::shared_ptr<Session> Session::find(
 }
 
 std::shared_ptr<Session> Session::make(absl::string_view  client) {
-    return std::make_shared<Session>(client, Private());
+    return std::shared_ptr<Session>(new Session{client});
 }
 
-Session::Session(absl::string_view client, Private access)
-    : client_(client)
-{}
+absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
+    return absl::OkStatus();
+}
 
-absl::Status Session::acquireHandle(std::weak_ptr<laar::IStreamHandler> handler) {
+absl::Status Session::onIOOperation(TBaseMessage::TPull message) {
+    return absl::OkStatus();
+}
+
+absl::Status Session::onIOOperation(TBaseMessage::TPush message) {
+    return absl::OkStatus();
+}
+
+absl::Status Session::onStreamConfiguration(TBaseMessage::TStreamConfiguration message) {
+    return absl::OkStatus();
+}
+
+absl::Status Session::onDrain(TBaseMessage::TStreamDirective message) {
+    return absl::OkStatus();
+}
+
+absl::Status Session::onFlush(TBaseMessage::TStreamDirective message) {
+    return absl::OkStatus();
+}
+
+absl::Status Session::onClose(TBaseMessage::TStreamDirective message) {
+    return absl::OkStatus();
+}
+
+void Session::onBufferDrained(int status) {
     
+}
+
+void Session::onBufferFlushed(int status) {
+     
 }

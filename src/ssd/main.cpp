@@ -42,7 +42,7 @@ int main() {
 
     PLOG(plog::debug) << "module created: " << "SoundHandler; instance: " << soundHandler.get();
 
-    auto routingService = std::make_shared<laar::RoutingService>(soundHandler);
+    auto routingService = laar::RoutingService::configure(soundHandler);
     grpc::ServerBuilder builder;
 
     builder.AddListeningPort("localhost:7777", grpc::InsecureServerCredentials());

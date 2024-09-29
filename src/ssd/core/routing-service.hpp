@@ -2,6 +2,7 @@
 
 // protos
 #include "protos/client/base.pb.h"
+#include "src/ssd/core/session.hpp"
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 #include <absl/status/status.h>
 #include <memory>
@@ -14,15 +15,12 @@ namespace laar {
 
     class RoutingService 
         : public NSound::NServices::SoundStreamRouter::Service
-        , public laar::IStreamHandler::IHandle::IListener
         , public std::enable_shared_from_this<RoutingService> {
     public:
 
         using TBaseMessage = NSound::NClient::NBase::TBaseMessage;
 
-        RoutingService(
-            std::weak_ptr<laar::IStreamHandler> soundHandler
-        );
+        static std::shared_ptr<RoutingService> configure(std::weak_ptr<laar::IStreamHandler> soundHandler);
 
         // SoundStreamRouter implementation
         virtual grpc::Status RouteStream(
@@ -30,23 +28,19 @@ namespace laar {
             grpc::ServerReaderWriter<NSound::TServiceMessage, NSound::TClientMessage>* stream
         ) override;
 
-        // IHandle::IListener implementation
-        virtual void onBufferDrained(int status) override;
-        virtual void onBufferFlushed(int status) override;
-
     private:
 
-        // Data routing
-        void onIOOperation(TBaseMessage::TPull message);
-        void onIOOperation(TBaseMessage::TPush message);
-        void onStreamConfiguration(TBaseMessage::TStreamConfiguration message);
-        // Manipulation
-        void onDrain(TBaseMessage::TStreamDirective message);
-        void onFlush(TBaseMessage::TStreamDirective message);
-        void onClose(TBaseMessage::TStreamDirective message);
+        RoutingService(
+            std::weak_ptr<laar::IStreamHandler> soundHandler
+        );
+
         // error fallback
-        void onRecoverableError(absl::Status error);
-        void onCriticalError(absl::Status error);
+        void onRecoverableError(absl::Status error, std::shared_ptr<laar::Session> session);
+        void onCriticalError(absl::Status error, std::shared_ptr<laar::Session> session);
+
+    private:
+        std::weak_ptr<laar::IStreamHandler> soundHandler_;
+        std::unordered_map<std::string, std::shared_ptr<Session>> sessions_;
 
     };
 

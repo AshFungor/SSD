@@ -10,8 +10,6 @@
 #include <climits>
 
 // laar
-#include <src/common/macros.hpp>
-#include <src/common/exceptions.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 #include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
 #include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
@@ -58,7 +56,7 @@ TEST(DispatcherTest, TestChannelIteratorInterleaved) {
     bool check = true;
     for (std::size_t sample = 0; sample < samples; ++sample) {
         for (std::size_t channel = 0; channel < channels; ++channel) {
-            check &= in[sample * channels + channel] == channel;
+            check &= in[sample * channels + channel] == static_cast<int>(channel);
         }
     }
 
@@ -85,7 +83,7 @@ TEST(DispatcherTest, TestChannelIteratorNoninterleaved) {
     bool check = true;
     for (std::size_t channel = 0; channel < channels; ++channel) {
         for (std::size_t sample = 0; sample < samples; ++sample) {
-            check &= in[samples * channel + sample] == channel;
+            check &= in[samples * channel + sample] == static_cast<int>(channel);
         }
     }
 
@@ -192,9 +190,6 @@ TEST(DispatcherTest, TestBassRouting) {
 
     auto outWrapper = laar::StreamWrapper<std::int32_t>(
         samples, 2, laar::ESamplesOrder::NONINTERLEAVED, out.get()
-    );
-    auto inWrapper = laar::StreamWrapper<std::int32_t>(
-        samples, 1, laar::ESamplesOrder::NONINTERLEAVED, out.get()
     );
 
     // output should be either: original - silent or silent - original

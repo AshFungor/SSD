@@ -11,8 +11,8 @@
 namespace laar {
 
     class Session 
-        : std::enable_shared_from_this<Session> {
-    private: struct Private {};
+        : public laar::IStreamHandler::IHandle::IListener
+        , std::enable_shared_from_this<Session> {
     public:
 
         using TBaseMessage = NSound::NClient::NBase::TBaseMessage;
@@ -23,22 +23,26 @@ namespace laar {
         );
 
         static std::shared_ptr<Session> make(absl::string_view client);
-        Session(absl::string_view client, Private access);
 
-        // Read/write IO handle
-        absl::Status acquireHandle(std::weak_ptr<laar::IStreamHandler> handler);
-        std::weak_ptr<laar::IStreamHandler::IHandle> getHandle() noexcept;
+        absl::Status init(std::weak_ptr<IStreamHandler> soundHandler); 
 
-        // setters
-        absl::Status setConfig(TBaseMessage::TStreamConfiguration configuration);
+        // Data routing
+        absl::Status onIOOperation(TBaseMessage::TPull message);
+        absl::Status onIOOperation(TBaseMessage::TPush message);
+        absl::Status onStreamConfiguration(TBaseMessage::TStreamConfiguration message);
 
-        // getters
-        std::string getStreamName() const noexcept;
-        std::string getClientName() const noexcept;
-        TBaseMessage::TStreamConfiguration::TStreamDirection getDirection() const noexcept;
+        // Manipulation
+        absl::Status onDrain(TBaseMessage::TStreamDirective message);
+        absl::Status onFlush(TBaseMessage::TStreamDirective message);
+        absl::Status onClose(TBaseMessage::TStreamDirective message);
+
+        // IHandle::IListener implementation
+        virtual void onBufferDrained(int status) override;
+        virtual void onBufferFlushed(int status) override;
 
     private:
-        // empty
+
+        Session(absl::string_view client);
 
     private:
         std::string client_;

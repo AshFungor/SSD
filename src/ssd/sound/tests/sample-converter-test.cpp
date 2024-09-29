@@ -8,8 +8,6 @@
 #include <type_traits>
 
 // laar
-#include <src/common/macros.hpp>
-#include <src/common/exceptions.hpp>
 #include <src/ssd/sound/converter.hpp>
 
 #define GTEST_COUT(chain) \

@@ -45,6 +45,10 @@ void ReadHandle::abort() {
     isAlive_ = false;
 }
 
+absl::Status ReadHandle::drain() {
+    return absl::OkStatus();
+}
+
 absl::StatusOr<int> ReadHandle::read(char* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 

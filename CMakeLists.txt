@@ -26,7 +26,9 @@ find_package(FFTW3 CONFIG REQUIRED VERSION 3.3.10)
 set(SSD_EXTERNAL_DEPS 
 	plog::plog 
 	fftw::fftw 
-	boost::boost
+	# linking against tests fails linking Google tests, so pick needed components
+	# here
+	Boost::system Boost::timer Boost::context
 	protobuf::libprotobuf
 	nlohmann_json::nlohmann_json
 )

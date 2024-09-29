@@ -99,7 +99,7 @@ std::uint8_t laar::convertToUnsigned8(std::int32_t sample) {
 }
 
 std::uint32_t laar::convertToFloat32BE(std::int32_t sample) {
-    float floating = (sample > 0) ? ((float) sample / INT32_MAX) : ((float) sample / -INT32_MIN);
+    float floating = (sample > 0) ? ((float) sample / INT32_MAX) : ((float) sample / INT32_MIN * -1);
     return convertToBE(reinterpret_cast<uint32_t&>(floating));
 }
 
