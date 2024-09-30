@@ -1,13 +1,21 @@
-// protos
-#include "src/ssd/core/routing-service.hpp"
-#include "grpcpp/support/status.h"
-#include "protos/client/base.pb.h"
+// laar
+#include <src/ssd/core/session.hpp>
+#include <src/ssd/core/routing-service.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
-#include <absl/status/status.h>
-#include <memory>
-#include <protos/services/sound-router.grpc.pb.h>
+
+// grpc
+#include <grpcpp/support/status.h>
 
 // STD
+#include <protos/client/base.pb.h>
+#include <protos/client-message.pb.h>
+#include <protos/services/sound-router.grpc.pb.h>
+
+// Abseil
+#include <absl/status/status.h>
+
+// protos
+#include <memory>
 
 using namespace laar;
 
@@ -19,7 +27,50 @@ grpc::Status RoutingService::RouteStream(
     grpc::ServerContext* context, 
     grpc::ServerReaderWriter<NSound::TServiceMessage, NSound::TClientMessage>* stream
 ) {
-    return grpc::Status::OK;
+    std::shared_ptr<Session> session = laar::Session::find(context->peer(), sessions_);
+    if (!session) {
+        // new client
+        session = laar::Session::make(context->peer());
+    }
+
+    // serve one message at a time
+    NSound::TClientMessage message;
+    laar::Session::TAPIResult APIResult;
+
+    stream->Read(&message);
+    if (message.has_basemessage()) {
+        // base message set
+        TBaseMessage baseMessage = std::move(*message.mutable_basemessage());
+        if (baseMessage.has_streamconfiguration()) {
+            APIResult = session->onStreamConfiguration(std::move(*baseMessage.mutable_streamconfiguration()));
+        } else if (baseMessage.has_directive()) {
+            switch (baseMessage.directive().type()) {
+                case TBaseMessage::TStreamDirective::DRAIN:
+                    APIResult = session->onDrain(std::move(*baseMessage.mutable_directive()));
+                    break;
+                case TBaseMessage::TStreamDirective::CLOSE:
+                    APIResult = session->onClose(std::move(*baseMessage.mutable_directive()));
+                    break;
+                case TBaseMessage::TStreamDirective::FLUSH:
+                    APIResult = session->onFlush(std::move(*baseMessage.mutable_directive()));
+                    break;
+                default:
+                    return grpc::Status::CANCELLED;
+            }
+        } else if (baseMessage.has_push()) {
+            APIResult = session->onIOOperation(std::move(*baseMessage.mutable_push()));
+        } else if (baseMessage.has_pull()) {
+            APIResult = session->onIOOperation(std::move(*baseMessage.mutable_pull()));
+        }
+    }
+
+    if (APIResult.first.ok()) {
+        stream->Write(APIResult.second);
+        return grpc::Status::OK;
+    }
+
+    onCriticalError(APIResult.first, context->peer());
+    return grpc::Status::CANCELLED;
 }
 
 RoutingService::RoutingService(
@@ -28,10 +79,14 @@ RoutingService::RoutingService(
     : soundHandler_(soundHandler)
 {}
 
-void RoutingService::onRecoverableError(absl::Status error, std::shared_ptr<laar::Session> session) {
-    
+void RoutingService::onRecoverableError(absl::Status error, absl::string_view session) {
+    // do nothing
 }
 
-void RoutingService::onCriticalError(absl::Status error, std::shared_ptr<laar::Session> session) {
-
+void RoutingService::onCriticalError(absl::Status error, absl::string_view session) {
+    if (auto iter = sessions_.find(session.data()); iter != sessions_.end()) {
+        sessions_.extract(iter);
+        return;
+    }
+    std::abort();
 }

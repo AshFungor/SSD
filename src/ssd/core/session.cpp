@@ -1,11 +1,20 @@
-// STD
-#include "protos/client/base.pb.h"
-// #include "src/ssd/sound/interfaces/i-audio-handler.hpp"
-#include <absl/status/status.h>
-#include <memory>
-#include <mutex>
-#include <unordered_map>
+// laar
 #include <src/ssd/core/session.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+
+// grpc
+#include <grpcpp/support/status.h>
+
+// STD
+#include <protos/client/base.pb.h>
+#include <protos/client-message.pb.h>
+#include <protos/services/sound-router.grpc.pb.h>
+
+// Abseil
+#include <absl/status/status.h>
+
+// protos
+#include <memory>
 
 using namespace laar;
 
@@ -20,9 +29,13 @@ std::shared_ptr<Session> Session::find(
     return nullptr;
 }
 
-std::shared_ptr<Session> Session::make(absl::string_view  client) {
+std::shared_ptr<Session> Session::make(absl::string_view client) {
     return std::shared_ptr<Session>(new Session{client});
 }
+
+Session::Session(absl::string_view client) 
+    : client_(client)
+{}
 
 absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
     absl::Status result = absl::OkStatus();
@@ -44,28 +57,28 @@ absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
     return result;
 }
 
-absl::Status Session::onIOOperation(TBaseMessage::TPull message) {
-    return absl::OkStatus();
+laar::Session::TAPIResult Session::onIOOperation(TBaseMessage::TPull message) {
+    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
 }
 
-absl::Status Session::onIOOperation(TBaseMessage::TPush message) {
-    return absl::OkStatus();
+laar::Session::TAPIResult Session::onIOOperation(TBaseMessage::TPush message) {
+    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
 }
 
-absl::Status Session::onStreamConfiguration(TBaseMessage::TStreamConfiguration message) {
-    return absl::OkStatus();
+laar::Session::TAPIResult Session::onStreamConfiguration(TBaseMessage::TStreamConfiguration message) {
+    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
 }
 
-absl::Status Session::onDrain(TBaseMessage::TStreamDirective message) {
-    return absl::OkStatus();
+laar::Session::TAPIResult Session::onDrain(TBaseMessage::TStreamDirective message) {
+    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
 }
 
-absl::Status Session::onFlush(TBaseMessage::TStreamDirective message) {
-    return absl::OkStatus();
+laar::Session::TAPIResult Session::onFlush(TBaseMessage::TStreamDirective message) {
+    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
 }
 
-absl::Status Session::onClose(TBaseMessage::TStreamDirective message) {
-    return absl::OkStatus();
+laar::Session::TAPIResult Session::onClose(TBaseMessage::TStreamDirective message) {
+    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
 }
 
 void Session::onBufferDrained(int status) {

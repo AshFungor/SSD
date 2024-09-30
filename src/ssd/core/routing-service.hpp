@@ -1,15 +1,23 @@
 #pragma once
 
-// protos
-#include "protos/client/base.pb.h"
-#include "src/ssd/core/session.hpp"
+// laar
+#include <src/ssd/core/session.hpp>
+#include <src/ssd/core/routing-service.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
-#include <absl/status/status.h>
-#include <memory>
-#include <protos/services/sound-router.grpc.pb.h>
+
+// grpc
+#include <grpcpp/support/status.h>
 
 // STD
+#include <protos/client/base.pb.h>
+#include <protos/client-message.pb.h>
+#include <protos/services/sound-router.grpc.pb.h>
 
+// Abseil
+#include <absl/status/status.h>
+
+// protos
+#include <memory>
 
 namespace laar {
 
@@ -35,8 +43,8 @@ namespace laar {
         );
 
         // error fallback
-        void onRecoverableError(absl::Status error, std::shared_ptr<laar::Session> session);
-        void onCriticalError(absl::Status error, std::shared_ptr<laar::Session> session);
+        void onRecoverableError(absl::Status error, absl::string_view session);
+        void onCriticalError(absl::Status error, absl::string_view session);
 
     private:
         std::weak_ptr<laar::IStreamHandler> soundHandler_;

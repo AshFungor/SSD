@@ -45,12 +45,16 @@ namespace laar {
             virtual absl::Status drain() = 0;
             virtual void abort() = 0;
 
+            // IO for override, take not that not all of them valid in context of children classes
+            virtual absl::StatusOr<int> read(char* src, std::size_t size) = 0;
+            virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) = 0;
+            virtual absl::StatusOr<int> write(const char* src, std::size_t size) = 0;
+            virtual absl::StatusOr<int> write(const std::int32_t* dest, std::size_t size) = 0;
+
             // // getters
-            // virtual float getVolume() const = 0;
             virtual ESampleType getFormat() const = 0;
 
             // // setters
-            // virtual void setVolume(float volume) const = 0;
 
             // status
             virtual bool isAlive() noexcept = 0;
@@ -61,15 +65,31 @@ namespace laar {
         class IReadHandle : public IHandle {
         public:
             virtual ~IReadHandle() = default;
-            virtual absl::StatusOr<int> read(char* src, std::size_t size) = 0;
-            virtual absl::StatusOr<int> write(const std::int32_t* dest, std::size_t size) = 0;
+            virtual absl::StatusOr<int> read(char* src, std::size_t size) override = 0;
+            virtual absl::StatusOr<int> write(const std::int32_t* dest, std::size_t size) override = 0;
+
+        private:
+            virtual absl::StatusOr<int> write(const char* src, std::size_t size) override { 
+                return absl::InternalError("not implemented");
+            }
+            virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) override { 
+                return absl::InternalError("not implemented");
+            }
         };
 
         class IWriteHandle : public IHandle {
         public:
             virtual ~IWriteHandle() = default;
-            virtual absl::StatusOr<int> write(const char* src, std::size_t size) = 0;
-            virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) = 0;
+            virtual absl::StatusOr<int> write(const char* src, std::size_t size) override = 0;
+            virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) override = 0;
+
+        private:
+            virtual absl::StatusOr<int> read(char* src, std::size_t size) override { 
+                return absl::InternalError("not implemented");
+            }
+            virtual absl::StatusOr<int> write(const std::int32_t* dest, std::size_t size) override { 
+                return absl::InternalError("not implemented");
+            }
         };
 
         virtual void init() = 0;

@@ -113,17 +113,10 @@ message TBaseMessage {
         bytes Data = 1;
     }
 
-    // Dummy message, possibly holding server error
-    message TConfirm {
-        // empty
-        optional string error = 1;
-    }
-
     oneof Request {
         TPush Push = 1;
         TPull Pull = 2;
         TStreamDirective Directive = 3;
         TStreamConfiguration StreamConfiguration = 4;
-        TConfirm Confirm = 5;
     }
 }

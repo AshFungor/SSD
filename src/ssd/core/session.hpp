@@ -1,13 +1,22 @@
 #pragma once
 
+// laar
+#include <src/ssd/core/session.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+
+// grpc
+#include <grpcpp/support/status.h>
+
 // STD
-#include "protos/client/base.pb.h"
-#include "src/ssd/sound/interfaces/i-audio-handler.hpp"
+#include <protos/client/base.pb.h>
+#include <protos/client-message.pb.h>
+#include <protos/services/sound-router.grpc.pb.h>
+
+// Abseil
 #include <absl/status/status.h>
-#include <absl/strings/string_view.h>
+
+// protos
 #include <memory>
-#include <mutex>
-#include <unordered_map>
 
 namespace laar {
 
@@ -17,6 +26,7 @@ namespace laar {
     public:
 
         using TBaseMessage = NSound::NClient::NBase::TBaseMessage;
+        using TAPIResult = std::pair<absl::Status, NSound::TServiceMessage>;
 
         static std::shared_ptr<Session> find(
             std::string client, 
@@ -28,14 +38,14 @@ namespace laar {
         absl::Status init(std::weak_ptr<IStreamHandler> soundHandler); 
 
         // Data routing
-        absl::Status onIOOperation(TBaseMessage::TPull message);
-        absl::Status onIOOperation(TBaseMessage::TPush message);
-        absl::Status onStreamConfiguration(TBaseMessage::TStreamConfiguration message);
+        TAPIResult onIOOperation(TBaseMessage::TPull message);
+        TAPIResult onIOOperation(TBaseMessage::TPush message);
+        TAPIResult onStreamConfiguration(TBaseMessage::TStreamConfiguration message);
 
         // Manipulation
-        absl::Status onDrain(TBaseMessage::TStreamDirective message);
-        absl::Status onFlush(TBaseMessage::TStreamDirective message);
-        absl::Status onClose(TBaseMessage::TStreamDirective message);
+        TAPIResult onDrain(TBaseMessage::TStreamDirective message);
+        TAPIResult onFlush(TBaseMessage::TStreamDirective message);
+        TAPIResult onClose(TBaseMessage::TStreamDirective message);
 
         // IHandle::IListener implementation
         virtual void onBufferDrained(int status) override;
