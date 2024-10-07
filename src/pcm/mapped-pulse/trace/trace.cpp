@@ -1,5 +1,11 @@
+// Abseil (google common libs)
+#include <absl/status/status.h>
+
 // Pulse
 #include <pulse/sample.h>
+
+// local
+#include <src/pcm/mapped-pulse/trace/trace.hpp>
 
 // STD
 #include <chrono>
@@ -11,7 +17,6 @@
 #include <sstream>
 #include <string>
 
-#include "trace.hpp"
 
 // case section for mapping enum values to string literals
 #define CASE(literal, var, str) \
@@ -44,29 +49,42 @@ std::ostream& __pcm_trace_internal::warning(std::ostream& os) {
     return __pcm_trace_internal::timedLog(os, "[warning]");
 }
 
-void pcm_log::logError(const std::string& fmt, std::format_args args) {
-    #if defined(LOG_LEVEL) && LOG_LEVEL <= 3
-    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    __pcm_trace_internal::error(s_err) << std::vformat(fmt, args);
-    __pcm_trace_internal::error(s_out) << std::vformat(fmt, args);
-    #endif
+absl::Status pcm_log::configureLogging(std::ostream* os) {
+    __pcm_trace_internal::os = os;
+    if (!os) {
+        return absl::OkStatus();
+    }
+    return (os->bad()) ? absl::InternalError("Stream is invalid") : absl::OkStatus();
 }
 
-void pcm_log::logInfo(const std::string& fmt, std::format_args args) {
-    #if defined(LOG_LEVEL) && LOG_LEVEL <= 1
-    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    __pcm_trace_internal::info(s_out) << std::vformat(fmt, args);
-    #endif
+absl::Status pcm_log::logError(const std::string& fmt, std::format_args args) {
+    std::unique_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
+    if (!__pcm_trace_internal::os) {
+        return absl::OkStatus();
+    }
+    __pcm_trace_internal::error(*__pcm_trace_internal::os) << std::vformat(fmt, args);
+    return (!__pcm_trace_internal::os->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
 }
 
-void pcm_log::logWarning(const std::string& fmt, std::format_args args) {
-    #if defined(LOG_LEVEL) && LOG_LEVEL <= 2
-    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    __pcm_trace_internal::warning(s_out) << std::vformat(fmt, args);
-    #endif
+absl::Status pcm_log::logInfo(const std::string& fmt, std::format_args args) {
+    std::unique_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
+    if (!__pcm_trace_internal::os) {
+        return absl::OkStatus();
+    }
+    __pcm_trace_internal::info(*__pcm_trace_internal::os) << std::vformat(fmt, args);
+    return (!__pcm_trace_internal::os->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
 }
 
-std::string pcm_log::pa_buffer_attr_to_string(const pa_buffer_attr *attr) {
+absl::Status pcm_log::logWarning(const std::string& fmt, std::format_args args) {
+    std::unique_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
+    if (!__pcm_trace_internal::os) {
+        return absl::OkStatus();
+    }
+    __pcm_trace_internal::warning(*__pcm_trace_internal::os) << std::vformat(fmt, args);
+    return (!__pcm_trace_internal::os->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
+}
+
+std::string pcm_log::toString(const pa_buffer_attr *attr) {
     if (!attr) {
         return "{null}";
     }
@@ -79,16 +97,16 @@ std::string pcm_log::pa_buffer_attr_to_string(const pa_buffer_attr *attr) {
     return ss.str();
 }
 
-std::string pcm_log::pa_volume_to_string(const pa_cvolume *v) {
+std::string pcm_log::toString(const pa_cvolume *v) {
     if (!v) {
         return "0:{}";
     }
 
-    const auto& channel_count = std::min<std::uint32_t>(v->channels, PA_CHANNELS_MAX);
+    const auto channelCount = std::min<std::uint32_t>(v->channels, PA_CHANNELS_MAX);
     std::stringstream ss;
 
     ss << v->channels << ":{";
-    for (auto i = 0; i < channel_count; ++i) {
+    for (std::size_t i = 0; i < channelCount; ++i) {
         if (i != 0) {
             ss << ", ";
         }
@@ -99,7 +117,7 @@ std::string pcm_log::pa_volume_to_string(const pa_cvolume *v) {
     return ss.str();
 }
 
-std::string pcm_log::pa_channel_position_t_to_string(const pa_channel_position_t pos) {
+std::string pcm_log::toString(const pa_channel_position_t pos) {
     std::string result;
 
     switch (pos) {
@@ -163,7 +181,7 @@ std::string pcm_log::pa_channel_position_t_to_string(const pa_channel_position_t
     return std::vformat("{}({})", std::make_format_args(result, posNumeric));
 }
 
-std::string pcm_log::pa_channel_map_to_string(const pa_channel_map *m) {
+std::string pcm_log::toString(const pa_channel_map *m) {
     if (!m) {
         return "{null}";
     }
@@ -171,19 +189,19 @@ std::string pcm_log::pa_channel_map_to_string(const pa_channel_map *m) {
     std::stringstream ss;
     ss << m->channels << ":{";
 
-    const auto& channel_count = std::min<std::uint32_t>(m->channels, PA_CHANNELS_MAX);
-    for (auto i = 0; i < channel_count; ++i) {
+    const auto channel_count = std::min<std::uint32_t>(m->channels, PA_CHANNELS_MAX);
+    for (std::size_t i = 0; i < channel_count; ++i) {
         if (i != 0) {
             ss << ", ";
         }
-        ss << pa_channel_position_t_to_string(m->map[i]);
+        ss << toString(m->map[i]);
     }
     ss << "}";
 
     return ss.str();
 }
 
-std::string pcm_log::pa_sample_format_t_to_string(pa_sample_format_t sf) {
+std::string pcm_log::toString(pa_sample_format_t sf) {
     std::string fmt;
     switch (sf) {
         CASE(PA_SAMPLE_U8, fmt, "U8")
@@ -208,12 +226,12 @@ std::string pcm_log::pa_sample_format_t_to_string(pa_sample_format_t sf) {
     return std::vformat("{}({})", std::make_format_args(fmt, sfNumeric));
 }
 
-std::string trace_pa_sample_spec_as_string(const pa_sample_spec *ss) {
+std::string pcm_log::toString(const pa_sample_spec *ss) {
     if (!ss) {
         return "{null}";
     }
 
-    const auto format = pa_sample_format_t_to_string(ss->format);
+    const auto format = toString(ss->format);
     return std::vformat("{format = {}, rate = {}, channels = {}}",
                         std::make_format_args(format, ss->rate, ss->channels));
 }

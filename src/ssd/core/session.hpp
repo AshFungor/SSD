@@ -1,6 +1,8 @@
 #pragma once
 
 // laar
+#include "protos/service/base.pb.h"
+#include <queue>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
@@ -56,12 +58,17 @@ namespace laar {
         Session(absl::string_view client);
 
     private:
+
+        enum class EState {
+            NORMAL, DRAINED, FLUSHED, CLOSED 
+        } state_;
+
         std::once_flag init_;
 
         std::string client_;
         std::shared_ptr<IStreamHandler::IHandle> handle_;
         
-        TBaseMessage::TStreamConfiguration streamConfig_;
+        std::optional<TBaseMessage::TStreamConfiguration> streamConfig_;
 
     };
 

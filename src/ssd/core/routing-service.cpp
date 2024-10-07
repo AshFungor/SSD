@@ -11,6 +11,10 @@
 #include <protos/client-message.pb.h>
 #include <protos/services/sound-router.grpc.pb.h>
 
+// plog
+#include <plog/Log.h>
+#include <plog/Severity.h>
+
 // Abseil
 #include <absl/status/status.h>
 
@@ -28,21 +32,26 @@ grpc::Status RoutingService::RouteStream(
     grpc::ServerReaderWriter<NSound::TServiceMessage, NSound::TClientMessage>* stream
 ) {
     std::shared_ptr<Session> session = laar::Session::find(context->peer(), sessions_);
-    if (!session) {
-        // new client
-        session = laar::Session::make(context->peer());
-    }
 
     // serve one message at a time
     NSound::TClientMessage message;
     laar::Session::TAPIResult APIResult;
-
     stream->Read(&message);
+
+    if (!session) {
+        // new client
+        session = laar::Session::make(context->peer());       
+    }
+
     if (message.has_basemessage()) {
         // base message set
         TBaseMessage baseMessage = std::move(*message.mutable_basemessage());
         if (baseMessage.has_streamconfiguration()) {
             APIResult = session->onStreamConfiguration(std::move(*baseMessage.mutable_streamconfiguration()));
+            if (absl::Status result = session->init(soundHandler_); !result.ok()) {
+                onCriticalError(result, context->peer());
+                return grpc::Status::CANCELLED;
+            }
         } else if (baseMessage.has_directive()) {
             switch (baseMessage.directive().type()) {
                 case TBaseMessage::TStreamDirective::DRAIN:
@@ -84,6 +93,7 @@ void RoutingService::onRecoverableError(absl::Status error, absl::string_view se
 }
 
 void RoutingService::onCriticalError(absl::Status error, absl::string_view session) {
+    PLOG(plog::error) << "error on peer: " << session << "; message: " << error.message();
     if (auto iter = sessions_.find(session.data()); iter != sessions_.end()) {
         sessions_.extract(iter);
         return;
