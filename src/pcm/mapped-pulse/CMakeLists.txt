@@ -1,7 +1,17 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(SOURCES simple.cpp trace/trace.cpp utils/utf8.cpp utils/xmalloc.cpp)
-set(HEADERS simple.hpp trace/trace.hpp utils/macros.hpp)
+set(SOURCES 
+    simple.cpp 
+    trace/trace.cpp 
+    utils/utf8.cpp 
+    utils/xmalloc.cpp
+    channel-map/channel-map.cpp
+)
+set(HEADERS 
+    simple.hpp 
+    trace/trace.hpp 
+    utils/macros.hpp
+)
 
 add_library(pcm STATIC ${HEADERS} ${SOURCES})
 
