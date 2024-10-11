@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package NSound.NService.NBase;
 
+import "protos/client/base.proto"; 
+
 /*
 This file provides basic server responses, similar to client ones.
 */
@@ -9,13 +11,18 @@ This file provides basic server responses, similar to client ones.
 // Base message - holder for base messages.
 message TBaseMessage {
 
-    // Dummy message, possibly holding server error
-    message TConfirm {
-        // empty
-        optional string error = 1;
+    // Pulled data (for record sreams)
+    message TPull {
+        bytes Data = 1;
+    }
+
+    // confirmation for directives
+    message TDirectiveSatisfied {
+        NSound.NClient.NBase.TBaseMessage.TStreamDirective.EDirective Directive = 1;
     }
 
     oneof Request {
-        TConfirm Confirm = 1;
+        TPull Pull = 1;
+        TDirectiveSatisfied DirectiveSatisfied = 2;
     }
 }

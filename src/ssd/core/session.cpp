@@ -1,24 +1,30 @@
 // laar
+#include <optional>
 #include <src/ssd/core/session.hpp>
+#include <src/ssd/sound/converter.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
 // grpc
 #include <grpcpp/support/status.h>
 
-// STD
+// protos
 #include <protos/client/base.pb.h>
+#include <protos/service/base.pb.h>
 #include <protos/client-message.pb.h>
+#include <protos/server-message.pb.h>
 #include <protos/services/sound-router.grpc.pb.h>
 
 // Abseil
 #include <absl/status/status.h>
+#include <absl/strings/str_format.h>
 
 // plog
 #include <plog/Log.h>
 #include <plog/Severity.h>
 
-// protos
+// STD
 #include <memory>
+#include <utility>
 
 using namespace laar;
 
@@ -121,11 +127,34 @@ absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
 }
 
 laar::Session::TAPIResult Session::onIOOperation(TBaseMessage::TPull message) {
-    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
+    PLOG(plog::debug) << "received IO operation (pull) directive on protocol " << this << " effective size is " << message.size();
+
+    if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::PLAYBACK) {
+        return std::make_pair(absl::InternalError("received wrong IO operation: read"), std::nullopt);
+
+    } else if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::RECORD) {
+        auto buffer = std::make_unique<char[]>(laar::getSampleSize(streamConfig_->samplespec().format()) * message.size());
+        auto status = handle_->read(buffer.get(), message.size());
+        PLOG(plog::debug) << "write status: " << status.status().ToString();
+        return std::make_pair(absl::OkStatus(), std::nullopt);
+
+    }
+
+    return std::make_pair(absl::InternalError("received wrong IO operation: unknown"), std::nullopt);
 }
 
 laar::Session::TAPIResult Session::onIOOperation(TBaseMessage::TPush message) {
-    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
+    PLOG(plog::debug) << "received IO operation (push) directive on session " << this << " effective size is " << message.data().size();
+
+    if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::PLAYBACK) {
+        auto status = handle_->write(message.data().c_str(), message.datasamplesize());
+        PLOG(plog::debug) << "write status: " << status.status().ToString();
+        return std::make_pair(absl::OkStatus(), std::nullopt);
+    } else if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::RECORD) {
+        return std::make_pair(absl::InternalError("received wrong IO operation: write"), std::nullopt);
+    }
+
+    return std::make_pair(absl::InternalError("received wrong IO operation: unknown"), std::nullopt);
 }
 
 laar::Session::TAPIResult Session::onStreamConfiguration(TBaseMessage::TStreamConfiguration message) {
@@ -135,28 +164,48 @@ laar::Session::TAPIResult Session::onStreamConfiguration(TBaseMessage::TStreamCo
     }
 
     streamConfig_ = std::move(message);
-    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
+    return std::make_pair(absl::OkStatus(), std::nullopt);
 }
 
 laar::Session::TAPIResult Session::onDrain(TBaseMessage::TStreamDirective message) {
     absl::Status status = handle_->drain();
-    return std::make_pair(status, NSound::TServiceMessage::default_instance());
+    return std::make_pair(status, std::nullopt);
 }
 
 laar::Session::TAPIResult Session::onFlush(TBaseMessage::TStreamDirective message) {
     absl::Status status = handle_->flush();
-    return std::make_pair(status, NSound::TServiceMessage::default_instance());
+    return std::make_pair(status, std::nullopt);
 }
 
 laar::Session::TAPIResult Session::onClose(TBaseMessage::TStreamDirective message) {
     handle_->abort();
-    return std::make_pair(absl::OkStatus(), NSound::TServiceMessage::default_instance());
+    return std::make_pair(absl::OkStatus(), std::nullopt);
 }
 
 void Session::onBufferDrained(int status) {
-    
+    updateState(EState::DRAINED);
 }
 
 void Session::onBufferFlushed(int status) {
-     
+    updateState(EState::FLUSHED);
+}
+
+Session::~Session() {
+    if (handle_) {
+        handle_->abort();
+    }
+}
+
+void Session::updateState(EState flag) {
+    if (state_ & static_cast<std::uint32_t>(flag)) {
+        PLOG(plog::error) << "double set on state: " << static_cast<std::uint32_t>(flag);
+    }
+
+    state_ &= static_cast<std::uint32_t>(flag);
+}
+
+std::uint32_t Session::emptyState() {
+    std::uint32_t holder = state_;
+    state_ = static_cast<std::uint32_t>(EState::NORMAL);
+    return holder;
 }

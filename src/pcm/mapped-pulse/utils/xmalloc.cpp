@@ -24,7 +24,7 @@ namespace {
     /* out-of-memory fallback */
     PCM_GCC_NORETURN void oom() {
         static const char error[] = "Not enough memory";
-        pcm_log::logError("{}", std::make_format_args(error)).IgnoreError();
+        pcm_log::logFormatError("{}", std::make_format_args(error)).IgnoreError();
         std::abort();
     }
 

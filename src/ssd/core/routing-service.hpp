@@ -2,7 +2,6 @@
 
 // laar
 #include <src/ssd/core/session.hpp>
-#include <src/ssd/core/routing-service.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
 // grpc

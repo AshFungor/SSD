@@ -18,6 +18,17 @@
 #include <string>
 
 
+namespace {
+
+    // output sink, defaulting to null
+    static std::ostream* globalOS = nullptr;
+
+    // global lock for error/output
+    static std::mutex GStandardLock;
+
+}
+
+
 // case section for mapping enum values to string literals
 #define CASE(literal, var, str) \
     case literal:               \
@@ -32,7 +43,7 @@ using namespace pcm_log;
 
 std::ostream& __pcm_trace_internal::timedLog(std::ostream& os, const std::string& tag) {
     const auto now = std::chrono::high_resolution_clock::now();
-    const auto reps = now.time_since_epoch().count();
+    const std::time_t reps = std::chrono::system_clock::to_time_t(now);
     os << std::put_time(std::localtime(&reps), "[%d:%m:%Y %H:%M:%S]");
     return os << "[PCM]" << tag << " ";
 }
@@ -50,38 +61,50 @@ std::ostream& __pcm_trace_internal::warning(std::ostream& os) {
 }
 
 absl::Status pcm_log::configureLogging(std::ostream* os) {
-    __pcm_trace_internal::os = os;
-    if (!os) {
+    globalOS = os;
+    if (!globalOS) {
         return absl::OkStatus();
     }
-    return (os->bad()) ? absl::InternalError("Stream is invalid") : absl::OkStatus();
+    return (globalOS->bad()) ? absl::InternalError("Stream is invalid") : absl::OkStatus();
 }
 
-absl::Status pcm_log::logError(const std::string& fmt, std::format_args args) {
-    std::unique_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    if (!__pcm_trace_internal::os) {
+absl::Status pcm_log::logFormatError(const std::string& fmt, std::format_args args) {
+    std::unique_lock<std::mutex> lock {GStandardLock};
+    if (!globalOS) {
         return absl::OkStatus();
     }
-    __pcm_trace_internal::error(*__pcm_trace_internal::os) << std::vformat(fmt, args);
-    return (!__pcm_trace_internal::os->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
+    __pcm_trace_internal::error(*globalOS) << std::vformat(fmt, args);
+    return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
 }
 
-absl::Status pcm_log::logInfo(const std::string& fmt, std::format_args args) {
-    std::unique_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    if (!__pcm_trace_internal::os) {
+absl::Status pcm_log::logFormatInfo(const std::string& fmt, std::format_args args) {
+    std::unique_lock<std::mutex> lock {GStandardLock};
+    if (!globalOS) {
         return absl::OkStatus();
     }
-    __pcm_trace_internal::info(*__pcm_trace_internal::os) << std::vformat(fmt, args);
-    return (!__pcm_trace_internal::os->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
+    __pcm_trace_internal::info(*globalOS) << std::vformat(fmt, args);
+    return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
 }
 
-absl::Status pcm_log::logWarning(const std::string& fmt, std::format_args args) {
-    std::unique_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    if (!__pcm_trace_internal::os) {
+absl::Status pcm_log::logFormatWarning(const std::string& fmt, std::format_args args) {
+    std::unique_lock<std::mutex> lock {GStandardLock};
+    if (!globalOS) {
         return absl::OkStatus();
     }
-    __pcm_trace_internal::warning(*__pcm_trace_internal::os) << std::vformat(fmt, args);
-    return (!__pcm_trace_internal::os->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
+    __pcm_trace_internal::warning(*globalOS) << std::vformat(fmt, args);
+    return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
+}
+
+void pcm_log::logErrorSilent(const std::string& fmt, std::format_args args){
+    logFormatError(std::move(fmt), std::move(args)).IgnoreError();
+}
+
+void logInfoSilent(const std::string& fmt, std::format_args args) {
+    logFormatInfo(std::move(fmt), std::move(args)).IgnoreError();
+}
+
+void logWarningSilent(const std::string& fmt, std::format_args args) {
+    logFormatWarning(std::move(fmt), std::move(args)).IgnoreError();
 }
 
 std::string pcm_log::toString(const pa_buffer_attr *attr) {

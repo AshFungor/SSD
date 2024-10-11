@@ -93,7 +93,8 @@ message TBaseMessage {
 
     // Message holding bytes for playing on server
     message TPush {
-        bytes Data = 1; 
+        bytes Data = 1;
+        uint64 DataSampleSize = 2;
     }
 
     // Message for stream manipulation
@@ -110,7 +111,7 @@ message TBaseMessage {
 
     // Pulls sound data from recording stream
     message TPull {
-        bytes Data = 1;
+        uint32 size = 1;
     }
 
     oneof Request {

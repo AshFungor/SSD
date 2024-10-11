@@ -1,3 +1,6 @@
+// Abseil
+#include <absl/strings/str_split.h>
+
 // pulse
 #include <pulse/sample.h>
 #include <pulse/xmalloc.h>
@@ -5,6 +8,7 @@
 
 // STD
 #include <array>
+#include <memory>
 #include <bitset>
 #include <cstdio>
 #include <cstring>
@@ -78,26 +82,6 @@ namespace {
     #define PA_CHANNEL_POSITION_MASK_ALL            \
         ((pa_channel_position_mask_t) (PA_CHANNEL_POSITION_MASK(PA_CHANNEL_POSITION_MAX) - 1))
 
-    /* Split the specified string wherever one of the characters in delimiter
-    * occurs. Each time it is called returns a newly allocated string
-    * with pa_xmalloc(). The variable state points to, should be
-    * initialized to NULL before the first call. */
-    char* strSplit(const char* c, const char* delimiter, const char** state) {
-        const char *current = *state ? *state : c;
-        size_t l;
-
-        if (!*current)
-            return NULL;
-
-        l = strcspn(current, delimiter);
-        *state = current + l;
-
-        if (**state)
-            (*state)++;
-
-        return pa_xstrndup(current, l);
-    }
-
     template<std::size_t BitsetSize, std::size_t DesignatorsSize>
     bool compareBitsetToIntegers(std::bitset<BitsetSize>& bitset, std::array<std::size_t, DesignatorsSize> designators) {
         std::bitset<BitsetSize> temp;
@@ -108,131 +92,142 @@ namespace {
         return temp == bitset;
     }
 
-    static const char *const table[PA_CHANNEL_POSITION_MAX] = {
-        [PA_CHANNEL_POSITION_MONO] = "mono",
+    std::unique_ptr<std::string[]> makeTable() {
+        auto table = std::make_unique<std::string[]>(PA_CHANNEL_POSITION_MAX);
 
-        [PA_CHANNEL_POSITION_FRONT_CENTER] = "front-center",
-        [PA_CHANNEL_POSITION_FRONT_LEFT] = "front-left",
-        [PA_CHANNEL_POSITION_FRONT_RIGHT] = "front-right",
+        table[PA_CHANNEL_POSITION_MONO] = "mono";
 
-        [PA_CHANNEL_POSITION_REAR_CENTER] = "rear-center",
-        [PA_CHANNEL_POSITION_REAR_LEFT] = "rear-left",
-        [PA_CHANNEL_POSITION_REAR_RIGHT] = "rear-right",
+        table[PA_CHANNEL_POSITION_FRONT_CENTER] = "front-center";
+        table[PA_CHANNEL_POSITION_FRONT_LEFT] = "front-left";
+        table[PA_CHANNEL_POSITION_FRONT_RIGHT] = "front-right";
 
-        [PA_CHANNEL_POSITION_LFE] = "lfe",
+        table[PA_CHANNEL_POSITION_REAR_CENTER] = "rear-center";
+        table[PA_CHANNEL_POSITION_REAR_LEFT] = "rear-left";
+        table[PA_CHANNEL_POSITION_REAR_RIGHT] = "rear-right";
 
-        [PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER] = "front-left-of-center",
-        [PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER] = "front-right-of-center",
+        table[PA_CHANNEL_POSITION_LFE] = "lfe";
 
-        [PA_CHANNEL_POSITION_SIDE_LEFT] = "side-left",
-        [PA_CHANNEL_POSITION_SIDE_RIGHT] = "side-right",
+        table[PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER] = "front-left-of-center";
+        table[PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER] = "front-right-of-center";
 
-        [PA_CHANNEL_POSITION_AUX0] = "aux0",
-        [PA_CHANNEL_POSITION_AUX1] = "aux1",
-        [PA_CHANNEL_POSITION_AUX2] = "aux2",
-        [PA_CHANNEL_POSITION_AUX3] = "aux3",
-        [PA_CHANNEL_POSITION_AUX4] = "aux4",
-        [PA_CHANNEL_POSITION_AUX5] = "aux5",
-        [PA_CHANNEL_POSITION_AUX6] = "aux6",
-        [PA_CHANNEL_POSITION_AUX7] = "aux7",
-        [PA_CHANNEL_POSITION_AUX8] = "aux8",
-        [PA_CHANNEL_POSITION_AUX9] = "aux9",
-        [PA_CHANNEL_POSITION_AUX10] = "aux10",
-        [PA_CHANNEL_POSITION_AUX11] = "aux11",
-        [PA_CHANNEL_POSITION_AUX12] = "aux12",
-        [PA_CHANNEL_POSITION_AUX13] = "aux13",
-        [PA_CHANNEL_POSITION_AUX14] = "aux14",
-        [PA_CHANNEL_POSITION_AUX15] = "aux15",
-        [PA_CHANNEL_POSITION_AUX16] = "aux16",
-        [PA_CHANNEL_POSITION_AUX17] = "aux17",
-        [PA_CHANNEL_POSITION_AUX18] = "aux18",
-        [PA_CHANNEL_POSITION_AUX19] = "aux19",
-        [PA_CHANNEL_POSITION_AUX20] = "aux20",
-        [PA_CHANNEL_POSITION_AUX21] = "aux21",
-        [PA_CHANNEL_POSITION_AUX22] = "aux22",
-        [PA_CHANNEL_POSITION_AUX23] = "aux23",
-        [PA_CHANNEL_POSITION_AUX24] = "aux24",
-        [PA_CHANNEL_POSITION_AUX25] = "aux25",
-        [PA_CHANNEL_POSITION_AUX26] = "aux26",
-        [PA_CHANNEL_POSITION_AUX27] = "aux27",
-        [PA_CHANNEL_POSITION_AUX28] = "aux28",
-        [PA_CHANNEL_POSITION_AUX29] = "aux29",
-        [PA_CHANNEL_POSITION_AUX30] = "aux30",
-        [PA_CHANNEL_POSITION_AUX31] = "aux31",
+        table[PA_CHANNEL_POSITION_SIDE_LEFT] = "side-left";
+        table[PA_CHANNEL_POSITION_SIDE_RIGHT] = "side-right";
 
-        [PA_CHANNEL_POSITION_TOP_CENTER] = "top-center",
+        table[PA_CHANNEL_POSITION_AUX0] = "aux0";
+        table[PA_CHANNEL_POSITION_AUX1] = "aux1";
+        table[PA_CHANNEL_POSITION_AUX2] = "aux2";
+        table[PA_CHANNEL_POSITION_AUX3] = "aux3";
+        table[PA_CHANNEL_POSITION_AUX4] = "aux4";
+        table[PA_CHANNEL_POSITION_AUX5] = "aux5";
+        table[PA_CHANNEL_POSITION_AUX6] = "aux6";
+        table[PA_CHANNEL_POSITION_AUX7] = "aux7";
+        table[PA_CHANNEL_POSITION_AUX8] = "aux8";
+        table[PA_CHANNEL_POSITION_AUX9] = "aux9";
+        table[PA_CHANNEL_POSITION_AUX10] = "aux10";
+        table[PA_CHANNEL_POSITION_AUX11] = "aux11";
+        table[PA_CHANNEL_POSITION_AUX12] = "aux12";
+        table[PA_CHANNEL_POSITION_AUX13] = "aux13";
+        table[PA_CHANNEL_POSITION_AUX14] = "aux14";
+        table[PA_CHANNEL_POSITION_AUX15] = "aux15";
+        table[PA_CHANNEL_POSITION_AUX16] = "aux16";
+        table[PA_CHANNEL_POSITION_AUX17] = "aux17";
+        table[PA_CHANNEL_POSITION_AUX18] = "aux18";
+        table[PA_CHANNEL_POSITION_AUX19] = "aux19";
+        table[PA_CHANNEL_POSITION_AUX20] = "aux20";
+        table[PA_CHANNEL_POSITION_AUX21] = "aux21";
+        table[PA_CHANNEL_POSITION_AUX22] = "aux22";
+        table[PA_CHANNEL_POSITION_AUX23] = "aux23";
+        table[PA_CHANNEL_POSITION_AUX24] = "aux24";
+        table[PA_CHANNEL_POSITION_AUX25] = "aux25";
+        table[PA_CHANNEL_POSITION_AUX26] = "aux26";
+        table[PA_CHANNEL_POSITION_AUX27] = "aux27";
+        table[PA_CHANNEL_POSITION_AUX28] = "aux28";
+        table[PA_CHANNEL_POSITION_AUX29] = "aux29";
+        table[PA_CHANNEL_POSITION_AUX30] = "aux30";
+        table[PA_CHANNEL_POSITION_AUX31] = "aux31";
 
-        [PA_CHANNEL_POSITION_TOP_FRONT_CENTER] = "top-front-center",
-        [PA_CHANNEL_POSITION_TOP_FRONT_LEFT] = "top-front-left",
-        [PA_CHANNEL_POSITION_TOP_FRONT_RIGHT] = "top-front-right",
+        table[PA_CHANNEL_POSITION_TOP_CENTER] = "top-center";
 
-        [PA_CHANNEL_POSITION_TOP_REAR_CENTER] = "top-rear-center",
-        [PA_CHANNEL_POSITION_TOP_REAR_LEFT] = "top-rear-left",
-        [PA_CHANNEL_POSITION_TOP_REAR_RIGHT] = "top-rear-right"
-    };
+        table[PA_CHANNEL_POSITION_TOP_FRONT_CENTER] = "top-front-center";
+        table[PA_CHANNEL_POSITION_TOP_FRONT_LEFT] = "top-front-left";
+        table[PA_CHANNEL_POSITION_TOP_FRONT_RIGHT] = "top-front-right";
 
-    static const char *const pretty_table[PA_CHANNEL_POSITION_MAX] = {
-        [PA_CHANNEL_POSITION_MONO] = "Mono",
+        table[PA_CHANNEL_POSITION_TOP_REAR_CENTER] = "top-rear-center";
+        table[PA_CHANNEL_POSITION_TOP_REAR_LEFT] = "top-rear-left";
+        table[PA_CHANNEL_POSITION_TOP_REAR_RIGHT] = "top-rear-right";
 
-        [PA_CHANNEL_POSITION_FRONT_CENTER] = "Front Center",
-        [PA_CHANNEL_POSITION_FRONT_LEFT] = "Front Left",
-        [PA_CHANNEL_POSITION_FRONT_RIGHT] = "Front Right",
+        return table;
+    }
 
-        [PA_CHANNEL_POSITION_REAR_CENTER] = "Rear Center",
-        [PA_CHANNEL_POSITION_REAR_LEFT] = "Rear Left",
-        [PA_CHANNEL_POSITION_REAR_RIGHT] = "Rear Right",
+    std::unique_ptr<std::string[]> makePrettyTable() {
+        auto table = std::make_unique<std::string[]>(PA_CHANNEL_POSITION_MAX);
 
-        [PA_CHANNEL_POSITION_LFE] = "Subwoofer",
+        table[PA_CHANNEL_POSITION_MONO] = "Mono";
 
-        [PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER] = "Front Left-of-center",
-        [PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER] = "Front Right-of-center",
+        table[PA_CHANNEL_POSITION_FRONT_CENTER] = "Front Center";
+        table[PA_CHANNEL_POSITION_FRONT_LEFT] = "Front Left";
+        table[PA_CHANNEL_POSITION_FRONT_RIGHT] = "Front Right";
 
-        [PA_CHANNEL_POSITION_SIDE_LEFT] = "Side Left",
-        [PA_CHANNEL_POSITION_SIDE_RIGHT] = "Side Right",
+        table[PA_CHANNEL_POSITION_REAR_CENTER] = "Rear Center";
+        table[PA_CHANNEL_POSITION_REAR_LEFT] = "Rear Left";
+        table[PA_CHANNEL_POSITION_REAR_RIGHT] = "Rear Right";
 
-        [PA_CHANNEL_POSITION_AUX0] = "Auxiliary 0",
-        [PA_CHANNEL_POSITION_AUX1] = "Auxiliary 1",
-        [PA_CHANNEL_POSITION_AUX2] = "Auxiliary 2",
-        [PA_CHANNEL_POSITION_AUX3] = "Auxiliary 3",
-        [PA_CHANNEL_POSITION_AUX4] = "Auxiliary 4",
-        [PA_CHANNEL_POSITION_AUX5] = "Auxiliary 5",
-        [PA_CHANNEL_POSITION_AUX6] = "Auxiliary 6",
-        [PA_CHANNEL_POSITION_AUX7] = "Auxiliary 7",
-        [PA_CHANNEL_POSITION_AUX8] = "Auxiliary 8",
-        [PA_CHANNEL_POSITION_AUX9] = "Auxiliary 9",
-        [PA_CHANNEL_POSITION_AUX10] = "Auxiliary 10",
-        [PA_CHANNEL_POSITION_AUX11] = "Auxiliary 11",
-        [PA_CHANNEL_POSITION_AUX12] = "Auxiliary 12",
-        [PA_CHANNEL_POSITION_AUX13] = "Auxiliary 13",
-        [PA_CHANNEL_POSITION_AUX14] = "Auxiliary 14",
-        [PA_CHANNEL_POSITION_AUX15] = "Auxiliary 15",
-        [PA_CHANNEL_POSITION_AUX16] = "Auxiliary 16",
-        [PA_CHANNEL_POSITION_AUX17] = "Auxiliary 17",
-        [PA_CHANNEL_POSITION_AUX18] = "Auxiliary 18",
-        [PA_CHANNEL_POSITION_AUX19] = "Auxiliary 19",
-        [PA_CHANNEL_POSITION_AUX20] = "Auxiliary 20",
-        [PA_CHANNEL_POSITION_AUX21] = "Auxiliary 21",
-        [PA_CHANNEL_POSITION_AUX22] = "Auxiliary 22",
-        [PA_CHANNEL_POSITION_AUX23] = "Auxiliary 23",
-        [PA_CHANNEL_POSITION_AUX24] = "Auxiliary 24",
-        [PA_CHANNEL_POSITION_AUX25] = "Auxiliary 25",
-        [PA_CHANNEL_POSITION_AUX26] = "Auxiliary 26",
-        [PA_CHANNEL_POSITION_AUX27] = "Auxiliary 27",
-        [PA_CHANNEL_POSITION_AUX28] = "Auxiliary 28",
-        [PA_CHANNEL_POSITION_AUX29] = "Auxiliary 29",
-        [PA_CHANNEL_POSITION_AUX30] = "Auxiliary 30",
-        [PA_CHANNEL_POSITION_AUX31] = "Auxiliary 31",
+        table[PA_CHANNEL_POSITION_LFE] = "Subwoofer";
 
-        [PA_CHANNEL_POSITION_TOP_CENTER] = "Top Center",
+        table[PA_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER] = "Front Left-of-center";
+        table[PA_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER] = "Front Right-of-center";
 
-        [PA_CHANNEL_POSITION_TOP_FRONT_CENTER] = "Top Front Center",
-        [PA_CHANNEL_POSITION_TOP_FRONT_LEFT] = "Top Front Left",
-        [PA_CHANNEL_POSITION_TOP_FRONT_RIGHT] = "Top Front Right",
+        table[PA_CHANNEL_POSITION_SIDE_LEFT] = "Side Left";
+        table[PA_CHANNEL_POSITION_SIDE_RIGHT] = "Side Right";
 
-        [PA_CHANNEL_POSITION_TOP_REAR_CENTER] = "Top Rear Center",
-        [PA_CHANNEL_POSITION_TOP_REAR_LEFT] = "Top Rear Left",
-        [PA_CHANNEL_POSITION_TOP_REAR_RIGHT] = "Top Rear Right"
-    };
+        table[PA_CHANNEL_POSITION_AUX0] = "Auxiliary 0";
+        table[PA_CHANNEL_POSITION_AUX1] = "Auxiliary 1";
+        table[PA_CHANNEL_POSITION_AUX2] = "Auxiliary 2";
+        table[PA_CHANNEL_POSITION_AUX3] = "Auxiliary 3";
+        table[PA_CHANNEL_POSITION_AUX4] = "Auxiliary 4";
+        table[PA_CHANNEL_POSITION_AUX5] = "Auxiliary 5";
+        table[PA_CHANNEL_POSITION_AUX6] = "Auxiliary 6";
+        table[PA_CHANNEL_POSITION_AUX7] = "Auxiliary 7";
+        table[PA_CHANNEL_POSITION_AUX8] = "Auxiliary 8";
+        table[PA_CHANNEL_POSITION_AUX9] = "Auxiliary 9";
+        table[PA_CHANNEL_POSITION_AUX10] = "Auxiliary 10";
+        table[PA_CHANNEL_POSITION_AUX11] = "Auxiliary 11";
+        table[PA_CHANNEL_POSITION_AUX12] = "Auxiliary 12";
+        table[PA_CHANNEL_POSITION_AUX13] = "Auxiliary 13";
+        table[PA_CHANNEL_POSITION_AUX14] = "Auxiliary 14";
+        table[PA_CHANNEL_POSITION_AUX15] = "Auxiliary 15";
+        table[PA_CHANNEL_POSITION_AUX16] = "Auxiliary 16";
+        table[PA_CHANNEL_POSITION_AUX17] = "Auxiliary 17";
+        table[PA_CHANNEL_POSITION_AUX18] = "Auxiliary 18";
+        table[PA_CHANNEL_POSITION_AUX19] = "Auxiliary 19";
+        table[PA_CHANNEL_POSITION_AUX20] = "Auxiliary 20";
+        table[PA_CHANNEL_POSITION_AUX21] = "Auxiliary 21";
+        table[PA_CHANNEL_POSITION_AUX22] = "Auxiliary 22";
+        table[PA_CHANNEL_POSITION_AUX23] = "Auxiliary 23";
+        table[PA_CHANNEL_POSITION_AUX24] = "Auxiliary 24";
+        table[PA_CHANNEL_POSITION_AUX25] = "Auxiliary 25";
+        table[PA_CHANNEL_POSITION_AUX26] = "Auxiliary 26";
+        table[PA_CHANNEL_POSITION_AUX27] = "Auxiliary 27";
+        table[PA_CHANNEL_POSITION_AUX28] = "Auxiliary 28";
+        table[PA_CHANNEL_POSITION_AUX29] = "Auxiliary 29";
+        table[PA_CHANNEL_POSITION_AUX30] = "Auxiliary 30";
+        table[PA_CHANNEL_POSITION_AUX31] = "Auxiliary 31";
+
+        table[PA_CHANNEL_POSITION_TOP_CENTER] = "Top Center";
+
+        table[PA_CHANNEL_POSITION_TOP_FRONT_CENTER] = "Top Front Center";
+        table[PA_CHANNEL_POSITION_TOP_FRONT_LEFT] = "Top Front Left";
+        table[PA_CHANNEL_POSITION_TOP_FRONT_RIGHT] = "Top Front Right";
+
+        table[PA_CHANNEL_POSITION_TOP_REAR_CENTER] = "Top Rear Center";
+        table[PA_CHANNEL_POSITION_TOP_REAR_LEFT] = "Top Rear Left";
+        table[PA_CHANNEL_POSITION_TOP_REAR_RIGHT] = "Top Rear Right";
+
+        return table;
+    }
+
+    static const std::unique_ptr<std::string[]> table = makeTable();
+    static const std::unique_ptr<std::string[]> pretty_table= makePrettyTable();
 
 }
 
@@ -486,7 +481,7 @@ const char* pa_channel_position_to_string(pa_channel_position_t pos) {
         return nullptr;
     }
 
-    return table[pos];
+    return table[pos].c_str();
 }
 
 const char* pa_channel_position_to_pretty_string(pa_channel_position_t pos) {
@@ -494,7 +489,7 @@ const char* pa_channel_position_to_pretty_string(pa_channel_position_t pos) {
         return nullptr;
     }
 
-    return pretty_table[pos];
+    return pretty_table[pos].c_str();
 }
 
 int pa_channel_map_equal(const pa_channel_map* a, const pa_channel_map* b) {
@@ -565,7 +560,7 @@ pa_channel_position_t pa_channel_position_from_string(const char *p) {
     }
 
     for (unsigned int i = 0; i < PA_CHANNEL_POSITION_MAX; ++i) {
-        if (std::strcmp(p, table[i])) {
+        if (std::strcmp(p, table[i].c_str())) {
             return static_cast<pa_channel_position_t>(i);
         }
     }
@@ -633,25 +628,19 @@ pa_channel_map* pa_channel_map_parse(pa_channel_map* rmap, const char* s) {
         map.map[7] = PA_CHANNEL_POSITION_SIDE_RIGHT;
     } else {
 
-        const char* state = nullptr;
         map.channels = 0;
-
-        char* p;
-        while ((p = strSplit(s, ",", &state))) {
+        for (auto& p : absl::StrSplit(s, ',')) {
             pa_channel_position_t f;
 
             if (map.channels >= PA_CHANNELS_MAX) {
-                pa_xfree(p);
                 return nullptr;
             }
 
-            if ((f = pa_channel_position_from_string(p)) == PA_CHANNEL_POSITION_INVALID) {
-                pa_xfree(p);
+            if ((f = pa_channel_position_from_string(p.data())) == PA_CHANNEL_POSITION_INVALID) {
                 return nullptr;
             }
 
             map.map[map.channels++] = f;
-            pa_xfree(p);
         }
 
     }

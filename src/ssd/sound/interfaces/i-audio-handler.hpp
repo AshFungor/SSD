@@ -5,6 +5,7 @@
 #include <absl/status/statusor.h>
 
 // laar
+#include <src/ssd/macros.hpp>
 #include <src/ssd/sound/converter.hpp>
 
 // std
@@ -15,10 +16,6 @@
 
 
 namespace laar {
-
-    inline constexpr int BaseSampleRate = 44100;
-    inline constexpr std::int32_t Silence = INT32_MIN;
-    inline constexpr std::int32_t BaseSampleSize = sizeof Silence;
 
     namespace rtcontrol {
         inline constexpr int ABORT = 2;

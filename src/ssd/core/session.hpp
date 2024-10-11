@@ -1,15 +1,13 @@
 #pragma once
 
 // laar
-#include "protos/service/base.pb.h"
-#include <queue>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
 // grpc
 #include <grpcpp/support/status.h>
 
-// STD
+// protos
 #include <protos/client/base.pb.h>
 #include <protos/client-message.pb.h>
 #include <protos/services/sound-router.grpc.pb.h>
@@ -17,8 +15,9 @@
 // Abseil
 #include <absl/status/status.h>
 
-// protos
+// STD
 #include <memory>
+#include <cstdint>
 
 namespace laar {
 
@@ -28,7 +27,7 @@ namespace laar {
     public:
 
         using TBaseMessage = NSound::NClient::NBase::TBaseMessage;
-        using TAPIResult = std::pair<absl::Status, NSound::TServiceMessage>;
+        using TAPIResult = std::pair<absl::Status, std::optional<NSound::TServiceMessage>>;
 
         static std::shared_ptr<Session> find(
             std::string client, 
@@ -53,16 +52,23 @@ namespace laar {
         virtual void onBufferDrained(int status) override;
         virtual void onBufferFlushed(int status) override;
 
+        ~Session();
+
     private:
+        
+        enum class EState : std::uint32_t {
+            NORMAL = 0x1, DRAINED = 0x2, FLUSHED = 0x3, CLOSED = 0x4 
+        };
 
         Session(absl::string_view client);
 
+        std::uint32_t emptyState();
+        void updateState(EState flag);
+
     private:
 
-        enum class EState {
-            NORMAL, DRAINED, FLUSHED, CLOSED 
-        } state_;
 
+        std::uint32_t state_;
         std::once_flag init_;
 
         std::string client_;

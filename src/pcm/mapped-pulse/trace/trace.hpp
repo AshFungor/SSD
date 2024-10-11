@@ -8,7 +8,6 @@
 #include <absl/status/status.h>
 
 // STD
-#include <mutex>
 #include <string>
 #include <format>
 #include <ostream>
@@ -18,12 +17,6 @@
 namespace pcm_log {
 
     namespace __pcm_trace_internal {
-
-        // output sink, defaulting to null
-        inline static std::ostream* os = nullptr;
-
-        // global lock for error/output
-        inline static std::mutex GStandardLock;
 
         std::ostream& timedLog(std::ostream& os, const std::string& tag);
         std::ostream& error(std::ostream& os);
@@ -35,9 +28,13 @@ namespace pcm_log {
     // ensure sink exists for duration of PCM API usage
     absl::Status configureLogging(std::ostream* os);
 
-    absl::Status logError(const std::string& fmt, std::format_args args);
-    absl::Status logInfo(const std::string& fmt, std::format_args args);
-    absl::Status logWarning(const std::string& fmt, std::format_args args);
+    absl::Status logFormatError(const std::string& fmt, std::format_args args);
+    absl::Status logFormatInfo(const std::string& fmt, std::format_args args);
+    absl::Status logFormatWarning(const std::string& fmt, std::format_args args);
+
+    void logErrorSilent(const std::string& fmt, std::format_args args);
+    void logInfoSilent(const std::string& fmt, std::format_args args);
+    void logWarningSilent(const std::string& fmt, std::format_args args);
 
     // pulse structs string converters
     std::string toString(const pa_buffer_attr *attr);

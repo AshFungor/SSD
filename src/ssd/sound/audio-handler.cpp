@@ -2,6 +2,7 @@
 #include <boost/asio/dispatch.hpp>
 
 // laar
+#include <queue>
 #include <src/ssd/sound/read-handle.hpp>
 #include <src/ssd/sound/write-handle.hpp>
 #include <src/ssd/util/config-loader.hpp>
@@ -28,6 +29,7 @@
 #include <cctype>
 #include <memory>
 #include <future>
+#include <utility>
 #include <vector>
 #include <cstdint>
 #include <stdexcept>
@@ -225,6 +227,18 @@ absl::Status SoundHandler::openCapture(unsigned int dev) {
 }
 
 unsigned int SoundHandler::probeDevices(bool isInput) noexcept {
+
+    constexpr unsigned int highPriority = 2;
+    constexpr unsigned int lowPriority = 1;
+    
+    struct DeviceCompare {
+        using PackedDeviceType = std::pair<std::int64_t, std::size_t>;
+        constexpr bool operator()(const PackedDeviceType& lhs, const PackedDeviceType& rhs) const {
+            return lhs.first < rhs.first;
+        }
+    };
+
+    std::priority_queue<DeviceCompare::PackedDeviceType, std::vector<DeviceCompare::PackedDeviceType>, DeviceCompare> pQueue;
     for (auto& device : audio_.getDeviceIds()) {
         RtAudio::DeviceInfo info = audio_.getDeviceInfo(device);
         std::string verdict = absl::StrFormat("Probing device with id %d and name %s; ", device, info.name);
@@ -234,28 +248,38 @@ unsigned int SoundHandler::probeDevices(bool isInput) noexcept {
         status &= checkSampleRate(info, verdict);
         status &= checkSampleFormat(info, verdict);
         
+        std::int64_t priority = 0;
         if (status) {
             if (checkName(info, verdict)) {
-                PLOG(plog::info) << verdict << "; pulseaudio is preferred.";
-                return device;
-            } else if (info.isDefaultInput && isInput) {
-                PLOG(plog::info) << verdict << "; device is default input.";
-                return device;
-            } else if (info.isDefaultOutput && !isInput) {
-                PLOG(plog::info) << verdict << "; device is default output.";
-                return device;
-            } else {
-                PLOG(plog::info) << verdict << "; device is not preferred.";
+                absl::StrAppend(&verdict, "pulseaudio is preferred; ");
+                priority += highPriority;
+            } if (info.isDefaultInput && isInput) {
+                absl::StrAppend(&verdict, "device is default input; ");
+                priority += lowPriority;
+            } if (info.isDefaultOutput && !isInput) {
+                absl::StrAppend(&verdict, "device is default output; ");
+                priority += lowPriority;
+            } if (!priority) {
+                absl::StrAppend(&verdict, "device is not preferred; ");
             }
         } else {
-            PLOG(plog::info) << verdict << "; device lacks critical attributes.";
+            absl::StrAppend(&verdict, "device lacks critical attributes; ");
+            priority = -1;
         }
+
+        PLOG(plog::info) << verdict << "; priority assigned: " << priority;
+        pQueue.push(std::make_pair(priority, device));
     }
 
-    if (isInput) {
-        return audio_.getDefaultInputDevice();
+    auto best = pQueue.top();
+    if (best.first < 0) {
+        PLOG(plog::error) << "no suitable device was found";
+        std::abort();
     }
-    return audio_.getDefaultOutputDevice();
+
+    RtAudio::DeviceInfo info = audio_.getDeviceInfo(best.second);
+    PLOG(plog::info) << "device selected: " << info.name << "; id: " << best.second << "; priority: " << best.first;
+    return best.second;
 }
 
 bool SoundHandler::checkSampleRate(const RtAudio::DeviceInfo& info, std::string& verdict) noexcept {
@@ -289,7 +313,7 @@ bool SoundHandler::checkSampleRate(const RtAudio::DeviceInfo& info, std::string&
 }
 
 bool SoundHandler::checkSampleFormat(const RtAudio::DeviceInfo& info, std::string& verdict) noexcept {
-    absl::StrAppend(&verdict, "native sample rates: ");
+    absl::StrAppend(&verdict, "native sample formats: ");
     for (const RtAudioFormat& format : {
         RTAUDIO_SINT8, 
         RTAUDIO_SINT16,
