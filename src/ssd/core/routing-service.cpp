@@ -38,7 +38,8 @@ grpc::Status RoutingService::RouteStream(
 
     if (!session) {
         // new client
-        session = laar::Session::make(context->peer());       
+        session = laar::Session::make(context->peer());
+        sessions_[context->peer()] = session;  
     }
 
     // serve one message at a time
@@ -80,6 +81,10 @@ grpc::Status RoutingService::RouteStream(
         } else {
             onCriticalError(APIResult.first, context->peer());
             return grpc::Status::CANCELLED;
+        }
+
+        if (!session->isAlive()) {
+            sessions_.extract(sessions_.find(context->peer()));
         }
     }
 

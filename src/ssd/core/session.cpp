@@ -209,3 +209,7 @@ std::uint32_t Session::emptyState() {
     state_ = static_cast<std::uint32_t>(EState::NORMAL);
     return holder;
 }
+
+bool Session::isAlive() {
+    return handle_->isAlive();
+}

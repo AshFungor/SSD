@@ -52,6 +52,8 @@ namespace laar {
         virtual void onBufferDrained(int status) override;
         virtual void onBufferFlushed(int status) override;
 
+        bool isAlive();
+
         ~Session();
 
     private:
