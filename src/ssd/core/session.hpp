@@ -21,6 +21,15 @@
 
 namespace laar {
 
+    namespace state {
+        // check for closed
+        inline constexpr std::uint32_t CLOSED = 0x1;
+        // drained means that last call to drain was completed
+        inline constexpr std::uint32_t DRAINED = 0x2;
+        // same but for flush
+        inline constexpr std::uint32_t FLUSHED = 0x3;
+    }
+
     class Session 
         : public laar::IStreamHandler::IHandle::IListener
         , std::enable_shared_from_this<Session> {
@@ -54,22 +63,20 @@ namespace laar {
 
         bool isAlive();
 
+        // state handling
+        const std::uint32_t state() const;
+        void set(std::uint32_t flag);
+        void unset(std::uint32_t flag);
+
         ~Session();
 
     private:
-        
-        enum class EState : std::uint32_t {
-            NORMAL = 0x1, DRAINED = 0x2, FLUSHED = 0x3, CLOSED = 0x4 
-        };
 
         Session(absl::string_view client);
 
-        std::uint32_t emptyState();
-        void updateState(EState flag);
-
     private:
 
-
+        std::mutex lock_;
         std::uint32_t state_;
         std::once_flag init_;
 

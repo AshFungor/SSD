@@ -183,11 +183,11 @@ laar::Session::TAPIResult Session::onClose(TBaseMessage::TStreamDirective messag
 }
 
 void Session::onBufferDrained(int status) {
-    updateState(EState::DRAINED);
+    set(state::DRAINED);
 }
 
 void Session::onBufferFlushed(int status) {
-    updateState(EState::FLUSHED);
+    set(state::FLUSHED);
 }
 
 Session::~Session() {
@@ -196,18 +196,17 @@ Session::~Session() {
     }
 }
 
-void Session::updateState(EState flag) {
-    if (state_ & static_cast<std::uint32_t>(flag)) {
-        PLOG(plog::error) << "double set on state: " << static_cast<std::uint32_t>(flag);
-    }
-
-    state_ &= static_cast<std::uint32_t>(flag);
+const std::uint32_t Session::state() const {
+    return state_;
+}
+void Session::set(std::uint32_t flag) {
+    std::unique_lock<std::mutex> locked(lock_);
+    state_ &= flag;
 }
 
-std::uint32_t Session::emptyState() {
-    std::uint32_t holder = state_;
-    state_ = static_cast<std::uint32_t>(EState::NORMAL);
-    return holder;
+void Session::unset(std::uint32_t flag) {
+    std::unique_lock<std::mutex> locked(lock_);
+    state_ &= ~flag;
 }
 
 bool Session::isAlive() {

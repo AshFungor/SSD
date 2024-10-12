@@ -1,4 +1,6 @@
 // laar
+#include "protos/service/base.pb.h"
+#include <cstdint>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/core/routing-service.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
@@ -7,9 +9,7 @@
 #include <grpcpp/support/status.h>
 
 // STD
-#include <protos/client/base.pb.h>
-#include <protos/client-message.pb.h>
-#include <protos/services/sound-router.grpc.pb.h>
+#include <memory>
 
 // plog
 #include <plog/Log.h>
@@ -19,9 +19,36 @@
 #include <absl/status/status.h>
 
 // protos
-#include <memory>
+#include <protos/client/base.pb.h>
+#include <protos/client-message.pb.h>
+#include <protos/server-message.pb.h>
+#include <protos/services/sound-router.grpc.pb.h>
 
 using namespace laar;
+
+namespace {
+
+    NSound::TServiceMessage makeDirectiveResponse(std::uint32_t flag) {
+        NSound::TServiceMessage message;
+
+        if (flag & laar::state::DRAINED) {
+            message.mutable_basemessage()->mutable_directivesatisfied()->set_directive(
+                NSound::NClient::NBase::TBaseMessage::TStreamDirective::DRAIN
+            );
+        } else if (flag & laar::state::CLOSED) {
+            message.mutable_basemessage()->mutable_directivesatisfied()->set_directive(
+                NSound::NClient::NBase::TBaseMessage::TStreamDirective::FLUSH
+            );
+        } else if (flag & laar::state::FLUSHED) {
+            message.mutable_basemessage()->mutable_directivesatisfied()->set_directive(
+                NSound::NClient::NBase::TBaseMessage::TStreamDirective::CLOSE
+            );
+        }
+
+        return message;
+    }
+
+}
 
 std::shared_ptr<RoutingService> RoutingService::configure(std::weak_ptr<laar::IStreamHandler> soundHandler) {
     return std::shared_ptr<RoutingService>(new RoutingService(std::move(soundHandler)));
@@ -40,6 +67,11 @@ grpc::Status RoutingService::RouteStream(
         // new client
         session = laar::Session::make(context->peer());
         sessions_[context->peer()] = session;  
+
+        if (auto status = session->init(soundHandler_); !status.ok()) {
+            onCriticalError(status, context->peer());
+            return grpc::Status::CANCELLED;
+        }
     }
 
     // serve one message at a time
@@ -83,9 +115,21 @@ grpc::Status RoutingService::RouteStream(
             return grpc::Status::CANCELLED;
         }
 
-        if (!session->isAlive()) {
+        // if handle is dead leave
+        if (session->isAlive()) {
+            PLOG(plog::info) << "session " << session.get() << " is dead, removing it from sessions";
             sessions_.extract(sessions_.find(context->peer()));
         }
+    }
+
+    // check for updates on session
+    auto state = session->state();
+    if (state & laar::state::DRAINED) {
+        stream->Write(makeDirectiveResponse(laar::state::DRAINED));
+    } if (state & laar::state::FLUSHED) {
+        stream->Write(makeDirectiveResponse(laar::state::FLUSHED));
+    } if (state & laar::state::CLOSED) {
+        stream->Write(makeDirectiveResponse(laar::state::CLOSED));
     }
 
     return grpc::Status::OK;

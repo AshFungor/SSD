@@ -1,0 +1,64 @@
+# For more information see https://www.mkdocs.org
+
+site_name: Laar
+site_dir: www
+repo_name: 'SSD on Gitlab'
+repo_url: https://git.laardev.ru/SSD
+
+theme:
+  # should install material theme first
+  name: material
+  palette:
+    # switcher for light/dark theme
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      # color of header, important text etc.
+      primary: deep orange
+      # color for highlighting
+      accent: red
+      toggle:
+        icon: material/eye
+        name: Switch to dark mode
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: slate
+      # colors same as above
+      primary: deep orange
+      accent: red
+      toggle:
+        icon: material/eye-outline
+        name: Switch to light mode
+  features:
+    - tabs
+    - content.code.copy
+  font:
+    text: 'Lato'
+    code: 'Martian Mono'
+  features:
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - abbr
+  - attr_list
+  - footnotes
+  - meta
+  - tables
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Overview: index.md
+  - Setup: setup.md
+  - Design:
+    - Sound: design/sound.md
