@@ -4,6 +4,3 @@
 [submodule "contrib/grpc"]
 	path = contrib/grpc
 	url = https://github.com/grpc/grpc
-[submodule "contrib/AudioFile"]
-	path = contrib/AudioFile
-	url = https://github.com/adamstark/AudioFile
