@@ -168,7 +168,8 @@ int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::siz
     for (std::size_t frame = 0; frame < byteSize; frame += singleFrameBytes) {
         std::size_t current = (byteSize - frame < singleFrameBytes) ? byteSize - frame : singleFrameBytes;
         
-        if (connection->balancing.bytesTransferredOnFrame + current >= singleFrameBytes) {
+        connection->balancing.bytesTransferredOnFrame += current;
+        if (connection->balancing.bytesTransferredOnFrame >= singleFrameBytes) {
             stream->WritesDone();
             if (auto status = stream->Finish(); !status.ok()) {
                 const auto& error = status.error_message(); 
@@ -178,6 +179,7 @@ int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::siz
             std::this_thread::sleep_for(__internal_pcm::timeFrame_);
             context = std::make_unique<grpc::ClientContext>();
             stream = connection->stub->RouteStream(context.get());
+            connection->balancing.bytesTransferredOnFrame = 0;
         }
 
         auto buffer = std::make_unique<char[]>(singleFrameBytes);

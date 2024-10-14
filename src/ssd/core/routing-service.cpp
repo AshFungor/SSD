@@ -64,14 +64,11 @@ grpc::Status RoutingService::RouteStream(
     laar::Session::TAPIResult APIResult;
 
     if (!session) {
+        PLOG(plog::info) << "new client: " << context->peer();
+
         // new client
         session = laar::Session::make(context->peer());
         sessions_[context->peer()] = session;  
-
-        if (auto status = session->init(soundHandler_); !status.ok()) {
-            onCriticalError(status, context->peer());
-            return grpc::Status::CANCELLED;
-        }
     }
 
     // serve one message at a time
@@ -115,7 +112,7 @@ grpc::Status RoutingService::RouteStream(
             return grpc::Status::CANCELLED;
         }
 
-        // if handle is dead leave
+        // if handle is dead - leave
         if (session->isAlive()) {
             PLOG(plog::info) << "session " << session.get() << " is dead, removing it from sessions";
             sessions_.extract(sessions_.find(context->peer()));

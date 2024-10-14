@@ -21,10 +21,10 @@
 namespace {
 
     // output sink, defaulting to null
-    static std::ostream* globalOS = nullptr;
+    std::ostream* globalOS = nullptr;
 
     // global lock for error/output
-    static std::mutex GStandardLock;
+    std::mutex GStandardLock;
 
 }
 
@@ -73,7 +73,7 @@ absl::Status pcm_log::logFormatError(const std::string& fmt, std::format_args ar
     if (!globalOS) {
         return absl::OkStatus();
     }
-    __pcm_trace_internal::error(*globalOS) << std::vformat(fmt, args);
+    __pcm_trace_internal::error(*globalOS) << std::vformat(fmt, args) << "\n";
     return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
 }
 
@@ -82,7 +82,7 @@ absl::Status pcm_log::logFormatInfo(const std::string& fmt, std::format_args arg
     if (!globalOS) {
         return absl::OkStatus();
     }
-    __pcm_trace_internal::info(*globalOS) << std::vformat(fmt, args);
+    __pcm_trace_internal::info(*globalOS) << std::vformat(fmt, args) << "\n";
     return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
 }
 
@@ -91,7 +91,7 @@ absl::Status pcm_log::logFormatWarning(const std::string& fmt, std::format_args 
     if (!globalOS) {
         return absl::OkStatus();
     }
-    __pcm_trace_internal::warning(*globalOS) << std::vformat(fmt, args);
+    __pcm_trace_internal::warning(*globalOS) << std::vformat(fmt, args) << "\n";
     return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
 }
 

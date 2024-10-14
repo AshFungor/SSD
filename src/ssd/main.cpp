@@ -67,7 +67,9 @@ int main(int argc, char** argv) {
 
     builder.AddListeningPort("localhost:7777", grpc::InsecureServerCredentials());
     builder.RegisterService(routingService.get());
-    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::NUM_CQS, 1);
+    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::NUM_CQS, 2);
+    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MIN_POLLERS, 1);
+    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MAX_POLLERS, 2);
 
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
 

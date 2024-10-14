@@ -1,6 +1,3 @@
 [submodule "contrib/rtaudio"]
 	path = contrib/rtaudio
 	url = https://github.com/thestk/rtaudio
-[submodule "contrib/grpc"]
-	path = contrib/grpc
-	url = https://github.com/grpc/grpc

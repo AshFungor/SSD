@@ -99,7 +99,8 @@ std::shared_ptr<Session> Session::make(absl::string_view client) {
 }
 
 Session::Session(absl::string_view client) 
-    : client_(client)
+    : state_(0)
+    , client_(client)
 {}
 
 absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
@@ -107,6 +108,7 @@ absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
     std::call_once(init_, [this, soundHandler, &result]() {
         if (!streamConfig_.has_value()) {
             result = absl::InternalError("config was not received before init");
+            return;
         }
         TBaseMessage::TStreamConfiguration& config = streamConfig_.value();
         if (auto locked = soundHandler.lock()) {

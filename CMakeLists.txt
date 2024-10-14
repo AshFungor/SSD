@@ -38,8 +38,8 @@ set(SSD_EXTERNAL_DEPS
 set(DATA_DIR ${CMAKE_SOURCE_DIR}/data)
 
 # example configs
-file(COPY ${DATA_DIR}/default.cfg DESTINATION ${CMAKE_BINARY_DIR}/src/ssd)
-file(COPY ${DATA_DIR}/dynamic.cfg DESTINATION ${CMAKE_BINARY_DIR}/src/ssd)
+file(COPY ${DATA_DIR}/app-configs/default.cfg DESTINATION ${CMAKE_BINARY_DIR}/src/ssd)
+file(COPY ${DATA_DIR}/app-configs/dynamic.cfg DESTINATION ${CMAKE_BINARY_DIR}/src/ssd)
 
 # contrib libs not on conan
 add_subdirectory(contrib)
