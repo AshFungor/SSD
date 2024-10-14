@@ -3,10 +3,6 @@
 #include <boost/asio/post.hpp>
 #include <boost/asio/thread_pool.hpp>
 
-// grpc
-#include <grpcpp/grpcpp.h>
-#include <grpcpp/server_builder.h>
-
 // Abseil
 #include <absl/flags/flag.h>
 #include <absl/flags/parse.h>
@@ -62,31 +58,11 @@ int main(int argc, char** argv) {
 
     PLOG(plog::debug) << "module created: " << "SoundHandler; instance: " << soundHandler.get();
 
-    auto routingService = laar::RoutingService::configure(soundHandler);
-    grpc::ServerBuilder builder;
-
-    builder.AddListeningPort("localhost:7777", grpc::InsecureServerCredentials());
-    builder.RegisterService(routingService.get());
-    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::NUM_CQS, 2);
-    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MIN_POLLERS, 1);
-    builder.SetSyncServerOption(grpc::ServerBuilder::SyncServerOption::MAX_POLLERS, 2);
-
-    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-
-    if (!server) {
-        PLOG(plog::error) << "failed to start server, builder returned nullptr";
-        return 1;
-    } else {
-        PLOG(plog::info) << "server started, blocking main thread";
-    }
-
     for (std::size_t tNum = 0; tNum < threads; ++tNum) {
         boost::asio::post(*tPool, [context]() {
             context->run();
         });
     }
-
-    server->Wait();
 
     return 0;
 }

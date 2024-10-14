@@ -1,18 +1,15 @@
 // laar
+#include <mutex>
 #include <optional>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/sound/converter.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
-
-// grpc
-#include <grpcpp/support/status.h>
 
 // protos
 #include <protos/client/base.pb.h>
 #include <protos/service/base.pb.h>
 #include <protos/client-message.pb.h>
 #include <protos/server-message.pb.h>
-#include <protos/services/sound-router.grpc.pb.h>
 
 // Abseil
 #include <absl/status/status.h>

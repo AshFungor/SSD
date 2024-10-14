@@ -8,8 +8,6 @@ set(PROTOS
     # holders
     client-message.proto
     server-message.proto
-    # services
-    services/sound-router.proto
 )
 
 # declare proto custom target and add all proto sources to it
@@ -27,22 +25,8 @@ protobuf_generate(
     IMPORT_DIRS ${CMAKE_SOURCE_DIR}/src # imports' relative directory
 )
 
-protobuf_generate(
-    TARGET protos                                           # ...
-    LANGUAGE grpc                                           # ...
-    GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc              # file extensions from generator
-    IMPORT_DIRS ${CMAKE_SOURCE_DIR}/src                     # ...
-    PROTOC_OUT_DIR ${PROTO_BINARY_DIR}                      # ...
-    PLUGIN "protoc-gen-grpc=$<TARGET_FILE:grpc_cpp_plugin>" # gRPC plugin executable
-)
-
-# adjust deps to correctly assemble grpc_cpp_plugin before codegen
-add_dependencies(protos grpc_cpp_plugin)
-
 target_link_libraries(protos PUBLIC 
     protobuf::libprotobuf
-    gRPC::grpc++
-    gRPC::grpc
 )
 
 target_include_directories(protos PUBLIC
