@@ -1,104 +1,140 @@
-// // laar
-// #include <mutex>
-// #include <optional>
-// #include <src/ssd/core/session.hpp>
-// #include <src/ssd/sound/converter.hpp>
-// #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+// laar
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/placeholders.hpp>
+#include <boost/bind/bind.hpp>
+#include <mutex>
+#include <optional>
+#include <src/ssd/core/session.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+#include <src/ssd/core/header.hpp>
 
-// // protos
-// #include <protos/client/base.pb.h>
-// #include <protos/service/base.pb.h>
-// #include <protos/client-message.pb.h>
-// #include <protos/server-message.pb.h>
+// protos
+#include <protos/client/base.pb.h>
+#include <protos/service/base.pb.h>
+#include <protos/client-message.pb.h>
+#include <protos/server-message.pb.h>
 
-// // Abseil
-// #include <absl/status/status.h>
-// #include <absl/strings/str_format.h>
+// Abseil
+#include <absl/status/status.h>
+#include <absl/strings/str_format.h>
 
-// // plog
-// #include <plog/Log.h>
-// #include <plog/Severity.h>
+// plog
+#include <plog/Log.h>
+#include <plog/Severity.h>
 
-// // STD
-// #include <memory>
-// #include <utility>
+// STD
+#include <memory>
+#include <utility>
 
-// using namespace laar;
+using namespace laar;
 
-// namespace {
+namespace {
 
-//     std::string dumpStreamConfig(const NSound::NClient::NBase::TBaseMessage::TStreamConfiguration& message) {
-//         std::stringstream ss;
-//         ss << "Message parsed: NSound::NClient::NBase::TBaseMessage::TStreamConfiguration\n";
-//         if (message.has_bufferconfig()) {
-//             const auto& msg = message.bufferconfig();
-//             ss << "- TBufferConfig: present\n";
-//             ss << "  size: " << msg.size() << "\n";
-//             ss << "  prebuffing_size: " << msg.prebuffingsize() << "\n";
-//             ss << "  min_request_size: " << msg.minrequestsize() << "\n";
-//             ss << "  fragment_size: " << msg.fragmentsize() << "\n";
-//         } else {
-//             ss << "- TBufferConfig: missing\n";
-//         }
-//         if (message.has_channelmap()) {
-//             ss << "- TChannelMap: present\n";
-//             for (const auto& channel : message.channelmap().mappedchannel()) {
-//                 ss << "  Channel value:\n";
-//                 if (channel.has_position()) {
-//                     ss << "  Position: " << channel.position() << "\n";
-//                 }
-//                 if (channel.has_aux()) {
-//                     ss << "  AUX: " << channel.aux() << "\n"; 
-//                 }
-//             }
-//         } else {
-//             ss << "- TChannelMap: missing\n";
-//         }
-//         if (message.has_clientname()) {
-//             ss << "- ClientName: " << message.clientname() << "\n";
-//         } else {
-//             ss << "- ClientName: missing\n"; 
-//         }
-//         if (message.has_streamname()) {
-//             ss << "- StreamName: " << message.streamname() << "\n";
-//         } else {
-//             ss << "- StreamName: missing\n"; 
-//         }
-//         if (message.has_samplespec()) {
-//             const auto& msg = message.samplespec();
-//             ss << "- TSampleSpec: present\n";
-//             ss << "  Format: " << msg.format() << "\n";
-//             ss << "  SampleRate: " << msg.samplerate() << "\n";
-//             ss << "  Channels: " << msg.channels() << "\n";
-//         } else {
-//             ss << "- TSampleSpec: missing\n";
-//         }
-//         ss << "- Direction: " << message.direction() << "\n";
-//         ss << "Parsing ended.";
-//         return ss.str();
-//     }
+    std::string dumpStreamConfig(const NSound::NClient::NBase::TBaseMessage::TStreamConfiguration& message) {
+        std::stringstream ss;
+        ss << "Message parsed: NSound::NClient::NBase::TBaseMessage::TStreamConfiguration\n";
+        if (message.has_bufferconfig()) {
+            const auto& msg = message.bufferconfig();
+            ss << "- TBufferConfig: present\n";
+            ss << "  size: " << msg.size() << "\n";
+            ss << "  prebuffing_size: " << msg.prebuffingsize() << "\n";
+            ss << "  min_request_size: " << msg.minrequestsize() << "\n";
+            ss << "  fragment_size: " << msg.fragmentsize() << "\n";
+        } else {
+            ss << "- TBufferConfig: missing\n";
+        }
+        if (message.has_channelmap()) {
+            ss << "- TChannelMap: present\n";
+            for (const auto& channel : message.channelmap().mappedchannel()) {
+                ss << "  Channel value:\n";
+                if (channel.has_position()) {
+                    ss << "  Position: " << channel.position() << "\n";
+                }
+                if (channel.has_aux()) {
+                    ss << "  AUX: " << channel.aux() << "\n"; 
+                }
+            }
+        } else {
+            ss << "- TChannelMap: missing\n";
+        }
+        if (message.has_clientname()) {
+            ss << "- ClientName: " << message.clientname() << "\n";
+        } else {
+            ss << "- ClientName: missing\n"; 
+        }
+        if (message.has_streamname()) {
+            ss << "- StreamName: " << message.streamname() << "\n";
+        } else {
+            ss << "- StreamName: missing\n"; 
+        }
+        if (message.has_samplespec()) {
+            const auto& msg = message.samplespec();
+            ss << "- TSampleSpec: present\n";
+            ss << "  Format: " << msg.format() << "\n";
+            ss << "  SampleRate: " << msg.samplerate() << "\n";
+            ss << "  Channels: " << msg.channels() << "\n";
+        } else {
+            ss << "- TSampleSpec: missing\n";
+        }
+        ss << "- Direction: " << message.direction() << "\n";
+        ss << "Parsing ended.";
+        return ss.str();
+    }
 
-// }
+}
 
-// std::shared_ptr<Session> Session::find(
-//     std::string client, 
-//     std::unordered_map<std::string, std::shared_ptr<Session>>& sessions
-// ) {
-//     auto iter = sessions.find(client);
-//     if (iter != sessions.end()) {
-//         return iter->second;
-//     }
-//     return nullptr;
-// }
+std::shared_ptr<Session> Session::configure(
+    std::weak_ptr<ISessionMaster> master,
+    std::shared_ptr<boost::asio::io_context> context, 
+    std::shared_ptr<tcp::socket> socket,
+    std::weak_ptr<IStreamHandler> handler,
+    std::size_t bufferSize
+) {
+    return std::shared_ptr<Session>(new Session(std::move(master), std::move(context), std::move(socket), std::move(handler), bufferSize));
+}
 
-// std::shared_ptr<Session> Session::make(absl::string_view client) {
-//     return std::shared_ptr<Session>(new Session{client});
-// }
+absl::Status Session::init() {
+    absl::Status status;
+    std::call_once(init_, [this, &status]() mutable {
+        status.Update(onProtocolTransition(session_state::protocol::PROTOCOL_HEADER));
+        socket_->async_read_some(
+            boost::asio::mutable_buffer(buffer_.get(), Header::getHeaderSize()),
+            boost::bind(
+                &Session::sRead, weak_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred
+            )
+        );
+    });
 
-// Session::Session(absl::string_view client) 
-//     : state_(0)
-//     , client_(client)
-// {}
+    return status;
+}
+
+void Session::onBufferDrained(int status) {
+    set(session_state::buffer::BUFFER_DRAINED, session_state::BUFFER);
+}
+
+void Session::onBufferFlushed(int status) {
+    set(session_state::buffer::BUFFER_FLUSHED, session_state::BUFFER);
+}
+
+Session::operator bool() const {
+    bool result = true;
+    // buffer state should be empty
+    result &= state_.buffer == 0x0;
+    // protocol state should have one single bit set
+    result &= 
+        (state_.protocol == session_state::protocol::PROTOCOL_HEADER) 
+        || (state_.protocol == session_state::protocol::PROTOCOL_PAYLOAD);
+    return result; 
+}
+
+const Session::SessionState& Session::state() const {
+    return state_;
+}
+
+Session::~Session() {
+    socket_->cancel();
+}
 
 // absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
 //     absl::Status result = absl::OkStatus();
@@ -181,13 +217,6 @@
 //     return std::make_pair(absl::OkStatus(), std::nullopt);
 // }
 
-// void Session::onBufferDrained(int status) {
-//     set(state::BUFFER_DRAINED);
-// }
-
-// void Session::onBufferFlushed(int status) {
-//     set(state::BUFFER_FLUSHED);
-// }
 
 // Session::~Session() {
 //     if (handle_) {

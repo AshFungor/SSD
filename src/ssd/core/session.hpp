@@ -2,6 +2,8 @@
 
 // laar
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/system/detail/error_code.hpp>
+#include <boost/system/system_error.hpp>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
@@ -92,9 +94,10 @@ namespace laar {
             std::weak_ptr<ISessionMaster> master,
             std::shared_ptr<boost::asio::io_context> context, 
             std::shared_ptr<tcp::socket> socket,
+            std::weak_ptr<IStreamHandler> handler,
             std::size_t bufferSize
         );
-        absl::Status init(std::weak_ptr<IStreamHandler> soundHandler); 
+        absl::Status init(); 
 
         // --- INTERFACES ---
         // IHandle::IListener implementation
@@ -123,7 +126,8 @@ namespace laar {
         Session(
             std::weak_ptr<ISessionMaster> master,
             std::shared_ptr<boost::asio::io_context> context, 
-            std::shared_ptr<tcp::socket> socket, 
+            std::shared_ptr<tcp::socket> socket,
+            std::weak_ptr<IStreamHandler> handler,
             std::size_t bufferSize
         );
 
@@ -150,6 +154,14 @@ namespace laar {
         void set(std::uint32_t flag, std::uint32_t state);
         void unset(std::uint32_t flag, std::uint32_t state);
 
+        // --- NETWORK LOW LEVEL I/O ---
+        // normal I/O handlers
+        void read(const boost::system::error_code& error, std::size_t bytes);
+        void write(const boost::system::error_code& error, std::size_t bytes);
+        // static wrappers to preserve tokens' lifetime reqs
+        static void sRead(std::weak_ptr<Session> session, const boost::system::error_code& error, std::size_t bytes);
+        static void sWrite(std::weak_ptr<Session> session, const boost::system::error_code& error, std::size_t bytes);
+
     private:
 
         // Syncronization & thread safety
@@ -166,9 +178,12 @@ namespace laar {
 
         // Client & server non-owning data
         std::weak_ptr<ISessionMaster> master_;
+        std::weak_ptr<IStreamHandler> handler_;
 
         // just stream config :)
         std::optional<TBaseMessage::TStreamConfiguration> streamConfig_;
+        // just network buffer :)
+        std::unique_ptr<std::uint8_t> buffer_;
 
     };
 
@@ -180,6 +195,7 @@ namespace laar {
         // builder stages
         SessionFactory& withBuffer(std::size_t size);
         SessionFactory& withMaster(std::weak_ptr<Session::ISessionMaster> master);
+        SessionFactory& withHandler(std::weak_ptr<IStreamHandler> handler);
         SessionFactory& withContext(std::shared_ptr<boost::asio::io_context> context);
 
         std::pair<std::shared_ptr<boost::asio::ip::tcp::socket>, std::shared_ptr<Session>> AssembleAndReturn();
@@ -189,6 +205,7 @@ namespace laar {
         struct CurrentState {
             std::size_t size;
             std::weak_ptr<Session::ISessionMaster> master;
+            std::weak_ptr<IStreamHandler> handler;
             std::shared_ptr<boost::asio::io_context> context;
         } state_;
 
