@@ -35,7 +35,7 @@ namespace laar {
             return headerSize_;
         }
 
-        std::unique_ptr<std::uint8_t[]> buffer() const;
+        void toArray(void* data) const;
 
         // getters
         std::uint32_t getPayloadSize() const;

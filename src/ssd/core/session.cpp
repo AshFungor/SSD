@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <mutex>
 #include <optional>
+#include <source_location>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/sound/converter.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
@@ -40,9 +41,18 @@ namespace {
         return boost::bind(f, args..., boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred);
     }
 
-    std::string makeUnimplementedMessage(std::string file, std::string function, std::size_t line) {
+    boost::asio::const_buffer makeResponse(NSound::TServiceMessage message, const std::unique_ptr<std::uint8_t[]>& buffer) {
+        auto header = Header::make(message.ByteSizeLong());
+        // buffered data
+        header.toArray(buffer.get());
+        message.SerializeToArray(buffer.get() + header.getHeaderSize(), header.getPayloadSize());
+
+        return boost::asio::const_buffer(buffer.get(), header.getPayloadSize() + header.getHeaderSize());
+    }
+
+    std::string makeUnimplementedMessage(std::source_location location = std::source_location::current()) {
         return absl::StrFormat(
-            "Unimplemented API; File: \"%s\"; Function: \"%s\"; Line: %d", file, function, line
+            "Unimplemented API; File: \"%s\"; Function: \"%s\"; Line: %d", location.file_name(), location.function_name(), location.line()
         );
     }
 
@@ -128,7 +138,7 @@ absl::Status Session::init() {
     std::call_once(init_, [this, &status]() mutable {
         status.Update(onProtocolTransition(session_state::protocol::PROTOCOL_HEADER));
         socket_->async_read_some(
-            boost::asio::mutable_buffer(networkState_->buffer_.get(), Header::getHeaderSize()),
+            boost::asio::mutable_buffer(networkState_->buffer.get(), Header::getHeaderSize()),
             boost::bind(
                 &Session::sRead,
                 networkState_,
@@ -170,7 +180,7 @@ Session::APIResult Session::onClientMessage(NSound::TClientMessage message) {
         return onBaseMessage(std::move(*message.mutable_basemessage()));
     }
 
-    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+    return APIResult::unimplemented(makeUnimplementedMessage());
 }
 
 Session::APIResult Session::onBaseMessage(TBaseMessage message) {
@@ -192,7 +202,7 @@ Session::APIResult Session::onBaseMessage(TBaseMessage message) {
             case TBaseMessage::TStreamDirective::DRAIN:
                 return onDrain(std::move(directive));
             default:
-                return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+                return APIResult::unimplemented(makeUnimplementedMessage());
         }
     } else if (message.has_pull()) {
         return onIOOperation(std::move(*message.mutable_pull()));
@@ -200,7 +210,7 @@ Session::APIResult Session::onBaseMessage(TBaseMessage message) {
         return onIOOperation(std::move(*message.mutable_push()));
     }
 
-    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+    return APIResult::unimplemented(makeUnimplementedMessage());
 }
 
 Session::APIResult Session::onIOOperation(TBaseMessage::TPull message) {
@@ -213,7 +223,7 @@ Session::APIResult Session::onIOOperation(TBaseMessage::TPull message) {
         return APIResult::make(absl::OkStatus(), std::nullopt);
     }
 
-    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+    return APIResult::unimplemented(makeUnimplementedMessage());
 }
 
 Session::APIResult Session::onIOOperation(TBaseMessage::TPush message) {
@@ -225,7 +235,7 @@ Session::APIResult Session::onIOOperation(TBaseMessage::TPush message) {
         return APIResult::misconfiguration("received wrong IO operation: write");
     }
 
-    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+    return APIResult::unimplemented(makeUnimplementedMessage());
 }
 
 Session::APIResult Session::onStreamConfiguration(TBaseMessage::TStreamConfiguration message) {
@@ -328,16 +338,20 @@ void Session::read(const boost::system::error_code& error, std::size_t bytes) {
             // header is only possible if we looped the read process, se we put here write instead
             // (if needed by API)
             if (networkState_->result.has_value()) {
-                // think
+                socket_->async_write_some(
+                    makeResponse(networkState_->result.value(), networkState_->buffer),
+                    bindCall(&Session::sWrite, networkState_, weak_from_this())
+                );
             } else {
                 socket_->async_read_some(
-                    boost::asio::mutable_buffer(networkState_->buffer_.get(), Header::getHeaderSize()),
+                    boost::asio::mutable_buffer(networkState_->buffer.get(), Header::getHeaderSize()),
                     bindCall(&Session::sRead, networkState_, weak_from_this())
                 );
             }
+            break;
         case session_state::protocol::PROTOCOL_PAYLOAD:
             socket_->async_read_some(
-                boost::asio::mutable_buffer(networkState_->buffer_.get(), networkState_->header.getPayloadSize()),
+                boost::asio::mutable_buffer(networkState_->buffer.get(), networkState_->header.getPayloadSize()),
                 bindCall(&Session::sRead, networkState_, weak_from_this())
             );
             break;
@@ -352,7 +366,7 @@ void Session::write(const boost::system::error_code& error, std::size_t bytes) {
 
     // place next call to read
     socket_->async_read_some(
-        boost::asio::mutable_buffer(networkState_->buffer_.get(), Header::getHeaderSize()),
+        boost::asio::mutable_buffer(networkState_->buffer.get(), Header::getHeaderSize()),
         bindCall(&Session::sRead, networkState_, weak_from_this())
     );
 }

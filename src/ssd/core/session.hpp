@@ -121,15 +121,16 @@ namespace laar {
         struct NetworkState {
 
             NetworkState(std::size_t bufferSize) 
-                : bufferSize_(bufferSize)
-                , buffer_(std::make_unique<std::uint8_t[]>(bufferSize))
+                : bufferSize(bufferSize)
+                , buffer(std::make_unique<std::uint8_t[]>(bufferSize))
             {}
 
+            // intermidiate parsing data
             Header header;
             std::optional<NSound::TServiceMessage> result;
             // just network buffer :)
-            const std::size_t bufferSize_;
-            const std::unique_ptr<std::uint8_t[]> buffer_;
+            const std::size_t bufferSize;
+            const std::unique_ptr<std::uint8_t[]> buffer;
         };
 
         // --- CONFIGURATION & INITIALIZATION ---
