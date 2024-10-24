@@ -1,9 +1,11 @@
 #pragma once
 
 // laar
+#include "src/ssd/core/header.hpp"
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/system/detail/error_code.hpp>
 #include <boost/system/system_error.hpp>
+#include <optional>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
@@ -69,6 +71,32 @@ namespace laar {
         // API Result is generic result of API call.
         struct APIResult {
 
+            inline static APIResult unimplemented(
+                std::optional<std::string> message = std::nullopt
+            ) {
+                APIResult result;
+                if (message.has_value()) {
+                    result.status = absl::InternalError(message.value());
+                } else {
+                    result.status = absl::InternalError("API Call unimplemented");
+                }
+                result.response = std::nullopt;
+                return result;
+            }
+
+            inline static APIResult misconfiguration(
+                std::optional<std::string> message = std::nullopt
+            ) {
+                APIResult result;
+                if (message.has_value()) {
+                    result.status = absl::InternalError(message.value());
+                } else {
+                    result.status = absl::InternalError("API Call misconfigured");
+                }
+                result.response = std::nullopt;
+                return result;
+            }
+
             inline static APIResult make(
                     absl::Status status, 
                     std::optional<NSound::TServiceMessage> response
@@ -87,6 +115,21 @@ namespace laar {
         struct SessionState {
             std::uint32_t protocol = 0;
             std::uint32_t buffer = 0;
+        };
+
+        // Network state
+        struct NetworkState {
+
+            NetworkState(std::size_t bufferSize) 
+                : bufferSize_(bufferSize)
+                , buffer_(std::make_unique<std::uint8_t[]>(bufferSize))
+            {}
+
+            Header header;
+            std::optional<NSound::TServiceMessage> result;
+            // just network buffer :)
+            const std::size_t bufferSize_;
+            const std::unique_ptr<std::uint8_t[]> buffer_;
         };
 
         // --- CONFIGURATION & INITIALIZATION ---
@@ -150,6 +193,7 @@ namespace laar {
         // --- SESSION STATE MANAGEMENT ---
         // handle state management flags
         absl::Status onProtocolTransition(std::uint32_t state);
+        void onCriticalSessionError(absl::Status status);
         // targeted setter & getter, use to set state in other methods
         void set(std::uint32_t flag, std::uint32_t state);
         void unset(std::uint32_t flag, std::uint32_t state);
@@ -158,11 +202,26 @@ namespace laar {
         // normal I/O handlers
         void read(const boost::system::error_code& error, std::size_t bytes);
         void write(const boost::system::error_code& error, std::size_t bytes);
+        // additional parsing components
+        absl::Status readHeader(std::size_t bytes);
+        absl::Status readPayload(std::size_t bytes);
         // static wrappers to preserve tokens' lifetime reqs
-        static void sRead(std::weak_ptr<Session> session, const boost::system::error_code& error, std::size_t bytes);
-        static void sWrite(std::weak_ptr<Session> session, const boost::system::error_code& error, std::size_t bytes);
+        static void sRead(
+            std::shared_ptr<NetworkState> state, 
+            std::weak_ptr<Session> session, 
+            const boost::system::error_code& error, 
+            std::size_t bytes
+        );
+        static void sWrite(
+            std::shared_ptr<NetworkState> state, 
+            std::weak_ptr<Session> session, 
+            const boost::system::error_code& error, 
+            std::size_t bytes
+        );
 
     private:
+
+        std::shared_ptr<NetworkState> networkState_;
 
         // Syncronization & thread safety
         std::mutex lock_;
@@ -182,8 +241,6 @@ namespace laar {
 
         // just stream config :)
         std::optional<TBaseMessage::TStreamConfiguration> streamConfig_;
-        // just network buffer :)
-        std::unique_ptr<std::uint8_t> buffer_;
 
     };
 

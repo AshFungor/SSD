@@ -1,6 +1,7 @@
 #pragma once
 
 // STD
+#include <memory>
 #include <istream>
 #include <cstdint>
 
@@ -24,10 +25,17 @@ namespace laar {
     public:
 
         static Header readFromStream(std::istream& is);
+        static Header make(
+            std::uint32_t payloadSize, 
+            std::uint8_t version = protocol::version::FIRST,
+            std::uint8_t payloadType = protocol::payload_type::PROTOBUF
+        );
 
         inline static constexpr std::size_t getHeaderSize() {
             return headerSize_;
         }
+
+        std::unique_ptr<std::uint8_t[]> buffer() const;
 
         // getters
         std::uint32_t getPayloadSize() const;

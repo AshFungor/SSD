@@ -2,6 +2,8 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/placeholders.hpp>
 #include <boost/bind/bind.hpp>
+#include <cstdint>
+#include <iomanip>
 #include <mutex>
 #include <optional>
 #include <src/ssd/core/session.hpp>
@@ -30,6 +32,19 @@
 using namespace laar;
 
 namespace {
+
+    template<typename Functor, typename... Args>
+    auto bindCall(Functor f, Args&&... args) -> decltype(
+        boost::bind(f, args..., boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred)
+    ) {
+        return boost::bind(f, args..., boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred);
+    }
+
+    std::string makeUnimplementedMessage(std::string file, std::string function, std::size_t line) {
+        return absl::StrFormat(
+            "Unimplemented API; File: \"%s\"; Function: \"%s\"; Line: %d", file, function, line
+        );
+    }
 
     std::string dumpStreamConfig(const NSound::NClient::NBase::TBaseMessage::TStreamConfiguration& message) {
         std::stringstream ss;
@@ -94,14 +109,32 @@ std::shared_ptr<Session> Session::configure(
     return std::shared_ptr<Session>(new Session(std::move(master), std::move(context), std::move(socket), std::move(handler), bufferSize));
 }
 
+Session::Session(
+    std::weak_ptr<ISessionMaster> master,
+    std::shared_ptr<boost::asio::io_context> context, 
+    std::shared_ptr<tcp::socket> socket,
+    std::weak_ptr<IStreamHandler> handler,
+    std::size_t bufferSize
+)
+    : networkState_(std::make_shared<NetworkState>(bufferSize))
+    , socket_(socket)
+    , context_(context)
+    , master_(master)
+    , handler_(handler)
+{}
+
 absl::Status Session::init() {
     absl::Status status;
     std::call_once(init_, [this, &status]() mutable {
         status.Update(onProtocolTransition(session_state::protocol::PROTOCOL_HEADER));
         socket_->async_read_some(
-            boost::asio::mutable_buffer(buffer_.get(), Header::getHeaderSize()),
+            boost::asio::mutable_buffer(networkState_->buffer_.get(), Header::getHeaderSize()),
             boost::bind(
-                &Session::sRead, weak_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred
+                &Session::sRead,
+                networkState_,
+                weak_from_this(), 
+                boost::asio::placeholders::error, 
+                boost::asio::placeholders::bytes_transferred
             )
         );
     });
@@ -132,8 +165,196 @@ const Session::SessionState& Session::state() const {
     return state_;
 }
 
+Session::APIResult Session::onClientMessage(NSound::TClientMessage message) {
+    if (message.has_basemessage()) {
+        return onBaseMessage(std::move(*message.mutable_basemessage()));
+    }
+
+    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+}
+
+Session::APIResult Session::onBaseMessage(TBaseMessage message) {
+    if (message.has_streamconfiguration()) {
+        return onStreamConfiguration(std::move(*message.mutable_streamconfiguration()));
+    }
+
+    if (!streamConfig_.has_value()) {
+        return APIResult::misconfiguration("expecting stream config before any other API call");
+    }
+    
+    if (message.has_directive()) {
+        TBaseMessage::TStreamDirective directive = std::move(*message.mutable_directive());
+        switch (directive.type()) {
+            case TBaseMessage::TStreamDirective::CLOSE:
+                return onClose(std::move(directive));
+            case TBaseMessage::TStreamDirective::FLUSH:
+                return onFlush(std::move(directive));
+            case TBaseMessage::TStreamDirective::DRAIN:
+                return onDrain(std::move(directive));
+            default:
+                return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+        }
+    } else if (message.has_pull()) {
+        return onIOOperation(std::move(*message.mutable_pull()));
+    } else if (message.has_push()) {
+        return onIOOperation(std::move(*message.mutable_push()));
+    }
+
+    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+}
+
+Session::APIResult Session::onIOOperation(TBaseMessage::TPull message) {
+    if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::PLAYBACK) {
+        return APIResult::misconfiguration("received wrong IO operation: read");
+    } else if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::RECORD) {
+        auto buffer = std::make_unique<char[]>(laar::getSampleSize(streamConfig_->samplespec().format()) * message.size());
+        auto status = handle_->read(buffer.get(), message.size());
+        PLOG(plog::debug) << "write status: " << status.status().ToString();
+        return APIResult::make(absl::OkStatus(), std::nullopt);
+    }
+
+    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+}
+
+Session::APIResult Session::onIOOperation(TBaseMessage::TPush message) {
+    if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::PLAYBACK) {
+        auto status = handle_->write(message.data().c_str(), message.datasamplesize());
+        PLOG(plog::debug) << "write status: " << status.status().ToString();
+        return APIResult::make(absl::OkStatus(), std::nullopt);
+    } else if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::RECORD) {
+        return APIResult::misconfiguration("received wrong IO operation: write");
+    }
+
+    return APIResult::unimplemented(makeUnimplementedMessage(__FILE_NAME__, __FUNCTION__, __LINE__));
+}
+
+Session::APIResult Session::onStreamConfiguration(TBaseMessage::TStreamConfiguration message) {
+    PLOG(plog::info) << "config received: " << dumpStreamConfig(message);
+    if (streamConfig_.has_value()) {
+        return APIResult::misconfiguration("stream config already received");
+    }
+
+    streamConfig_ = std::move(message);
+    return APIResult::make(absl::OkStatus(), std::nullopt);
+}
+
+Session::APIResult Session::onDrain(TBaseMessage::TStreamDirective message) {
+    absl::Status status = handle_->drain();
+    return APIResult::make(status, std::nullopt);
+}
+
+Session::APIResult Session::onFlush(TBaseMessage::TStreamDirective message) {
+    absl::Status status = handle_->flush();
+    return APIResult::make(status, std::nullopt);
+}
+
+Session::APIResult Session::onClose(TBaseMessage::TStreamDirective message) {
+    handle_->abort();
+    return APIResult::make(absl::OkStatus(), std::nullopt);
+}
+
 Session::~Session() {
     socket_->cancel();
+}
+
+absl::Status Session::onProtocolTransition(std::uint32_t state) {
+    if (
+        state & session_state::protocol::PROTOCOL_HEADER 
+        && state_.protocol & session_state::protocol::PROTOCOL_PAYLOAD
+    ) {
+        set(state, session_state::PROTOCOL);
+        unset(~state, session_state::PROTOCOL);
+        return absl::OkStatus();
+    } else if (
+        state & session_state::protocol::PROTOCOL_PAYLOAD 
+        && state_.protocol & session_state::protocol::PROTOCOL_HEADER
+    ) {
+        set(state, session_state::PROTOCOL);
+        unset(~state, session_state::PROTOCOL);
+        return absl::OkStatus();
+    }
+
+    return absl::InternalError("protocol transition is not possible");
+}
+
+void Session::set(std::uint32_t flag, std::uint32_t state) {
+    std::unique_lock<std::mutex> locked (lock_);
+
+    switch(state) {
+        case session_state::BUFFER:
+            state_.buffer |= state;
+            break;
+        case session_state::PROTOCOL:
+            state_.protocol |= state;
+            break;
+    }
+}
+
+void Session::unset(std::uint32_t flag, std::uint32_t state) {
+    std::unique_lock<std::mutex> locked (lock_);
+
+    switch(state) {
+        case session_state::BUFFER:
+            state_.buffer &= ~state;
+            break;
+        case session_state::PROTOCOL:
+            state_.protocol &= ~state;
+            break;
+    }
+}
+
+void Session::read(const boost::system::error_code& error, std::size_t bytes) {
+    if (error) {
+        onCriticalSessionError(absl::InternalError(error.what()));
+        return;
+    }
+
+    absl::Status status;
+    switch (state_.protocol) {
+        case session_state::protocol::PROTOCOL_HEADER:
+            status = readHeader(bytes);
+            break;
+        case session_state::protocol::PROTOCOL_PAYLOAD:
+            status = readPayload(bytes);
+            break;
+    }
+
+    if (!status.ok()) {
+        onCriticalSessionError(std::move(status));
+    }
+
+    switch (state_.protocol) {
+        case session_state::protocol::PROTOCOL_HEADER:
+            // header is only possible if we looped the read process, se we put here write instead
+            // (if needed by API)
+            if (networkState_->result.has_value()) {
+                // think
+            } else {
+                socket_->async_read_some(
+                    boost::asio::mutable_buffer(networkState_->buffer_.get(), Header::getHeaderSize()),
+                    bindCall(&Session::sRead, networkState_, weak_from_this())
+                );
+            }
+        case session_state::protocol::PROTOCOL_PAYLOAD:
+            socket_->async_read_some(
+                boost::asio::mutable_buffer(networkState_->buffer_.get(), networkState_->header.getPayloadSize()),
+                bindCall(&Session::sRead, networkState_, weak_from_this())
+            );
+            break;
+    }
+}
+
+void Session::write(const boost::system::error_code& error, std::size_t bytes) {
+    if (error) {
+        onCriticalSessionError(absl::InternalError(error.what()));
+        return;
+    }
+
+    // place next call to read
+    socket_->async_read_some(
+        boost::asio::mutable_buffer(networkState_->buffer_.get(), Header::getHeaderSize()),
+        bindCall(&Session::sRead, networkState_, weak_from_this())
+    );
 }
 
 // absl::Status Session::init(std::weak_ptr<IStreamHandler> soundHandler) {
@@ -159,84 +380,4 @@ Session::~Session() {
 //     });
 
 //     return result;
-// }
-
-// laar::Session::TAPIResult Session::onIOOperation(TBaseMessage::TPull message) {
-//     PLOG(plog::debug) << "received IO operation (pull) directive on protocol " << this << " effective size is " << message.size();
-
-//     if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::PLAYBACK) {
-//         return std::make_pair(absl::InternalError("received wrong IO operation: read"), std::nullopt);
-
-//     } else if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::RECORD) {
-//         auto buffer = std::make_unique<char[]>(laar::getSampleSize(streamConfig_->samplespec().format()) * message.size());
-//         auto status = handle_->read(buffer.get(), message.size());
-//         PLOG(plog::debug) << "write status: " << status.status().ToString();
-//         return std::make_pair(absl::OkStatus(), std::nullopt);
-
-//     }
-
-//     return std::make_pair(absl::InternalError("received wrong IO operation: unknown"), std::nullopt);
-// }
-
-// laar::Session::TAPIResult Session::onIOOperation(TBaseMessage::TPush message) {
-//     PLOG(plog::debug) << "received IO operation (push) directive on session " << this << " effective size is " << message.data().size();
-
-//     if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::PLAYBACK) {
-//         auto status = handle_->write(message.data().c_str(), message.datasamplesize());
-//         PLOG(plog::debug) << "write status: " << status.status().ToString();
-//         return std::make_pair(absl::OkStatus(), std::nullopt);
-//     } else if (streamConfig_->direction() == TBaseMessage::TStreamConfiguration::RECORD) {
-//         return std::make_pair(absl::InternalError("received wrong IO operation: write"), std::nullopt);
-//     }
-
-//     return std::make_pair(absl::InternalError("received wrong IO operation: unknown"), std::nullopt);
-// }
-
-// laar::Session::TAPIResult Session::onStreamConfiguration(TBaseMessage::TStreamConfiguration message) {
-//     PLOG(plog::info) << "config received: " << dumpStreamConfig(message);
-//     if (streamConfig_.has_value()) {
-//         return std::make_pair(absl::InternalError("stream config already received"), NSound::TServiceMessage::default_instance());
-//     }
-
-//     streamConfig_ = std::move(message);
-//     return std::make_pair(absl::OkStatus(), std::nullopt);
-// }
-
-// laar::Session::TAPIResult Session::onDrain(TBaseMessage::TStreamDirective message) {
-//     absl::Status status = handle_->drain();
-//     return std::make_pair(status, std::nullopt);
-// }
-
-// laar::Session::TAPIResult Session::onFlush(TBaseMessage::TStreamDirective message) {
-//     absl::Status status = handle_->flush();
-//     return std::make_pair(status, std::nullopt);
-// }
-
-// laar::Session::TAPIResult Session::onClose(TBaseMessage::TStreamDirective message) {
-//     handle_->abort();
-//     return std::make_pair(absl::OkStatus(), std::nullopt);
-// }
-
-
-// Session::~Session() {
-//     if (handle_) {
-//         handle_->abort();
-//     }
-// }
-
-// const std::uint32_t Session::state() const {
-//     return state_;
-// }
-// void Session::set(std::uint32_t flag) {
-//     std::unique_lock<std::mutex> locked(lock_);
-//     state_ &= flag;
-// }
-
-// void Session::unset(std::uint32_t flag) {
-//     std::unique_lock<std::mutex> locked(lock_);
-//     state_ &= ~flag;
-// }
-
-// bool Session::isAlive() {
-//     return handle_->isAlive();
 // }
