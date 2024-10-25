@@ -2,7 +2,6 @@
 #include <boost/asio/dispatch.hpp>
 
 // laar
-#include <queue>
 #include <src/ssd/sound/read-handle.hpp>
 #include <src/ssd/sound/write-handle.hpp>
 #include <src/ssd/util/config-loader.hpp>
@@ -26,6 +25,7 @@
 
 // std
 #include <mutex>
+#include <queue>
 #include <cctype>
 #include <memory>
 #include <future>
@@ -47,8 +47,7 @@
 using namespace laar;
 
 using ESamples = 
-    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
-
+    NSound::NCommon::TStreamConfiguration::TSampleSpecification;
 
 namespace {
 
@@ -70,8 +69,8 @@ std::shared_ptr<SoundHandler> SoundHandler::configure(
 
 SoundHandler::SoundHandler(
     std::shared_ptr<laar::ConfigHandler> configHandler,
-   std::shared_ptr<boost::asio::io_context> context,
-    Private access
+    std::shared_ptr<boost::asio::io_context> context,
+    Private /* access */
 )
     : context_(std::move(context))
     , configHandler_(std::move(configHandler))
@@ -337,7 +336,7 @@ bool SoundHandler::checkSampleFormat(const RtAudio::DeviceInfo& info, std::strin
     return true;
 }
 
-bool SoundHandler::checkName(const RtAudio::DeviceInfo& info, std::string& verdict) noexcept {
+bool SoundHandler::checkName(const RtAudio::DeviceInfo& info, std::string& /* verdict */) noexcept {
     std::string name = info.name;
     std::for_each(name.begin(), name.end(), [](char& ch) {
         ch = std::tolower(ch);
@@ -377,10 +376,10 @@ int laar::duplexCallback(
 
 int laar::writeCallback(
     void* out, 
-    void* in, 
+    void* /* in */, 
     unsigned int frames, 
-    double streamTime, 
-    RtAudioStreamStatus status,
+    double /* streamTime */, 
+    RtAudioStreamStatus /* status */,
     void* local) 
 {
     auto data = (SoundHandler::LocalData*) local;
@@ -428,11 +427,11 @@ int laar::writeCallback(
 }
 
 int laar::readCallback(
-    void* out, 
+    void* /* out */, 
     void* in, 
     unsigned int frames, 
-    double streamTime, 
-    RtAudioStreamStatus status,
+    double /* streamTime */, 
+    RtAudioStreamStatus /* status */,
     void* local) 
 {
     auto data = (SoundHandler::LocalData*) local;
@@ -464,7 +463,7 @@ void SoundHandler::parseDefaultConfig(const nlohmann::json& config) {
 }
 
 std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle(
-    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+    NSound::NCommon::TStreamConfiguration config,
     std::weak_ptr<IStreamHandler::IHandle::IListener> owner) 
 {
     std::unique_lock<std::mutex> locked(local_->handlerLock);
@@ -474,7 +473,7 @@ std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle(
 }
 
 std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(
-    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+    NSound::NCommon::TStreamConfiguration config,
     std::weak_ptr<IStreamHandler::IHandle::IListener> owner) 
 {
     std::unique_lock<std::mutex> locked(local_->handlerLock);

@@ -23,7 +23,7 @@ namespace laar {
     class WriteHandle : public IStreamHandler::IWriteHandle {
     public:
 
-        using TStreamConfiguration = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration;
+        using TStreamConfiguration = NSound::NCommon::TStreamConfiguration;
 
         WriteHandle(
             TStreamConfiguration config, 

@@ -1,26 +1,30 @@
 #pragma once
 
 // laar
-#include "src/ssd/core/header.hpp"
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/system/detail/error_code.hpp>
-#include <boost/system/system_error.hpp>
-#include <optional>
+#include <src/ssd/core/header.hpp>
 #include <src/ssd/core/session.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
+
+// boost
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/system/system_error.hpp>
+#include <boost/system/detail/error_code.hpp>
 
 // protos
 #include <protos/client/base.pb.h>
 #include <protos/server-message.pb.h>
 #include <protos/client-message.pb.h>
+#include <protos/common/directives.pb.h>
+#include <protos/common/stream-configuration.pb.h>
 
 // Abseil
 #include <absl/status/status.h>
 
 // STD
-#include <memory>
 #include <mutex>
+#include <memory>
 #include <cstdint>
+#include <optional>
 
 namespace laar {
 
@@ -185,11 +189,13 @@ namespace laar {
         // Data processing
         APIResult onIOOperation(TBaseMessage::TPull message);
         APIResult onIOOperation(TBaseMessage::TPush message);
-        APIResult onStreamConfiguration(TBaseMessage::TStreamConfiguration message);
+        APIResult onStreamConfiguration(NSound::NCommon::TStreamConfiguration message);
         // Manipulation
-        APIResult onDrain(TBaseMessage::TStreamDirective message);
-        APIResult onFlush(TBaseMessage::TStreamDirective message);
-        APIResult onClose(TBaseMessage::TStreamDirective message);
+        APIResult onDrain(NSound::NCommon::TStreamDirective message);
+        APIResult onFlush(NSound::NCommon::TStreamDirective message);
+        APIResult onClose(NSound::NCommon::TStreamDirective message);
+        // Session flags
+        APIResult onSessionStatePoll(NSound::NCommon::TStreamStatePollResult message);
 
         // --- SESSION STATE MANAGEMENT ---
         // handle state management flags
@@ -241,7 +247,7 @@ namespace laar {
         std::weak_ptr<IStreamHandler> handler_;
 
         // just stream config :)
-        std::optional<TBaseMessage::TStreamConfiguration> streamConfig_;
+        std::optional<NSound::NCommon::TStreamConfiguration> streamConfig_;
 
     };
 
@@ -249,6 +255,8 @@ namespace laar {
     public:
 
         SessionFactory() = default;
+        SessionFactory(const SessionFactory&) = delete;
+        SessionFactory(SessionFactory&&) = delete;
 
         // builder stages
         SessionFactory& withBuffer(std::size_t size);

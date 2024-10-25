@@ -55,8 +55,11 @@ int main(int argc, char** argv) {
 
     auto soundHandler = laar::SoundHandler::configure(configHandler, context);
     soundHandler->init();
-
     PLOG(plog::debug) << "module created: " << "SoundHandler; instance: " << soundHandler.get();
+
+    auto server = laar::Server::create(soundHandler, context, laar::Port);
+    server->init();
+    PLOG(plog::debug) << "module created: " << "Server; instance: " << soundHandler.get();
 
     for (std::size_t tNum = 0; tNum < threads; ++tNum) {
         boost::asio::post(*tPool, [context]() {

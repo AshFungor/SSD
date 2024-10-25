@@ -17,7 +17,7 @@
 #include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
 using namespace laar;
-using ESamples = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+using ESamples = NSound::NCommon::TStreamConfiguration::TSampleSpecification;
 
 
 namespace {
@@ -81,7 +81,7 @@ BassRouterDispatcher::BassRouterDispatcher(
     std::size_t sampleRate,
     BassRange range,
     ChannelInfo info,
-    Private access
+    Private /* access */
 ) 
     : order_(order)
     , format_(format)

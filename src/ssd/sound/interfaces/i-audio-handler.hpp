@@ -66,10 +66,10 @@ namespace laar {
             virtual absl::StatusOr<int> write(const std::int32_t* dest, std::size_t size) override = 0;
 
         private:
-            virtual absl::StatusOr<int> write(const char* src, std::size_t size) override { 
+            virtual absl::StatusOr<int> write(const char* /* src */, std::size_t /* size */) override { 
                 return absl::InternalError("not implemented");
             }
-            virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) override { 
+            virtual absl::StatusOr<int> read(std::int32_t* /* dest */, std::size_t /* size */) override { 
                 return absl::InternalError("not implemented");
             }
         };
@@ -81,10 +81,10 @@ namespace laar {
             virtual absl::StatusOr<int> read(std::int32_t* dest, std::size_t size) override = 0;
 
         private:
-            virtual absl::StatusOr<int> read(char* src, std::size_t size) override { 
+            virtual absl::StatusOr<int> read(char* /* src */, std::size_t /* size */) override { 
                 return absl::InternalError("not implemented");
             }
-            virtual absl::StatusOr<int> write(const std::int32_t* dest, std::size_t size) override { 
+            virtual absl::StatusOr<int> write(const std::int32_t* /* dest */, std::size_t /* size */) override { 
                 return absl::InternalError("not implemented");
             }
         };
@@ -98,12 +98,12 @@ namespace laar {
         // virtual void setVolume(float volume) const = 0;
 
         virtual std::shared_ptr<IReadHandle> acquireReadHandle(
-            NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+            NSound::NCommon::TStreamConfiguration config,
             std::weak_ptr<IHandle::IListener> owner
         ) = 0;
 
         virtual std::shared_ptr<IWriteHandle> acquireWriteHandle(
-            NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+            NSound::NCommon::TStreamConfiguration config,
             std::weak_ptr<IHandle::IListener> owner
         ) = 0;
 

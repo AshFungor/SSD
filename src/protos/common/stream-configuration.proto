@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package NSound.NCommon;
+
+// Stream configuration is used upon opening
+// sound stream to manipulate stream parameters
+message TStreamConfiguration {
+
+    // Stream type
+    enum TStreamDirection {
+        PLAYBACK = 0;
+        RECORD = 1;
+        UPLOAD = 2; // Not supported yet
+    }
+
+    // Sound stream specification
+    message TSampleSpecification {
+        
+        enum TFormat {
+            UNKNOWN = 0;
+            UNSIGNED_8 = 1;
+            UNSIGNED_8_ALAW = 2;
+            UNSIGNED_8_ULAW = 3;
+            SIGNED_16_LITTLE_ENDIAN = 4;
+            SIGNED_16_BIG_ENDIAN = 5;
+            FLOAT_32_LITTLE_ENDIAN = 6;
+            FLOAT_32_BIG_ENDIAN = 7;
+            SIGNED_32_LITTLE_ENDIAN = 8;
+            SIGNED_32_BIG_ENDIAN = 9;
+            SIGNED_24_LITTLE_ENDIAN = 10;
+            SIGNED_24_BIG_ENDIAN = 11;
+            SIGNED_24_LSB_LITTLE_ENDIAN = 12;
+            SIGNED_24_LSB_BIG_ENDIAN = 13;
+        }
+
+        // Sample holding type
+        TFormat Format = 1;
+        uint32 SampleRate = 2;
+        uint32 Channels = 3; 
+    }
+
+    // Channel mappings to supposed output - not used
+    // as of now
+    message TChannelMap {
+
+        enum TLabeledPosition {
+            MONO = 0;
+            LEFT = 1;
+            RIGHT = 2;
+            CENTER = 3;
+        }
+
+        message TMapValue {
+            oneof Label {
+                TLabeledPosition Position = 1;
+                // from 0 to 31 inclusive
+                int32 AUX = 2;
+            }
+        }
+
+        repeated TMapValue MappedChannel = 1;
+    }
+
+    // Internal server buffer configuration
+    message TBufferConfiguration {
+        uint32 Size = 1;
+        uint32 PrebuffingSize = 2;
+        uint32 MinRequestSize = 3;
+        uint32 FragmentSize = 4;
+    }
+
+    // descripive name for stream user
+    optional string ClientName = 1;
+    // descriptive name for stream
+    optional string StreamName = 2;
+    // direction of the stream
+    TStreamDirection Direction = 3;
+    // channel map
+    TChannelMap ChannelMap = 4;
+    // sample config
+    TSampleSpecification SampleSpec = 5;
+    // buffer config
+    TBufferConfiguration BufferConfig = 6;
+}
+
+message TStreamAlteredConfiguration {
+
+    TStreamConfiguration configuration = 1;
+    bool opened = 2;
+
+}

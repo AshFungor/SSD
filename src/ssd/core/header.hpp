@@ -1,7 +1,6 @@
 #pragma once
 
 // STD
-#include <memory>
 #include <istream>
 #include <cstdint>
 

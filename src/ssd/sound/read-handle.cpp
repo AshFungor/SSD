@@ -20,11 +20,11 @@
 using namespace laar;
 
 using ESamples = 
-    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+    NSound::NCommon::TStreamConfiguration::TSampleSpecification;
 
 
 ReadHandle::ReadHandle(
-    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config, 
+    NSound::NCommon::TStreamConfiguration config, 
     std::weak_ptr<IListener> owner
 ) 
     : format_(config.samplespec().format())

@@ -59,3 +59,28 @@ std::uint8_t Header::getPayloadType() const {
     return payloadType_;
 }
 
+void Header::toArray(void* data) const {
+    std::stringstream oss {reinterpret_cast<char*>(data), std::ios::out | std::ios::binary};
+    std::uint16_t writeahead = 0;
+
+    writeahead |= version_ << VERSION_SHIFT;
+    writeahead |= payloadType_ << TYPE_SHIFT;
+    writeahead = absl::ghtons(writeahead);
+    oss.write(reinterpret_cast<char*>(&writeahead), sizeof(writeahead));
+
+    std::uint32_t size = absl::ghtonl(payloadSize_);
+    oss.write(reinterpret_cast<char*>(&size), sizeof(size));
+
+    if (oss.fail()) {
+        PLOG(plog::error) << "failed to write header: error bit on string stream is set to 1";
+        std::abort();
+    }
+}
+
+Header Header::make(std::uint32_t payloadSize, std::uint8_t version, std::uint8_t payloadType) {
+    Header header;
+    header.payloadSize_ = payloadSize;
+    header.payloadType_ = payloadType;
+    header.version_ = version;
+    return header;
+}

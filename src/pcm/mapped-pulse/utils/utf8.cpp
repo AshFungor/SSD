@@ -44,7 +44,7 @@ namespace {
         std::uint32_t min = 0;
         std::uint8_t* out;
 
-        static auto errorFallback = [](std::uint8_t*& out, const std::uint8_t* pointer, const std::uint8_t* last) -> bool {
+        static auto errorFallback = [](std::uint8_t*& out, const std::uint8_t*& pointer, const std::uint8_t* last) -> bool {
             if (out) {
                 *out = FilterCharacter;
                 /* We retry at the next character */

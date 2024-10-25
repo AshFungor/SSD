@@ -20,10 +20,10 @@
 using namespace laar;
 
 using ESamples = 
-    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+    NSound::NCommon::TStreamConfiguration::TSampleSpecification;
 
 WriteHandle::WriteHandle(
-    NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config, 
+    NSound::NCommon::TStreamConfiguration config, 
     std::weak_ptr<IListener> owner
 ) 
     : sampleSize_(getSampleSize(config.samplespec().format()))

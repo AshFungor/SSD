@@ -9,12 +9,16 @@
 
 // STD
 #include <string>
-#include <format>
+#include <cstdint>
 #include <ostream>
 #include <iostream>
 
 
 namespace pcm_log {
+
+    enum class ELogVerbosity : std::int_fast16_t {
+        ERROR, WARNING, INFO
+    };
 
     namespace __pcm_trace_internal {
 
@@ -28,13 +32,7 @@ namespace pcm_log {
     // ensure sink exists for duration of PCM API usage
     absl::Status configureLogging(std::ostream* os);
 
-    absl::Status logFormatError(const std::string& fmt, std::format_args args);
-    absl::Status logFormatInfo(const std::string& fmt, std::format_args args);
-    absl::Status logFormatWarning(const std::string& fmt, std::format_args args);
-
-    void logErrorSilent(const std::string& fmt, std::format_args args);
-    void logInfoSilent(const std::string& fmt, std::format_args args);
-    void logWarningSilent(const std::string& fmt, std::format_args args);
+    void log(const std::string& message, ELogVerbosity verbosity);
 
     // pulse structs string converters
     std::string toString(const pa_buffer_attr *attr);

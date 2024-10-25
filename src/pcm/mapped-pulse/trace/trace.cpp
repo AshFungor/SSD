@@ -8,23 +8,23 @@
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
 
 // STD
-#include <chrono>
-#include <cstdint>
 #include <ctime>
-#include <format>
-#include <iomanip>
 #include <mutex>
-#include <sstream>
+#include <format>
 #include <string>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <cstdint>
 
 
 namespace {
 
     // output sink, defaulting to null
-    std::ostream* globalOS = nullptr;
+    std::ostream* os_ = nullptr;
 
     // global lock for error/output
-    std::mutex GStandardLock;
+    std::mutex lock_;
 
 }
 
@@ -61,50 +61,30 @@ std::ostream& __pcm_trace_internal::warning(std::ostream& os) {
 }
 
 absl::Status pcm_log::configureLogging(std::ostream* os) {
-    globalOS = os;
-    if (!globalOS) {
+    if (!os) {
         return absl::OkStatus();
     }
-    return (globalOS->bad()) ? absl::InternalError("Stream is invalid") : absl::OkStatus();
+    os_ = os;
+    return (os_->bad()) ? absl::InternalError("steam check failed") : absl::OkStatus();
 }
 
-absl::Status pcm_log::logFormatError(const std::string& fmt, std::format_args args) {
-    std::unique_lock<std::mutex> lock {GStandardLock};
-    if (!globalOS) {
-        return absl::OkStatus();
+void pcm_log::log(const std::string& message, ELogVerbosity verbosity) {
+    std::unique_lock<std::mutex> lock {lock_};
+    if (!os_) {
+        return;
     }
-    __pcm_trace_internal::error(*globalOS) << std::vformat(fmt, args) << "\n";
-    return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
-}
 
-absl::Status pcm_log::logFormatInfo(const std::string& fmt, std::format_args args) {
-    std::unique_lock<std::mutex> lock {GStandardLock};
-    if (!globalOS) {
-        return absl::OkStatus();
+    switch (verbosity) {
+        case pcm_log::ELogVerbosity::ERROR:
+            __pcm_trace_internal::error(*os_) << message;
+            return;
+        case pcm_log::ELogVerbosity::WARNING:
+            __pcm_trace_internal::warning(*os_) << message;
+            return;
+        case pcm_log::ELogVerbosity::INFO:
+            __pcm_trace_internal::info(*os_) << message;
+            return;
     }
-    __pcm_trace_internal::info(*globalOS) << std::vformat(fmt, args) << "\n";
-    return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
-}
-
-absl::Status pcm_log::logFormatWarning(const std::string& fmt, std::format_args args) {
-    std::unique_lock<std::mutex> lock {GStandardLock};
-    if (!globalOS) {
-        return absl::OkStatus();
-    }
-    __pcm_trace_internal::warning(*globalOS) << std::vformat(fmt, args) << "\n";
-    return (!globalOS->bad()) ? absl::OkStatus() : absl::InternalError("stream is unavailable for I/O");
-}
-
-void pcm_log::logErrorSilent(const std::string& fmt, std::format_args args){
-    logFormatError(std::move(fmt), std::move(args)).IgnoreError();
-}
-
-void logInfoSilent(const std::string& fmt, std::format_args args) {
-    logFormatInfo(std::move(fmt), std::move(args)).IgnoreError();
-}
-
-void logWarningSilent(const std::string& fmt, std::format_args args) {
-    logFormatWarning(std::move(fmt), std::move(args)).IgnoreError();
 }
 
 std::string pcm_log::toString(const pa_buffer_attr *attr) {

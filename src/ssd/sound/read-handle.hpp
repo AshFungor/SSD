@@ -23,7 +23,7 @@ namespace laar {
     public:
 
         ReadHandle(
-            NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config, 
+            NSound::NCommon::TStreamConfiguration config, 
             std::weak_ptr<IListener> owner
         );
 

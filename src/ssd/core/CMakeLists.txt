@@ -3,11 +3,13 @@ cmake_minimum_required(VERSION 3.15)
 set(SOURCES 
     routing-service.cpp
     session.cpp
+    header.cpp
 )
 
 set(HEADERS 
     routing-service.hpp
     session.hpp
+    header.hpp
 )
 
 add_library(core STATIC ${SOURCES} ${HEADERS})

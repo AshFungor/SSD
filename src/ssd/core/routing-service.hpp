@@ -32,7 +32,7 @@ namespace laar {
 
         using tcp = boost::asio::ip::tcp;
 
-        static std::shared_ptr<Server> create(std::shared_ptr<boost::asio::io_context> context);
+        static std::shared_ptr<Server> create(std::weak_ptr<IStreamHandler> handler, std::shared_ptr<boost::asio::io_context> context, std::uint32_t port);
         void init();
         
         // Session::ISessionMaster implementation
@@ -47,9 +47,9 @@ namespace laar {
         Server& operator=(const Server&) = delete;
         Server& operator=(Server&&) = delete;
 
-        Server(std::shared_ptr<boost::asio::io_context> context);
+        Server(std::weak_ptr<IStreamHandler> handler, std::shared_ptr<boost::asio::io_context> context, std::uint32_t port);
 
-        void handleAccept(std::shared_ptr<Session> session, const boost::system::error_code& error);
+        void accept(std::shared_ptr<Session> session, const boost::system::error_code& error);
         void onNetworkError(const boost::system::error_code& error, bool isCritical);
 
     private:
@@ -61,6 +61,7 @@ namespace laar {
 
         tcp::acceptor acceptor_;
         std::shared_ptr<boost::asio::io_context> context_;
+        std::weak_ptr<IStreamHandler> handler_;
 
     };
 

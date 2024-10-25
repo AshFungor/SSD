@@ -5,6 +5,9 @@ set(PROTOS
     client/base.proto
     # service messages
     service/base.proto
+    # common
+    common/directives.proto
+    common/stream-configuration.proto
     # holders
     client-message.proto
     server-message.proto

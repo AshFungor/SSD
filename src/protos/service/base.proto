@@ -2,7 +2,8 @@ syntax = "proto3";
 
 package NSound.NService.NBase;
 
-import "protos/client/base.proto"; 
+import "protos/common/directives.proto";
+import "protos/common/stream-configuration.proto";
 
 /*
 This file provides basic server responses, similar to client ones.
@@ -16,13 +17,9 @@ message TBaseMessage {
         bytes Data = 1;
     }
 
-    // confirmation for directives
-    message TDirectiveSatisfied {
-        NSound.NClient.NBase.TBaseMessage.TStreamDirective.EDirective Directive = 1;
-    }
-
-    oneof Request {
+    oneof Response {
         TPull Pull = 1;
-        TDirectiveSatisfied DirectiveSatisfied = 2;
+        NSound.NCommon.TStreamStatePollResult StatePollResult = 2;
+        NSound.NCommon.TStreamAlteredConfiguration StreamAlteredConfiguration = 3;
     }
 }

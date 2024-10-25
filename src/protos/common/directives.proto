@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package NSound.NCommon;
+
+// Message for stream manipulation
+message TStreamDirective {
+    
+    enum EDirective {
+        DRAIN = 0;
+        FLUSH = 1;
+        CLOSE = 2;
+    }
+
+    EDirective Type = 1;
+}
+
+message TStreamStatePoll {
+    // empty
+}
+
+message TStreamStatePollResult {
+
+    enum EStreamState {
+        DRAINED = 0;
+        FLUSHED = 1;
+        CLOSED = 2;
+    }
+
+    repeated EStreamState states = 1;
+
+}

@@ -2,12 +2,12 @@
 #include <cmath>
 #include <memory>
 #include <cstdint>
-#include <fstream>
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
 
-// pcm
+// laar
+#include <src/ssd/macros.hpp>
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
 
 // pulse
@@ -32,11 +32,7 @@ int playExponent() {
     int duration = 0;
     std::cout << "enter duration (between 1 and 120, in seconds): "; std::cin >> duration;
     duration = std::clamp(duration, 1, 120);
-    std::size_t period = 0;
-    std::cout << "period specifies how intensive sound is and how many samples \n"
-              << "will be transferred at once. \n";
-    std::cout << "enter period (between 100 and 2000, in samples): "; std::cin >> period; 
-    period = std::clamp<std::size_t>(period, 100, 2000);
+    std::size_t period = laar::MaxBytesOnMessage / 4;
 
     auto spec = std::make_unique<pa_sample_spec>();
     spec->rate = 44100;
@@ -46,8 +42,6 @@ int playExponent() {
 
     auto attr = std::make_unique<pa_buffer_attr>();
     attr->prebuf = spec->rate;
-    std::cout << "Program also asks to halt playback until at least %rate% (set to 44100) samples \n"
-              << "will be transferred. This is done to ensure the will be no underruns on server. \n";
 
     auto connection = pa_simple_new(
         "localhost", 
@@ -65,19 +59,16 @@ int playExponent() {
 
     auto data = std::make_unique<std::int32_t[]>(spec->rate * duration);
     std::cout << "Assembling buffer to store one period at a time. \n";
-    std::size_t samples = 0, periodsTotal = spec->rate * duration / period;
+    std::size_t periodsTotal = spec->rate * duration / period;
     for (std::size_t i = 0; i < periodsTotal; ++i) {
         for (std::size_t j = 0; j < period; ++j) {
             auto val = std::clamp<int>(std::sin((double) j / period * std::numbers::pi * 2) * INT32_MAX / 4 - INT32_MIN, INT32_MIN, INT32_MAX);
             data[i * period + j] = val;
         }
-        samples += period;
         pa_simple_write(connection, data.get() + i * period, period, nullptr);
     }
 
     std::cout << "Transfer complete! Program sent periods " << periodsTotal << " times! \n";
-    std::cout << "Total samples sent: " << samples << "\n";
-
     pa_simple_free(connection);
     std::cout << "Connection was closed. Server will finish on this buffer, and then close it. \n";
 
@@ -85,7 +76,6 @@ int playExponent() {
 }
 
 int playWav() {
-
     std::cout << "This is demo for playback on laar SSD, it plays .wav file. \n";
 
     std::string filename;
@@ -100,11 +90,7 @@ int playWav() {
     AudioFile<std::int32_t> file (filename);
     file.printSummary();
 
-    int period = 0;
-    std::cout << "period specifies how intensive sound is and how many samples \n"
-              << "will be transferred at once. \n";
-    std::cout << "enter period (between 100 and 2000, in samples): "; std::cin >> period; 
-    period = std::clamp(period, 100, 2000);
+    int period = laar::MaxBytesOnMessage / 4;
 
     auto spec = std::make_unique<pa_sample_spec>();
     spec->rate = 44100;
@@ -129,16 +115,13 @@ int playWav() {
     auto data = std::make_unique<std::int16_t[]>(period);
     auto samples = file.getNumSamplesPerChannel();
 
-    std::ofstream log ("record.txt");
     for (int sample = 0; sample < samples; sample += period) {
         std::memset(data.get(), 0, period);
         for (int j = sample; j < std::min(sample + period, samples); ++j) {
             data[j % period] = file.samples[0][j];
-            log << "writing sample: " << file.samples[0][j] << "\n";
         }
         pa_simple_write(connection, data.get(), period, nullptr);
     }
-
     pa_simple_free(connection);
 
     return 0;

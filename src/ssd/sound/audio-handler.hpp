@@ -82,11 +82,11 @@ namespace laar {
 
         void init() override;
         virtual std::shared_ptr<IReadHandle> acquireReadHandle(
-            NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+            NSound::NCommon::TStreamConfiguration config,
             std::weak_ptr<IStreamHandler::IHandle::IListener> owner
         ) override;
         virtual std::shared_ptr<IWriteHandle> acquireWriteHandle(
-            NSound::NClient::NBase::TBaseMessage::TStreamConfiguration config,
+            NSound::NCommon::TStreamConfiguration config,
             std::weak_ptr<IStreamHandler::IHandle::IListener> owner
         ) override;
 

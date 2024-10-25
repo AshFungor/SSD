@@ -97,7 +97,7 @@ TEST(DispatcherTest, TestOneToMany) {
     auto dispatcherOneToMany = laar::TubeDispatcher::create(
         laar::TubeDispatcher::EDispatchingDirection::ONE2MANY,
         laar::ESamplesOrder::NONINTERLEAVED,
-        TBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
+        NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
         channels
     );
 
@@ -134,7 +134,7 @@ TEST(DispatcherTest, TestManyToOne) {
     auto dispatcherManyToOne = laar::TubeDispatcher::create(
         laar::TubeDispatcher::EDispatchingDirection::MANY2ONE,
         laar::ESamplesOrder::NONINTERLEAVED,
-        TBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
+        NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
         channels
     );
 
@@ -168,7 +168,7 @@ TEST(DispatcherTest, TestBassRouting) {
     laar::BassRouterDispatcher::ChannelInfo channelInfo (0, 1);
     auto bassRouteDispatcher = laar::BassRouterDispatcher::create(
         laar::ESamplesOrder::NONINTERLEAVED,
-        TBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
+        NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN,
         44100,
         laar::BassRouterDispatcher::BassRange(20, 250),
         channelInfo

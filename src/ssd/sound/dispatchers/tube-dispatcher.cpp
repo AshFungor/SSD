@@ -13,7 +13,7 @@
 #include <src/ssd/sound/dispatchers/tube-dispatcher.hpp>
 
 using namespace laar;
-using ESamples = NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification;
+using ESamples = NSound::NCommon::TStreamConfiguration::TSampleSpecification;
 
 
 namespace {
@@ -155,7 +155,7 @@ TubeDispatcher::TubeDispatcher(
     const ESamplesOrder& order, 
     const ESampleType& format,
     const std::size_t& channels,
-    Private access
+    Private /* access */
 )
     : dir_(dir)
     , order_(order)

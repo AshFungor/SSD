@@ -12,7 +12,7 @@
 namespace laar {
 
     using ESampleType =
-        NSound::NClient::NBase::TBaseMessage::TStreamConfiguration::TSampleSpecification::TFormat;
+        NSound::NCommon::TStreamConfiguration::TSampleSpecification::TFormat;
 
     // endianess
     std::uint16_t convertToLE(std::uint16_t data);

@@ -2,7 +2,6 @@
 #include <absl/status/status.h>
 
 // STD
-#include <format>
 #include <cerrno>
 #include <cassert>
 #include <csignal>
@@ -24,7 +23,7 @@ namespace {
     /* out-of-memory fallback */
     PCM_GCC_NORETURN void oom() {
         static const char error[] = "Not enough memory";
-        pcm_log::logFormatError("{}", std::make_format_args(error)).IgnoreError();
+        pcm_log::log(error, pcm_log::ELogVerbosity::ERROR);
         std::abort();
     }
 

@@ -51,7 +51,7 @@ namespace laar {
         reference operator*();
 
     private:
-        pointer advance(std::uint32_t distance);
+        pointer advance(std::int32_t distance);
         difference_type shift();
 
     private:
@@ -206,7 +206,7 @@ laar::ChannelIterator<SampleType>::reference laar::ChannelIterator<SampleType>::
 }
 
 template<typename SampleType>
-SampleType* laar::ChannelIterator<SampleType>::advance(std::uint32_t distance) {
+SampleType* laar::ChannelIterator<SampleType>::advance(std::int32_t distance) {
     if ((distance + shift() > samples_ && distance > 0) || (shift() + distance < 0 && distance < 0)) {
         throw std::runtime_error("channel read out of bounds");
     }
