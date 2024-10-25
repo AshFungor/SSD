@@ -48,6 +48,7 @@ namespace laar {
             inline constexpr std::uint32_t PROTOCOL_HEADER = 0x1;
             // payload (main part)
             inline constexpr std::uint32_t PROTOCOL_PAYLOAD = 0x2;
+            inline constexpr std::uint32_t PROTOCOL_INIT = 0x4;
         }
     }
 
@@ -117,7 +118,7 @@ namespace laar {
         // Session manages in state via a set of states of its components,
         // therefore there is a need to wrap them all in one single object.
         struct SessionState {
-            std::uint32_t protocol = 0;
+            std::uint32_t protocol = session_state::protocol::PROTOCOL_INIT;
             std::uint32_t buffer = 0;
         };
 
@@ -269,10 +270,10 @@ namespace laar {
     private:
 
         struct CurrentState {
-            std::size_t size;
+            std::size_t size = 0;
             std::weak_ptr<Session::ISessionMaster> master;
             std::weak_ptr<IStreamHandler> handler;
-            std::shared_ptr<boost::asio::io_context> context;
+            std::shared_ptr<boost::asio::io_context> context = nullptr;
         } state_;
 
     };

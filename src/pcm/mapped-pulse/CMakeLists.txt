@@ -18,7 +18,7 @@ set(HEADERS
 
 add_library(pcm STATIC ${HEADERS} ${SOURCES})
 
-target_link_libraries(pcm PUBLIC protos ${SSD_EXTERNAL_DEPS} laar::sound)
+target_link_libraries(pcm PUBLIC protos ${SSD_EXTERNAL_DEPS} laar::sound laar::core)
 
 target_include_directories(pcm PUBLIC ${CMAKE_SOURCE_DIR})
 

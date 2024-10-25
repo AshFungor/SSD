@@ -297,11 +297,18 @@ Session::APIResult Session::onSessionStatePoll(NSound::NCommon::TStreamStatePoll
 }
 
 Session::~Session() {
-    socket_->cancel();
+    socket_->close();
 }
 
 absl::Status Session::onProtocolTransition(std::uint32_t state) {
     if (
+        state & session_state::protocol::PROTOCOL_HEADER
+        && state_.protocol & session_state::protocol::PROTOCOL_INIT
+    ) {
+        set(state, session_state::PROTOCOL);
+        unset(~state, session_state::PROTOCOL);
+        return absl::OkStatus();
+    } else if (
         state & session_state::protocol::PROTOCOL_HEADER 
         && state_.protocol & session_state::protocol::PROTOCOL_PAYLOAD
     ) {
@@ -470,6 +477,9 @@ SessionFactory& SessionFactory::withContext(std::shared_ptr<boost::asio::io_cont
 }
 
 std::pair<std::shared_ptr<boost::asio::ip::tcp::socket>, std::shared_ptr<Session>> SessionFactory::AssembleAndReturn() {
-    auto socket = std::make_shared<boost::asio::ip::tcp::socket>(*state_.context);
-    return std::make_pair(socket, Session::configure(state_.master, state_.context, socket, state_.handler, state_.size));
+    if (state_.context) {
+        auto socket = std::make_shared<boost::asio::ip::tcp::socket>(*state_.context);
+        return std::make_pair(socket, Session::configure(state_.master, state_.context, socket, state_.handler, state_.size));
+    }
+    std::abort();
 }

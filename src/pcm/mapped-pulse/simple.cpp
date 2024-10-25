@@ -1,227 +1,296 @@
-// // Abseil
-// #include <absl/status/status.h>
-// #include <absl/strings/str_cat.h>
-// #include <absl/strings/str_format.h>
+// Abseil
+#include <absl/status/status.h>
+#include <absl/status/statusor.h>
+#include <absl/strings/str_cat.h>
+#include <absl/strings/str_format.h>
 
-// // pulse
-// #include <pulse/def.h>
-// #include <pulse/sample.h>
-// #include <pulse/simple.h>
-// #include <pulse/xmalloc.h>
+// boost
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/system/system_error.hpp>
 
-// // STD
-// #include <memory>
-// #include <format>
-// #include <thread>
-// #include <cstring>
-// #include <utility>
+// pulse
+#include <pulse/def.h>
+#include <pulse/sample.h>
+#include <pulse/simple.h>
+#include <pulse/xmalloc.h>
 
-// // Grpc
-// #include <grpcpp/channel.h>
-// #include <grpcpp/client_context.h>
-// #include <grpcpp/create_channel.h>
-// #include <grpcpp/impl/call_op_set.h>
+// STD
+#include <thread>
+#include <memory>
+#include <cstdint>
+#include <cstring>
+#include <sstream>
 
-// // laar
-// #include <src/ssd/macros.hpp>
-// #include <src/ssd/sound/converter.hpp>
-// #include <src/pcm/mapped-pulse/simple.hpp>
-// #include <src/pcm/mapped-pulse/trace/trace.hpp>
+// laar
+#include <src/ssd/macros.hpp>
+#include <src/ssd/core/header.hpp>
+#include <src/ssd/sound/converter.hpp>
+#include <src/pcm/mapped-pulse/simple.hpp>
+#include <src/pcm/mapped-pulse/trace/trace.hpp>
 
-// // protos
-// #include <protos/client/base.pb.h>
-// #include <protos/service/base.pb.h>
-// #include <protos/client-message.pb.h>
-// #include <protos/server-message.pb.h>
-// #include <protos/services/sound-router.grpc.pb.h>
+// protos
+#include <protos/client/base.pb.h>
+#include <protos/service/base.pb.h>
+#include <protos/client-message.pb.h>
+#include <protos/server-message.pb.h>
 
-// pa_simple* __internal_pcm::makeSyncConnection(
-//     const char *server,
-//     const char *name,
-//     pa_stream_direction_t dir,
-//     const char *dev,
-//     const char *stream_name,
-//     const pa_sample_spec *ss,
-//     const pa_channel_map *map,
-//     const pa_buffer_attr *attr,
-//     int *error) 
-// {
-//     TClientBaseMessage::TStreamConfiguration config;
+namespace {
 
-//     config.set_clientname(name);
-//     config.set_streamname(stream_name);
+    boost::asio::const_buffer makeRequest(NSound::TClientMessage message, std::unique_ptr<std::uint8_t[]>& buffer) {
+        auto header = laar::Header::make(message.ByteSizeLong());
+        header.toArray(buffer.get());
+        message.SerializeToArray(buffer.get() + header.getHeaderSize(), header.getPayloadSize());
+        return boost::asio::const_buffer(buffer.get(), header.getHeaderSize() + header.getPayloadSize());
+    }
 
-//     if (dir == PA_STREAM_PLAYBACK) {
-//         config.set_direction(TClientBaseMessage::TStreamConfiguration::PLAYBACK);
-//     } else if (dir == PA_STREAM_RECORD) {
-//         config.set_direction(TClientBaseMessage::TStreamConfiguration::RECORD);
-//     } else {
-//         int casted = dir;
-//         pcm_log::logErrorSilent("unsupported stream direction: {}", std::make_format_args(casted));
-//     }
+    absl::Status wrapServerCall(pa_simple* connection, NSound::TClientMessage message) {
+        try {
+            connection->socket->write_some(makeRequest(std::move(message), connection->buffer));
+            return absl::OkStatus();
+        } catch (const boost::system::system_error& error) {
+            return absl::InternalError(error.what());
+        } catch (...) {
+            return absl::InternalError("unknown error");
+        }
+    }
 
-//     if (ss) {
+    absl::StatusOr<NSound::TServiceMessage> wrapServerResponse(pa_simple* connection) {
+        try {
+            std::stringstream iss {reinterpret_cast<char*>(connection->buffer.get()), std::ios::in | std::ios::binary};
+            connection->socket->read_some(boost::asio::mutable_buffer(connection->buffer.get(), laar::Header::getHeaderSize()));
+            auto header = laar::Header::readFromStream(iss);
+            connection->socket->read_some(boost::asio::mutable_buffer(connection->buffer.get(), header.getPayloadSize()));
+            NSound::TServiceMessage response;
+            if (bool parseStatus = response.ParseFromArray(connection->buffer.get(), header.getPayloadSize()); !parseStatus) {
+                return absl::InternalError("failed tp parse message from stream");
+            }
+            return response;
+        } catch (const boost::system::system_error& error) {
+            return absl::InternalError(error.what());
+        } catch (...) {
+            return absl::InternalError("unknown error");
+        }
+    }
 
-//         if (ss->rate == laar::BaseSampleRate) {
-//             config.mutable_samplespec()->set_samplerate(laar::BaseSampleRate);
-//         } else {
-//             pcm_log::logErrorSilent("unsupported rate: {}", std::make_format_args(ss->rate));
-//         }
+}
 
-//         if (ss->format == PA_SAMPLE_U8) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::UNSIGNED_8);
-//         } else if (ss->format == PA_SAMPLE_S16LE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN);
-//         } else if (ss->format == PA_SAMPLE_S16BE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN);
-//         } else if (ss->format == PA_SAMPLE_S24LE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_24_LITTLE_ENDIAN);
-//         } else if (ss->format == PA_SAMPLE_S24BE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_24_BIG_ENDIAN);
-//         } else if (ss->format == PA_SAMPLE_S32LE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN);
-//         } else if (ss->format == PA_SAMPLE_S32BE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN);
-//         } else if (ss->format == PA_SAMPLE_FLOAT32LE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN);
-//         } else if (ss->format == PA_SAMPLE_FLOAT32BE) {
-//             config.mutable_samplespec()->set_format(TClientBaseMessage::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN);
-//         } else {
-//             int format = ss->format;
-//             pcm_log::logErrorSilent("unsupported sample type: ", std::make_format_args(format));
-//         }
+pa_simple* __internal_pcm::simple(
+    const char* /* server */,
+    const char* name,
+    pa_stream_direction_t dir,
+    const char* /* dev */,
+    const char* stream_name,
+    const pa_sample_spec* ss,
+    const pa_channel_map* /* map */,
+    const pa_buffer_attr* attr,
+    int* /* error */) 
+{
+    NSound::NCommon::TStreamConfiguration config;
 
-//         if (ss->channels == 1) {
-//             config.mutable_samplespec()->set_channels(ss->channels);
-//         } else {
-//             pcm_log::logErrorSilent("unsupported channel number: {}", std::make_format_args(ss->channels));
-//         }
-//     }
+    config.set_clientname(name);
+    config.set_streamname(stream_name);
 
-//     if (attr) {
-//         config.mutable_bufferconfig()->set_prebuffingsize(attr->prebuf);
-//     }
+    if (dir == PA_STREAM_PLAYBACK) {
+        config.set_direction(NSound::NCommon::TStreamConfiguration::PLAYBACK);
+    } else if (dir == PA_STREAM_RECORD) {
+        config.set_direction(NSound::NCommon::TStreamConfiguration::RECORD);
+    } else {
+        pcm_log::log(absl::StrFormat("unsupported stream direction: %d", dir), pcm_log::ELogVerbosity::ERROR);
+    }
 
-//     pa_simple* connection = pa_xnew(pa_simple, 1);
-//     std::construct_at(connection);
+    if (ss) {
 
-//     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(absl::StrFormat("localhost:%d", laar::port), grpc::InsecureChannelCredentials());
-//     auto context = std::make_unique<grpc::ClientContext>(); 
-//     connection->stub = NSound::NServices::SoundStreamRouter::NewStub(channel);
-//     connection->config = config;
+        if (ss->rate == laar::BaseSampleRate) {
+            config.mutable_samplespec()->set_samplerate(laar::BaseSampleRate);
+        } else {
+            pcm_log::log(absl::StrFormat("unsupported rate: %d", ss->rate), pcm_log::ELogVerbosity::ERROR);
+        }
 
-//     NSound::TClientMessage out;
-//     out.mutable_basemessage()->mutable_streamconfiguration()->CopyFrom(std::move(config));
+        if (ss->format == PA_SAMPLE_U8) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::UNSIGNED_8);
+        } else if (ss->format == PA_SAMPLE_S16LE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_16_LITTLE_ENDIAN);
+        } else if (ss->format == PA_SAMPLE_S16BE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_16_BIG_ENDIAN);
+        } else if (ss->format == PA_SAMPLE_S24LE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_24_LITTLE_ENDIAN);
+        } else if (ss->format == PA_SAMPLE_S24BE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_24_BIG_ENDIAN);
+        } else if (ss->format == PA_SAMPLE_S32LE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_32_LITTLE_ENDIAN);
+        } else if (ss->format == PA_SAMPLE_S32BE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::SIGNED_32_BIG_ENDIAN);
+        } else if (ss->format == PA_SAMPLE_FLOAT32LE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::FLOAT_32_LITTLE_ENDIAN);
+        } else if (ss->format == PA_SAMPLE_FLOAT32BE) {
+            config.mutable_samplespec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN);
+        } else {
+            pcm_log::log(absl::StrFormat("unsupported format: %d", ss->format), pcm_log::ELogVerbosity::ERROR);
+        }
 
-//     auto stream = connection->stub->RouteStream(context.get());
-//     stream->WriteLast(out, grpc::WriteOptions());
-    
-//     NSound::TServiceMessage response;
-//     bool result = stream->Read(&response);
-//     if (result) {
-//         pcm_log::logErrorSilent("did not expect answer from server", std::make_format_args());
-//         return nullptr;
-//     }
+        if (ss->channels == 1) {
+            config.mutable_samplespec()->set_channels(ss->channels);
+        } else {
+            pcm_log::log(absl::StrFormat("unsupported channel number: %d", ss->channels), pcm_log::ELogVerbosity::ERROR);
+        }
+    }
 
-//     if (auto serverStatus = stream->Finish(); serverStatus.ok()) {
-//         return connection;
-//     } else {
-//         pcm_log::logErrorSilent(absl::StrCat("error on stream close: ", serverStatus.error_message()), std::make_format_args());
-//         return nullptr;
-//     }
+    if (attr) {
+        config.mutable_bufferconfig()->set_prebuffingsize(attr->prebuf);
+    }
 
-//     return nullptr;
-// }
+    pa_simple* connection = pa_xnew(pa_simple, 1);
+    std::construct_at(connection);
 
-// pa_simple* pa_simple_new(
-//     const char *server,
-//     const char *name,
-//     pa_stream_direction_t dir,
-//     const char *dev,
-//     const char *stream_name,
-//     const pa_sample_spec *ss,
-//     const pa_channel_map *map,
-//     const pa_buffer_attr *attr,
-//     int *error) 
-// {
-//     return __internal_pcm::makeSyncConnection(server, name, dir, dev, stream_name, ss, map, attr, error);
-// }
+    connection->context = std::make_unique<boost::asio::io_context>();
+    connection->config = std::move(config);
 
-// int __internal_pcm::SyncClose(pa_simple* connection) {
-//     TClientBaseMessage::TStreamDirective directive;
-//     directive.set_type(TClientBaseMessage::TStreamDirective::CLOSE);
-//     return 0;
-// }
+    boost::asio::ip::tcp::resolver resolver(*connection->context);
+    boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), "127.0.0.1", std::to_string(laar::Port));
+    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
 
-// void pa_simple_free(pa_simple *s) {
-//     __internal_pcm::SyncClose(s);
-//     pa_xfree(s);
-// }
+    connection->socket = std::make_unique<boost::asio::ip::tcp::socket>(*connection->context);
+    connection->socket->connect(*iterator);
 
-// int __internal_pcm::syncWrite(pa_simple* connection, const void* bytes, std::size_t size) {
-//     const auto& singleFrameBytes = __internal_pcm::bytesPerTimeFrame_;
-//     std::size_t byteSize = size * laar::getSampleSize(connection->config.samplespec().format());
+    NSound::TClientMessage message;
+    message.mutable_basemessage()->mutable_streamconfiguration()->CopyFrom(connection->config);
+    if (absl::Status status = wrapServerCall(connection, message); !status.ok()) {
+        pcm_log::log(status.ToString(), pcm_log::ELogVerbosity::ERROR);
+        return nullptr;
+    }
 
-//     NSound::TServiceMessage response;
-//     auto context = std::make_unique<grpc::ClientContext>();
-//     auto stream = connection->stub->RouteStream(context.get());
-//     for (std::size_t frame = 0; frame < byteSize; frame += singleFrameBytes) {
-//         std::size_t current = (byteSize - frame < singleFrameBytes) ? byteSize - frame : singleFrameBytes;
+    if (absl::StatusOr<NSound::TServiceMessage> response = wrapServerResponse(connection); !response.ok()) {
+        pcm_log::log(response.status().ToString(), pcm_log::ELogVerbosity::ERROR);
+        return nullptr;
+    } else {
+        if (!response->mutable_basemessage()->mutable_streamalteredconfiguration()->opened()) {
+            pcm_log::log("server failed to open stream", pcm_log::ELogVerbosity::ERROR);
+            return nullptr;
+        }
+        pcm_log::log("stream opened!", pcm_log::ELogVerbosity::INFO);
+    }
+
+    return connection;
+}
+
+pa_simple* pa_simple_new(
+    const char *server,
+    const char *name,
+    pa_stream_direction_t dir,
+    const char *dev,
+    const char *stream_name,
+    const pa_sample_spec *ss,
+    const pa_channel_map *map,
+    const pa_buffer_attr *attr,
+    int *error) 
+{
+    return __internal_pcm::simple(server, name, dir, dev, stream_name, ss, map, attr, error);
+}
+
+int __internal_pcm::close(pa_simple* connection) {
+    NSound::TClientMessage message;
+    message.mutable_basemessage()->mutable_directive()->set_type(NSound::NCommon::TStreamDirective::CLOSE);
+    if (absl::Status status = wrapServerCall(connection, message); !status.ok()) {
+        pcm_log::log(status.ToString(), pcm_log::ELogVerbosity::ERROR);
+        return -1;
+    }
+
+    return 0;
+}
+
+void pa_simple_free(pa_simple *s) {
+    __internal_pcm::close(s);
+    pa_xfree(s);
+}
+
+int __internal_pcm::write(pa_simple* connection, const void* bytes, std::size_t size) {
+    const auto& singleFrameBytes = __internal_pcm::bytesPerTimeFrame_;
+    std::size_t byteSize = size * laar::getSampleSize(connection->config.samplespec().format());
+    std::size_t bytesTransferred = 0;
+
+    for (std::size_t frame = 0; frame < byteSize; frame += singleFrameBytes) {
+        std::size_t current = (byteSize - frame < singleFrameBytes) ? byteSize - frame : singleFrameBytes;
         
-//         connection->balancing.bytesTransferredOnFrame += current;
-//         if (connection->balancing.bytesTransferredOnFrame >= singleFrameBytes) {
-//             stream->WritesDone();
-//             if (auto status = stream->Finish(); !status.ok()) {
-//                 const auto& error = status.error_message(); 
-//                 pcm_log::logErrorSilent("error on grpc finish: {}", std::make_format_args(error));
-//                 return 1;
-//             }
-//             std::this_thread::sleep_for(__internal_pcm::timeFrame_);
-//             context = std::make_unique<grpc::ClientContext>();
-//             stream = connection->stub->RouteStream(context.get());
-//             connection->balancing.bytesTransferredOnFrame = 0;
-//         }
+        bytesTransferred += current;
+        if (bytesTransferred >= singleFrameBytes) {
+            std::this_thread::sleep_for(timeFrame_);
+            bytesTransferred = 0;
+        }
 
-//         auto buffer = std::make_unique<char[]>(singleFrameBytes);
-//         std::memcpy(buffer.get(), bytes, singleFrameBytes);
-//         NSound::TClientMessage message;
+        auto buffer = std::make_unique<char[]>(singleFrameBytes);
+        std::memcpy(buffer.get(), bytes, singleFrameBytes);
+        NSound::TClientMessage message;
         
-//         message.mutable_basemessage()->mutable_push()->set_data(buffer.get(), singleFrameBytes);
-//         message.mutable_basemessage()->mutable_push()->set_datasamplesize(size);
-//         stream->Write(std::move(message));
-//     }
+        message.mutable_basemessage()->mutable_push()->set_data(buffer.get(), singleFrameBytes);
+        message.mutable_basemessage()->mutable_push()->set_datasamplesize(size);
+        if (absl::Status status = wrapServerCall(connection, std::move(message)); !status.ok()) {
+            pcm_log::log(status.ToString(), pcm_log::ELogVerbosity::ERROR);
+            return -1;
+        }
+    }
 
-//     return 0;
-// }
+    return 0;
+}
 
-// int pa_simple_write(pa_simple *s, const void *data, size_t bytes, int *error) {
-//     return __internal_pcm::syncWrite(s, data, bytes);
-// }
+int pa_simple_write(pa_simple *s, const void *data, size_t bytes, int *error) {
+    int err = __internal_pcm::write(s, data, bytes);
+    if (error) {
+        *error = err;
+    }
+    return err;
+}
 
-// int __internal_pcm::syncRead(pa_simple* connection, void* bytes, std::size_t size) {
-//     return -1;
-// }
+int __internal_pcm::read(pa_simple* /* connection */, void* /* bytes */, std::size_t /* size */) {
+    return -1;
+}
 
-// int pa_simple_read(pa_simple *s, void *data, size_t bytes, int *error) {
-//     return __internal_pcm::syncRead(s, data, bytes);
-// }
+int pa_simple_read(pa_simple *s, void *data, size_t bytes, int* error) {
+    int err = __internal_pcm::read(s, data, bytes);
+    if (error) {
+        *error = err;
+    }
+    return err;
+}
 
-// int __internal_pcm::SyncDrain(pa_simple* connection) {
-//     return -1;
-// }
+int __internal_pcm::drain(pa_simple* connection) {
+    NSound::TClientMessage message;
+    message.mutable_basemessage()->mutable_directive()->set_type(NSound::NCommon::TStreamDirective::DRAIN);
+    if (absl::Status status = wrapServerCall(connection, message); !status.ok()) {
+        pcm_log::log(status.ToString(), pcm_log::ELogVerbosity::ERROR);
+        return -1;
+    }
 
-// int pa_simple_drain(pa_simple *s, int *error) {
-//     return __internal_pcm::SyncDrain(s);
-// }
+    return -1;
+}
 
-// int __internal_pcm::SyncFlush(pa_simple* connection) {
-//     return -1;
-// }
+int pa_simple_drain(pa_simple* s, int* error) {
+    int err = __internal_pcm::drain(s);
+    if (error) {
+        *error = err;
+    }
+    return err;
+}
 
-// int pa_simple_flush(pa_simple *s, int *error) {
-//     return __internal_pcm::SyncFlush(s);
-// }
+int __internal_pcm::flush(pa_simple* connection) {
+    NSound::TClientMessage message;
+    message.mutable_basemessage()->mutable_directive()->set_type(NSound::NCommon::TStreamDirective::FLUSH);
+    if (absl::Status status = wrapServerCall(connection, message); !status.ok()) {
+        pcm_log::log(status.ToString(), pcm_log::ELogVerbosity::ERROR);
+        return -1;
+    }
 
-// pa_usec_t pa_simple_get_latency(pa_simple *s, int *error) {
-//     return 0;
-// }
+    return -1;
+}
+
+int pa_simple_flush(pa_simple* s, int* error) {
+    int err = __internal_pcm::flush(s);
+    if (error) {
+        *error = err;
+    }
+    return err;
+}
+
+pa_usec_t pa_simple_get_latency(pa_simple* /* s */, int* /* error */) {
+    return 0;
+}
