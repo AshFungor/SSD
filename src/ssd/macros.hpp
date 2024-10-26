@@ -1,8 +1,17 @@
 #pragma once
 
+// STD
 #include <cstdint>
 
+// pulse
 #include <pulse/gccmacro.h>
+
+#define ENSURE_NOT_NULL(ptr)                                    \
+    do {                                                        \
+        if (ptr == nullptr) {                                   \
+            throw std::runtime_error("pointer is null");        \
+        }                                                       \
+    } while (false)
 
 namespace laar {
 

@@ -73,48 +73,6 @@ namespace laar {
             virtual void close(std::weak_ptr<Session> slave) = 0;
             virtual ~ISessionMaster() = default;
         };
-        // API Result is generic result of API call.
-        struct APIResult {
-
-            inline static APIResult unimplemented(
-                std::optional<std::string> message = std::nullopt
-            ) {
-                APIResult result;
-                if (message.has_value()) {
-                    result.status = absl::InternalError(message.value());
-                } else {
-                    result.status = absl::InternalError("API Call unimplemented");
-                }
-                result.response = std::nullopt;
-                return result;
-            }
-
-            inline static APIResult misconfiguration(
-                std::optional<std::string> message = std::nullopt
-            ) {
-                APIResult result;
-                if (message.has_value()) {
-                    result.status = absl::InternalError(message.value());
-                } else {
-                    result.status = absl::InternalError("API Call misconfigured");
-                }
-                result.response = std::nullopt;
-                return result;
-            }
-
-            inline static APIResult make(
-                    absl::Status status, 
-                    std::optional<NSound::TServiceMessage> response
-            ) {
-                APIResult result;
-                result.status = status;
-                result.response = response;
-                return result;
-            }
-
-            absl::Status status;
-            std::optional<NSound::TServiceMessage> response;
-        };
         // Session manages in state via a set of states of its components,
         // therefore there is a need to wrap them all in one single object.
         struct SessionState {
@@ -152,12 +110,6 @@ namespace laar {
         // IHandle::IListener implementation
         virtual void onBufferDrained(int status) override;
         virtual void onBufferFlushed(int status) override;
-
-        // --- MISC ---
-        // check is session is ok
-        operator bool() const;
-        // generic state wrapper
-        const SessionState& state() const;
 
         ~Session();
 

@@ -110,5 +110,5 @@ fabric.properties
 # Json conan config
 CMakeUserPresets.json
 
-# Logs
-*server.log
+# venv
+venv
