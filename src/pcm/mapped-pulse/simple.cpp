@@ -38,8 +38,8 @@
 namespace {
 
     boost::asio::const_buffer makeRequest(NSound::TClientMessage message, std::unique_ptr<std::uint8_t[]>& buffer) {
-        auto header = laar::Header::make(message.ByteSizeLong());
-        header.toArray(buffer.get());
+        auto header = laar::Message::make(message.ByteSizeLong());
+        header.writeToArray(buffer.get());
         message.SerializeToArray(buffer.get() + header.getHeaderSize(), header.getPayloadSize());
         return boost::asio::const_buffer(buffer.get(), header.getHeaderSize() + header.getPayloadSize());
     }
@@ -58,8 +58,8 @@ namespace {
     absl::StatusOr<NSound::TServiceMessage> wrapServerResponse(pa_simple* connection) {
         try {
             std::stringstream iss {reinterpret_cast<char*>(connection->buffer.get()), std::ios::in | std::ios::binary};
-            connection->socket->read_some(boost::asio::mutable_buffer(connection->buffer.get(), laar::Header::getHeaderSize()));
-            auto header = laar::Header::readFromStream(iss);
+            connection->socket->read_some(boost::asio::mutable_buffer(connection->buffer.get(), laar::Message::getHeaderSize()));
+            auto header = laar::Message::readFromArray(iss);
             connection->socket->read_some(boost::asio::mutable_buffer(connection->buffer.get(), header.getPayloadSize()));
             NSound::TServiceMessage response;
             if (bool parseStatus = response.ParseFromArray(connection->buffer.get(), header.getPayloadSize()); !parseStatus) {

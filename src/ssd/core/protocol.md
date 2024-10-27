@@ -18,11 +18,17 @@ Protocol has the following structure:
 
 |  ID  | Size | Payload  |
 |------|------|----------|
-| 16 b | 32 b | Size (B) |
+| 8  b | 32 b | Size (B) |
 
 ID consists of 16 bits - message type, 8 bit - type (raw, protobuf) and 4 bits are protocol version. (4 reserved)
 ID is constructed in the following way:
 
-| Version | Flags | Message Type |
-|---------|-------|--------------|
-|   4 b   |  4 b  |      8 b     |
+| Version | Message Type |
+|---------|--------------|
+|   4 b   |      4 b     |
+
+if message type is simple, then header structure is:
+
+| Version | Message Type |  Code  |
+|---------|--------------|--------|
+|   4 b   |      4 b     |  16 b  |

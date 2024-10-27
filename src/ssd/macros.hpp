@@ -13,6 +13,20 @@
         }                                                       \
     } while (false)
 
+#define UNUSED(variable) (void)(variable)
+
+#define ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(size, target)                 \
+    do {                                                                \
+        if (size > target) {                                            \
+            throw std::runtime_error("size of array is out of bounds"); \
+        }                                                               \
+    } while(false)
+
+#define ENSURE_FAIL()                                                   \
+    do {                                                                \
+        throw std::runtime_error("fail requested, check context");      \
+    } while(false)             
+
 namespace laar {
 
     inline constexpr int MaxBytesOnMessage = 2048;
