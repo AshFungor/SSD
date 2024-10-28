@@ -84,7 +84,6 @@ namespace laar {
         };
 
         virtual void init() = 0;
-
         virtual ~IContext() = default;
 
     };

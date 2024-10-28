@@ -1,13 +1,13 @@
 #pragma once
 
 // STD
-#include <concepts>
+#include <queue>
+#include <memory>
 #include <cstdint>
+#include <concepts>
 
 // protos
-#include <memory>
 #include <protos/server-message.pb.h>
-#include <queue>
 
 namespace laar {
 
@@ -31,9 +31,9 @@ namespace laar {
     using MessagePayloadTypeMatch = 
         typename std::conditional<PayloadType == message::type::SIMPLE, 
             MessageSimplePayloadType, 
-            std::conditional<PayloadType == message::type::PROTOBUF, 
+            typename std::conditional<PayloadType == message::type::PROTOBUF, 
                 MessageProtobufPayloadType, 
-                void>
+                void>::type
         >::type;
 
     // Protocol message provides API for message parsing and writing
@@ -61,12 +61,12 @@ namespace laar {
                 return sizeof(Message::header_);
             }
 
-            inline static constexpr std::size_t variable(const Message* message) {
+            inline static std::size_t variable(const Message* message) {
                 switch (message->type()) {
                     case message::type::SIMPLE:
                         return 0;
                     case message::type::PROTOBUF:
-                        return message->size_;
+                        return sizeof(SizeType);
                 }
                 return 0;
             }
@@ -77,15 +77,30 @@ namespace laar {
 
         };
 
+        bool compareMetadata(const Message& other) const;
+
+        std::size_t byteSizeLong() const;
+
         // attributes
         std::uint8_t version() const;
         std::uint8_t type() const;
         SizeType size() const;
 
         template<std::uint8_t PayloadType>
-        friend auto messagePayload(const Message* message) -> MessagePayloadTypeMatch<PayloadType>;
+        friend auto messagePayload(Message* message) -> MessagePayloadTypeMatch<PayloadType>;
 
         friend class MessageFactory;
+
+    private:
+        // setters are for factory only
+        void setVersion(std::uint8_t version);
+        void setType(std::uint8_t type);
+        void setSize(SizeType size);
+
+        // state checking
+        bool validVersion() const;
+        bool validType() const;
+        bool validSize() const;
 
     private:
         std::uint8_t header_ = 0;
@@ -96,18 +111,17 @@ namespace laar {
     };
 
     template<std::uint8_t PayloadType>
-    auto messagePayload(const Message* message) -> MessagePayloadTypeMatch<PayloadType> {
-        switch (PayloadType) {
-            case message::type::SIMPLE:
-                return std::get<MessageSimplePayloadType>(message->payload_);
-            case message::type::PROTOBUF:
-                return std::get<MessageProtobufPayloadType>(std::move(message->payload_));
+    auto messagePayload(Message* message) -> MessagePayloadTypeMatch<PayloadType> {
+        if constexpr (PayloadType == message::type::SIMPLE) {
+            return std::get<MessageSimplePayloadType>(message->payload_);
+        } else if constexpr (PayloadType == message::type::PROTOBUF) {
+            return std::get<MessageProtobufPayloadType>(std::move(message->payload_));
         }
     }
 
     template<std::uint8_t PayloadType>
-    auto messagePayload(const Message& message) -> MessagePayloadTypeMatch<PayloadType> {
-        messagePayload<PayloadType>(&message);
+    auto messagePayload(Message& message) -> MessagePayloadTypeMatch<PayloadType> {
+        return messagePayload<PayloadType>(&message);
     }
 
     class MessageFactory 
@@ -117,19 +131,24 @@ namespace laar {
         static_assert(std::same_as<MessageSimplePayloadType, Message::SizeType>, 
             "factory applies optimizations based on the fact that simple payload type and message size type are equal");
 
+        using MessageAddedSize = MessageSimplePayloadType;
+
         static std::shared_ptr<MessageFactory> configure();
 
         // parses next part of the message, returning size factory needs next.
-        std::size_t parse(void* data, std::size_t available);
+        std::size_t parse(void* data, std::size_t& available);
 
         // acquire the oldest parsed message in queue.
         Message parsed();
         // acquire the oldest constructed message in queue.
         Message constructed();
 
+        bool isConstructedAvailable() const;
+        bool isParsedAvailable() const;
+
         // Message construction.
-        MessageFactory& withMessageVersion(std::uint8_t version);
-        MessageFactory& withType(std::uint8_t type);
+        MessageFactory& withMessageVersion(std::uint8_t version, bool persistent = true);
+        MessageFactory& withType(std::uint8_t type, bool persistent = true);
         // method overrides to handle different payload types
         MessageFactory& withPayload(MessageProtobufPayloadType payload);
         MessageFactory& withPayload(MessageSimplePayloadType payload);
@@ -141,9 +160,22 @@ namespace laar {
 
     private:
 
+        struct State {
+
+            enum class EStage {
+                HEADER, PAYLOAD
+            } stage = EStage::HEADER;
+
+            Message parsing;
+            Message constructing;
+
+        };
+
         MessageFactory() = default;
         MessageFactory(const MessageFactory&) = delete;
         MessageFactory(MessageFactory&&) = delete;
+
+        void finishOnState(std::size_t& available, std::size_t shifted, State::EStage nextStage, bool renewMessage = false);
 
     private:
         std::queue<Message> parsed_;
@@ -154,10 +186,7 @@ namespace laar {
         std::uint8_t version_ = message::version::FIRST;
 
         // state for parsing & constructing.
-        struct State {
-            Message parsing;
-            Message constructing;
-        };
+        State state_;
 
     };
 

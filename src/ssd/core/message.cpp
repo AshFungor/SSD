@@ -1,8 +1,6 @@
 // STD
-#include "protos/server-message.pb.h"
-#include "src/ssd/macros.hpp"
+#include <memory>
 #include <cstddef>
-#include <istream>
 #include <cstdint>
 
 // Plog
@@ -13,18 +11,20 @@
 #include <absl/base/internal/endian.h>
 
 // laar
+#include <src/ssd/macros.hpp>
 #include <src/ssd/core/message.hpp>
+#include <variant>
 
 using namespace laar;
 
 namespace {
 
     // masks
-    constexpr std::uint16_t VERSION_MASK     = 0x00FF;
-    constexpr std::uint16_t TYPE_MASK        = 0xFF00;
+    constexpr std::uint8_t VERSION_MASK     = 0x0F;
+    constexpr std::uint8_t TYPE_MASK        = 0xF0;
     // shifts
-    constexpr std::uint16_t VERSION_SHIFT    = 0;
-    constexpr std::uint16_t TYPE_SHIFT       = 8;
+    constexpr std::uint8_t VERSION_SHIFT    = 0;
+    constexpr std::uint8_t TYPE_SHIFT       = 4;
 
     template<typename Integer>
     void readDataFromArray(Integer& integer, void* data) {
@@ -56,7 +56,7 @@ namespace {
 
     MessageProtobufPayloadType readProtobufMessage(void* data, std::size_t size) {
         MessageProtobufPayloadType message;
-        if (message.ParseFromArray(data, size)) {
+        if (!message.ParseFromArray(data, size)) {
             ENSURE_FAIL();
         }
         return message;
@@ -71,7 +71,7 @@ namespace {
     }
 
     void writeProtobufMessage(void* data, std::size_t size, MessageProtobufPayloadType message) {
-        if (message.SerializeToArray(data, size)) {
+        if (!message.SerializeToArray(data, size)) {
             ENSURE_FAIL();
         }
     }
@@ -80,6 +80,12 @@ namespace {
         UNUSED(size);
 
         writeDataToArray(message, data);
+    }
+
+    Message popQueue(std::queue<Message>& source) {
+        Message parsed = std::move(source.front());
+        source.pop();
+        return parsed;
     }
 
 }
@@ -99,7 +105,7 @@ void Message::readFromArray(void* data, std::size_t maxBytes) {
 void Message::readHeaderFromArray(void* data, std::size_t size) {
 #ifdef SSD_RUNTIME_CHECKS
     ENSURE_NOT_NULL(data);
-    ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(Message::Size::header(), size);
+    ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::header(), size);
 #else
     UNUSED(size);
 #endif
@@ -133,7 +139,7 @@ void Message::readHeaderFromArray(void* data, std::size_t size) {
 void Message::readVariableFromArray(void* data, std::size_t size) {
 #ifdef SSD_RUNTIME_CHECKS
     ENSURE_NOT_NULL(data);
-    ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(Message::Size::variable(this), size);
+    ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::variable(this), size);
 #else
     UNUSED(size);
 #endif
@@ -141,17 +147,19 @@ void Message::readVariableFromArray(void* data, std::size_t size) {
     switch (type()) {
         case message::type::PROTOBUF:
             readDataFromArray(size_, data);
+            return;
         case message::type::SIMPLE:
             size_ = sizeof(MessageSimplePayloadType);
-        default:
             return;
     }
+
+    ENSURE_FAIL();
 }
 
 void Message::readPayloadFromArray(void* data, std::size_t size) {
 #ifdef SSD_RUNTIME_CHECKS
     ENSURE_NOT_NULL(data);
-    ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(Message::Size::payload(this), size);
+    ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::payload(this), size);
 #else
     UNUSED(size);
 #endif
@@ -159,9 +167,13 @@ void Message::readPayloadFromArray(void* data, std::size_t size) {
     switch(type()) {
         case message::type::PROTOBUF:
             payload_ = readProtobufMessage(data, size);
+            return;
         case message::type::SIMPLE:
             payload_ = readSimpleMessage(data, size);
+            return;
     }
+
+    ENSURE_FAIL();
 }
 
 void Message::writeToArray(void* data, std::size_t maxBytes) const {
@@ -178,7 +190,7 @@ void Message::writeToArray(void* data, std::size_t maxBytes) const {
 void Message::writeHeaderToArray(void* data, std::size_t size) const {
 #ifdef SSD_RUNTIME_CHECKS
     ENSURE_NOT_NULL(data);
-    ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(Message::Size::header(), size);
+    ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::header(), size);
 #else
     UNUSED(size);
 #endif
@@ -189,7 +201,7 @@ void Message::writeHeaderToArray(void* data, std::size_t size) const {
 void Message::writeVariableToArray(void* data, std::size_t size) const {
 #ifdef SSD_RUNTIME_CHECKS
     ENSURE_NOT_NULL(data);
-    ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(Message::Size::variable(this), size);
+    ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::variable(this), size);
 #else
     UNUSED(size);
 #endif
@@ -197,17 +209,18 @@ void Message::writeVariableToArray(void* data, std::size_t size) const {
     switch (type()) {
         case message::type::PROTOBUF:
             writeDataToArray(size_, data);
+            return;
         case message::type::SIMPLE:
-            // fallthrough
-        default:
             return;
     }
+
+    ENSURE_FAIL();
 }
 
 void Message::writePayloadToArray(void* data, std::size_t size) const {
 #ifdef SSD_RUNTIME_CHECKS
     ENSURE_NOT_NULL(data);
-    ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(Message::Size::payload(this), size);
+    ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::payload(this), size);
 #else
     UNUSED(size);
 #endif
@@ -215,67 +228,200 @@ void Message::writePayloadToArray(void* data, std::size_t size) const {
     switch(type()) {
         case message::type::PROTOBUF:
             writeProtobufMessage(data, size, std::get<MessageProtobufPayloadType>(payload_));
+            return;
         case message::type::SIMPLE:
             writeSimpleMessage(data, size, std::get<MessageSimplePayloadType>(payload_));
+            return;
+    }
+
+    ENSURE_FAIL();
+}
+
+std::uint8_t Message::version() const {
+    return (header_ & VERSION_MASK) >> VERSION_SHIFT;
+}
+
+std::uint8_t Message::type() const {
+    return (header_ & TYPE_MASK) >> TYPE_SHIFT;
+}
+
+Message::SizeType Message::size() const {
+    return size_;
+}
+
+void Message::setVersion(std::uint8_t version) {
+    header_ &= ~VERSION_MASK;
+    header_ |= version << VERSION_SHIFT;
+}
+
+void Message::setType(std::uint8_t type) {
+    header_ &= ~TYPE_MASK;
+    header_ |= type << TYPE_SHIFT;
+}
+
+void Message::setSize(SizeType size) {
+    size_ = size;
+}
+
+bool Message::validVersion() const {
+    std::uint8_t v = version();
+    return v == message::version::FIRST;
+}
+
+bool Message::validType() const {
+    std::uint8_t t = type();
+    return t == message::type::PROTOBUF || t == message::type::SIMPLE;
+}
+
+bool Message::validSize() const {
+    return size_ > 0;
+}
+
+bool Message::compareMetadata(const Message& other) const {
+    return version() == other.version()
+        && type() == other.type()
+        && size() == other.size();
+}
+
+std::size_t Message::byteSizeLong() const {
+    return Size::header() + Size::variable(this) + Size::payload(this);
+}
+
+// --- Message Factory ---
+std::shared_ptr<MessageFactory> MessageFactory::configure() {
+    return std::shared_ptr<MessageFactory>(new MessageFactory{});
+}
+
+std::size_t MessageFactory::parse(void* data, std::size_t& available) {
+#ifdef SSD_RUNTIME_CHECKS
+    ENSURE_NOT_NULL(data);
+#else
+    UNUSED(available);
+#endif
+
+    std::size_t shift = 0;
+    auto array = reinterpret_cast<std::uint8_t*>(data);
+    switch (state_.stage) {
+        case State::EStage::HEADER:
+            // all messages are at least header + simple payload size (= size in structured), so request that
+#ifdef SSD_RUNTIME_CHECKS
+            ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::header() + sizeof(MessageAddedSize), available);
+#endif
+            state_.parsing.readHeaderFromArray(array + shift, available - shift);
+            shift += Message::Size::header();
+            state_.parsing.readVariableFromArray(array + shift, available - shift);
+            if (state_.parsing.type() == message::type::SIMPLE) {
+                shift += Message::Size::variable(&state_.parsing);
+                state_.parsing.readPayloadFromArray(array + shift, available - shift);
+                // expect next message
+                finishOnState(available, shift, State::EStage::HEADER, true);
+                return Message::Size::header() + sizeof(MessageAddedSize);
+            }
+            finishOnState(available, shift, State::EStage::PAYLOAD);
+            return Message::Size::payload(&state_.parsing);
+        
+        case State::EStage::PAYLOAD:
+#ifdef SSD_RUNTIME_CHECKS
+            ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(Message::Size::payload(&state_.parsing), available);
+#endif
+            state_.parsing.readPayloadFromArray(array, available);
+            finishOnState(available, Message::Size::payload(&state_.parsing), State::EStage::HEADER, true);
+            return Message::Size::header() + sizeof(MessageAddedSize);
+    }
+
+    ENSURE_FAIL();
+}
+
+void MessageFactory::finishOnState(std::size_t& available, std::size_t shifted, State::EStage nextStage, bool renewMessage) {
+    available -= shifted;
+    state_.stage = nextStage;
+    if (renewMessage) {
+        parsed_.emplace(std::move(state_.parsing));
+        std::construct_at(&state_.parsing);
     }
 }
 
-// Header Header::readFromArray(std::istream& is) {
-//     Header header;
-//     std::uint16_t lookahead;
+Message MessageFactory::parsed() {
+    return popQueue(parsed_);
+}
 
-//     // ID
-//     is.read(reinterpret_cast<char*>(&lookahead), sizeof(lookahead));
-//     lookahead = absl::gntohs(lookahead);
+Message MessageFactory::constructed() {
+    return popQueue(constructed_);
+}
 
-//     header.version_ = (lookahead & VERSION_MASK) >> VERSION_SHIFT;
-//     header.payloadType_ = (lookahead & TYPE_MASK) >> TYPE_SHIFT;
-//     // Payload size
-//     is.read(reinterpret_cast<char*>(header.payloadSize_), sizeof(header.payloadSize_));
-//     header.payloadSize_ = absl::gntohs(header.payloadSize_);
+bool MessageFactory::isConstructedAvailable() const {
+    return constructed_.size();
+}
 
-//     if (is.fail()) {
-//         PLOG(plog::error) << "failed to parse header: error bit on string stream is set to 1";
-//         std::abort();
-//     }
+bool MessageFactory::isParsedAvailable() const {
+    return parsed_.size();
+}
 
-//     return header;
-// }
+MessageFactory& MessageFactory::withMessageVersion(std::uint8_t version, bool persistent) {
+    if (persistent) {
+        version_ = version;
+    } else {
+        state_.constructing.setVersion(version);
+    }
+    return *this;
+}
 
-// std::uint32_t Header::getPayloadSize() const {
-//     return payloadSize_;
-// }
+MessageFactory& MessageFactory::withType(std::uint8_t type, bool persistent) {
+    if (persistent) {
+        type_ = type;
+    } else {
+        state_.constructing.setType(type);
+    }
+    return *this;
+}
 
-// std::uint8_t Header::getProtocolVersion() const {
-//     return version_;
-// }
+MessageFactory& MessageFactory::withPayload(MessageProtobufPayloadType payload) {
+    state_.constructing.setSize(payload.ByteSizeLong());
+    state_.constructing.payload_ = std::move(payload);
+    return *this;
+}
 
-// std::uint8_t Header::getPayloadType() const {
-//     return payloadType_;
-// }
+MessageFactory& MessageFactory::withPayload(MessageSimplePayloadType payload) {
+    state_.constructing.setSize(sizeof(MessageSimplePayloadType));
+    state_.constructing.payload_ = payload;
+    return *this;
+}
 
-// void Header::writeToArray(void* data) const {
-//     std::stringstream oss {reinterpret_cast<char*>(data), std::ios::out | std::ios::binary};
-//     std::uint16_t writeahead = 0;
+MessageFactory& MessageFactory::construct() {
+    if (!state_.constructing.validVersion()) {
+        state_.constructing.setVersion(version_);
+    }
+    if (!state_.constructing.validType()) {
+        state_.constructing.setType(type_);
+    }
+    if (!state_.constructing.validSize()) {
+        // invalid size means that payload was not set essentially
+        ENSURE_FAIL();
+    }
 
-//     writeahead |= version_ << VERSION_SHIFT;
-//     writeahead |= payloadType_ << TYPE_SHIFT;
-//     writeahead = absl::ghtons(writeahead);
-//     oss.write(reinterpret_cast<char*>(&writeahead), sizeof(writeahead));
+    // check for type match
+    std::uint8_t type = state_.constructing.type();
+    switch (type) {
+        case message::type::SIMPLE:
+            ENSURE_FAIL_UNLESS(std::holds_alternative<MessageSimplePayloadType>(state_.constructing.payload_));
+            break;
+        case message::type::PROTOBUF:
+            ENSURE_FAIL_UNLESS(std::holds_alternative<MessageProtobufPayloadType>(state_.constructing.payload_));
+            break;
+    }
 
-//     std::uint32_t size = absl::ghtonl(payloadSize_);
-//     oss.write(reinterpret_cast<char*>(&size), sizeof(size));
+    constructed_.emplace(std::move(state_.constructing));
+    std::construct_at(&state_.constructing);
+    return *this;
+}
 
-//     if (oss.fail()) {
-//         PLOG(plog::error) << "failed to write header: error bit on string stream is set to 1";
-//         std::abort();
-//     }
-// }
+std::size_t MessageFactory::next() const {
+    switch(state_.stage) {
+        case State::EStage::HEADER:
+            return Message::Size::header() + sizeof(MessageAddedSize);
+        case State::EStage::PAYLOAD:
+            return Message::Size::payload(&state_.parsing);
+    }
 
-// Header Header::make(std::uint32_t payloadSize, std::uint8_t version, std::uint8_t payloadType) {
-//     Header header;
-//     header.payloadSize_ = payloadSize;
-//     header.payloadType_ = payloadType;
-//     header.version_ = version;
-//     return header;
-// }
+    ENSURE_FAIL();
+}

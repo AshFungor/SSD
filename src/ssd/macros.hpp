@@ -15,17 +15,22 @@
 
 #define UNUSED(variable) (void)(variable)
 
-#define ENSURE_SIZE_IS_LESS_OR_EQUAL_THAN(size, target)                 \
+#define ENSURE_SIZE_IS_LESS_THAN_OR_EQUAL(size, target)                 \
     do {                                                                \
         if (size > target) {                                            \
             throw std::runtime_error("size of array is out of bounds"); \
         }                                                               \
     } while(false)
 
-#define ENSURE_FAIL()                                                   \
-    do {                                                                \
-        throw std::runtime_error("fail requested, check context");      \
-    } while(false)             
+#define ENSURE_FAIL()                                                                                                                       \
+    do {                                                                                                                                    \
+        throw std::runtime_error(std::string{"fail requested, context: file: "} + __FILE__ + "; line: " + std::to_string(__LINE__));        \
+    } while(false) 
+
+#define ENSURE_FAIL_UNLESS(condition)                                   \
+    do if (!(condition)) {                                              \
+        ENSURE_FAIL();                                                  \
+    }  while(false)     
 
 namespace laar {
 

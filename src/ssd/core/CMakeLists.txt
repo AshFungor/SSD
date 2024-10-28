@@ -3,13 +3,13 @@ cmake_minimum_required(VERSION 3.15)
 set(SOURCES 
     routing-service.cpp
     session.cpp
-    header.cpp
+    message.cpp
 )
 
 set(HEADERS 
     routing-service.hpp
     session.hpp
-    header.hpp
+    message.hpp
 )
 
 add_library(core STATIC ${SOURCES} ${HEADERS})
@@ -23,3 +23,5 @@ target_link_libraries(core PUBLIC
 )
 
 add_library(laar::core ALIAS core)
+
+add_subdirectory(tests)
