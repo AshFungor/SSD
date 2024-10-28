@@ -1,42 +1,42 @@
-FROM archlinux:base-devel
+FROM debian:bookworm-slim
 
-RUN pacman -Syu --noconfirm
+# Update and install cross-compilation dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    libc6-dev-arm64-cross \
+    linux-libc-dev-arm64-cross \
+    binutils-aarch64-linux-gnu
 
-# cross compilation deps
-RUN pacman -S --noconfirm aarch64-linux-gnu-linux-api-headers   \
-                          aarch64-linux-gnu-gcc                 \
-                          aarch64-linux-gnu-glibc               \
-                          aarch64-linux-gnu-binutils
+# Install dependencies for Conan and C++ management
+RUN apt-get install -y --no-install-recommends \
+    python3 python3-pip cmake make gcc g++ \
+    && pip3 install --break-system-packages --no-cache-dir conan
 
-# deps CPP manager
-RUN pacman -S --noconfirm python python-pip
-RUN pip install --break-system-packages --no-cache conan
+# Clean up apt cache to reduce image size
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN pacman -S --noconfirm cmake gcc make
-
-# clear pacman cache
-RUN pacman -S --noconfirm pacman-contrib
-RUN paccache -r -k 0
-
-RUN groupadd runner && useradd -g runner runner && chmod 755 /home
+# Create and set up non-root user
+RUN groupadd -r runner && useradd -r -g runner runner && mkdir -p /home/runner && chown runner:runner /home/runner
 USER runner
 WORKDIR /home/runner
 
+# Set up project directory and copy necessary files
 RUN mkdir project
 COPY --chown=runner conanfile.py project/conanfile.py
 COPY --chown=runner data/arm64.ini project/arm64.ini
 WORKDIR /home/runner/project
 
+# Configure Conan profile for cross-compilation
 RUN conan profile detect
 RUN cp arm64.ini ~/.conan2/profiles/host
 ENV CONAN_ARGS=--profile:host=host
 
+# Install dependencies with Conan
 RUN conan install . --build=missing $CONAN_ARGS
 
-# system settings
+# Set environment variables for GCC cross-compilation toolchain
 ENV ARCH arm64
-
-# set env vars for gcc toolchain
 ENV CC=aarch64-linux-gnu-gcc
 ENV CXX=aarch64-linux-gnu-g++
 ENV AR=aarch64-linux-gnu-ar
@@ -44,4 +44,5 @@ ENV AS=aarch64-linux-gnu-as
 ENV FC=aarch64-linux-gnu-gfortran
 ENV LD=aarch64-linux-gnu-ld
 
-CMD ./scripts/build.py -c -b --config Release --link
+# Set the default command to build the project
+CMD ./scripts/build.py -c -b --config Debug --link
