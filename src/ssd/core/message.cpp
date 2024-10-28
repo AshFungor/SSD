@@ -166,10 +166,10 @@ void Message::readPayloadFromArray(void* data, std::size_t size) {
 
     switch(type()) {
         case message::type::PROTOBUF:
-            payload_ = readProtobufMessage(data, size);
+            payload_ = readProtobufMessage(data, size_);
             return;
         case message::type::SIMPLE:
-            payload_ = readSimpleMessage(data, size);
+            payload_ = readSimpleMessage(data, size_);
             return;
     }
 
@@ -310,9 +310,10 @@ std::size_t MessageFactory::parse(void* data, std::size_t& available) {
             state_.parsing.readHeaderFromArray(array + shift, available - shift);
             shift += Message::Size::header();
             state_.parsing.readVariableFromArray(array + shift, available - shift);
+            shift += Message::Size::variable(&state_.parsing);
             if (state_.parsing.type() == message::type::SIMPLE) {
-                shift += Message::Size::variable(&state_.parsing);
                 state_.parsing.readPayloadFromArray(array + shift, available - shift);
+                shift += Message::Size::payload(&state_.parsing);
                 // expect next message
                 finishOnState(available, shift, State::EStage::HEADER, true);
                 return Message::Size::header() + sizeof(MessageAddedSize);

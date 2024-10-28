@@ -1,19 +1,24 @@
 // GTest
-#include "protos/server-message.pb.h"
-#include "src/ssd/macros.hpp"
-#include <google/protobuf/message.h>
-#include <google/protobuf/util/message_differencer.h>
 #include <gtest/gtest.h>
 
 // standard
 #include <cmath>
+#include <memory>
 #include <cstdint>
 #include <iostream>
-#include <memory>
-#include <type_traits>
 
 // laar
+#include <src/ssd/macros.hpp>
+#define private public
 #include <src/ssd/core/message.hpp>
+#undef private
+
+// protobuf
+#include <google/protobuf/message.h>
+#include <google/protobuf/util/message_differencer.h>
+
+// protos
+#include <protos/server-message.pb.h>
 
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
@@ -35,6 +40,27 @@ namespace {
 
     };
 
+}
+
+TEST_F(MessageTest, TestAccessors) {
+    factory
+        ->withMessageVersion(laar::message::version::FIRST, true)
+        .withType(laar::message::type::SIMPLE, true);
+
+    laar::Message message = factory->withPayload(0).construct().constructed();
+    // test all types
+    message.setType(0);
+    for (auto type : {laar::message::type::SIMPLE, laar::message::type::PROTOBUF}) {
+        message.setType(type);
+        ASSERT_EQ(message.type(), type);
+    }
+
+    message.setVersion(0);
+    std::uint8_t dummy = 0x4;
+    for (auto version : {laar::message::version::FIRST, dummy}) {
+        message.setVersion(version);
+        ASSERT_EQ(message.version(), version);
+    }
 }
 
 TEST_F(MessageTest, TestConstruction) {
@@ -125,8 +151,9 @@ TEST_F(MessageTest, TestParsingMultiple) {
     auto buffer = std::make_unique<std::uint8_t[]>(bufferSize);
 
     // get one message for comparison later
-    factory->withPayload(message).construct();
     laar::Message standard = factory->constructed();
+
+    GTEST_COUT("initial message has version: " << static_cast<int>(standard.version()) << "; and type: " << static_cast<int>(standard.type()))
 
     std::size_t shift = 0;
     for (std::size_t i = 0; i < messagesTotal; ++i) {
@@ -141,6 +168,14 @@ TEST_F(MessageTest, TestParsingMultiple) {
         << "; variable: " << laar::Message::Size::variable(&standard) 
         << "; payload: " << laar::Message::Size::payload(&standard))
 
+    std::stringstream oss {std::ios::out | std::ios::binary};
+    oss << std::hex;
+    for (std::size_t byte = 0; byte < standard.byteSizeLong(); ++byte) {
+        oss << "0x" << static_cast<int>(buffer[byte]) << ' ';
+    }
+
+    GTEST_COUT("first message in bytes looks like: " << oss.str())
+
     std::size_t remains = bufferSize;
     for (std::size_t i = 0; i < messagesTotal; ++i) {
         while (!factory->isParsedAvailable()) {
@@ -149,10 +184,7 @@ TEST_F(MessageTest, TestParsingMultiple) {
 
         laar::Message parsed = factory->parsed();
         ASSERT_EQ(standard.compareMetadata(parsed), true);
-        ASSERT_EQ(
-            google::protobuf::util::MessageDifferencer::Equals(laar::messagePayload<laar::message::type::PROTOBUF>(standard), 
-            message), 
-        true);
+        ASSERT_EQ(google::protobuf::util::MessageDifferencer::Equals(laar::messagePayload<laar::message::type::PROTOBUF>(parsed), message), true);
     }
 
 }
