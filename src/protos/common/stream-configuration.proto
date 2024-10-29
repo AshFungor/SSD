@@ -82,10 +82,3 @@ message TStreamConfiguration {
     // buffer config
     TBufferConfiguration BufferConfig = 6;
 }
-
-message TStreamAlteredConfiguration {
-
-    TStreamConfiguration configuration = 1;
-    bool opened = 2;
-
-}

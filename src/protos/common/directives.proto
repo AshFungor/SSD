@@ -15,10 +15,6 @@ message TStreamDirective {
 }
 
 message TStreamStatePoll {
-    // empty
-}
-
-message TStreamStatePollResult {
 
     enum EStreamState {
         DRAINED = 0;

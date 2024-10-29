@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package NSound.NCommon;
+
+message TPropertyList {
+    message TPropertyItem {
+        string key = 1;
+        string item = 2;
+    }
+
+    repeated TPropertyItem items = 1;
+}

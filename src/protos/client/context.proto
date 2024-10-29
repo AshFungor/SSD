@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package NSound.NClient;
+
+message TContextMessage {
+
+    message TConnect {
+        string name = 1;
+        TPropertyList property_list = 2;
+    }
+
+    message TQuery {
+        
+        message TServerName {}
+        message TProtocolVersion {}
+        message TContextIndex {}
+
+        oneof query {
+            TServerName server_name = 1;
+            TProtocolVersion protocol_version = 2;
+            TContextIndex context_index = 3;
+        }
+
+    }
+
+}

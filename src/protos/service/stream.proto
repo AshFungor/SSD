@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package NSound.NService;
+
+import "protos/common/directives.proto";
+import "protos/common/stream-configuration.proto";
+
+message TStreamMessage {
+
+    message TConnectConfirmal {
+        TStreamConfiguration configuration = 1;
+        bool opened = 2;
+    }
+
+    message TPull {
+        bytes data = 1;
+    }
+
+    oneof Response {
+        TPull pull = 1;
+        TConnectConfirmal connect_confirmal = 2;
+        NSound.NCommon.TStreamStatePoll state_poll = 3;
+    }
+}
