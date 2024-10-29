@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
 
-add_executable(util-test config-loader-test.cpp)
+declare_ssd_target(
+    NAME util-test 
+    TYPE EXECUTABLE
+    SOURCES config-loader-test.cpp
+    LOCAL_DEPS laar::util
+    TEST ON
+)
 
 target_compile_definitions(util-test PRIVATE BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/")
-
-target_link_libraries(util-test PRIVATE GTest::gtest_main laar::util)
-
-add_test(NAME util-test COMMAND util-test)

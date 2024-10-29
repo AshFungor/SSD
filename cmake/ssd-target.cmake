@@ -42,10 +42,17 @@ function(declare_ssd_target)
         add_library(${ssd_target_NAME} INTERFACE)
     endif()
 
+    target_link_libraries(${ssd_target_NAME} PUBLIC ${DEPS})
+    target_include_directories(${ssd_target_NAME} PUBLIC ${CMAKE_SOURCE_DIR})
+
     target_sources(${ssd_target_NAME} ${ssd_target_SOURCES} ${ssd_target_HEADERS})
     # Add -Wall and -Wextra if possible
     if (CMAKE_COMPILER_IS_GNUCXX)
-        target_compile_options(${ssd_target_NAME} "-Wall -Wextra")
+        target_compile_options(${ssd_target_NAME} PUBLIC "-Wall -Wextra")
+    endif()
+
+    if(ssd_target_TEST)
+        add_test(NAME ${ssd_target_NAME} COMMAND ${ssd_target_NAME})
     endif()
 
 endfunction()

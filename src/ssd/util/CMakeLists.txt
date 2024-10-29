@@ -3,11 +3,11 @@ cmake_minimum_required(VERSION 3.15)
 set(SOURCES config-loader.cpp)
 set(HEADERS config-loader.hpp)
 
-add_library(util STATIC ${SOURCES} ${HEADERS})
-
-target_include_directories(util PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(util PUBLIC 
-    ${SSD_EXTERNAL_DEPS}
+declare_ssd_target(
+    NAME util 
+    TYPE STATIC 
+    SOURCES ${SOURCES} 
+    HEADERS ${HEADERS}
 )
 
 add_library(laar::util ALIAS util)

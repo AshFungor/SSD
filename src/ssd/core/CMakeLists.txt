@@ -14,14 +14,12 @@ set(HEADERS
     context.hpp
 )
 
-add_library(core STATIC ${SOURCES} ${HEADERS})
-
-target_include_directories(core PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(core PUBLIC 
-    ${SSD_EXTERNAL_DEPS} 
-    laar::util 
-    laar::protos 
-    laar::sound
+declare_ssd_target(
+    NAME core 
+    TYPE STATIC 
+    SOURCES ${SOURCES} 
+    HEADERS ${HEADERS} 
+    LOCAL_DEPS laar::util laar::protos laar:sound
 )
 
 add_library(laar::core ALIAS core)

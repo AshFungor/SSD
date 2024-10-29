@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
 
-add_executable(sound-test sample-converter-test.cpp sound-test.cpp dispatchers-test.cpp)
-
-target_link_libraries(sound-test PRIVATE laar::sound GTest::gtest_main)
-
-add_test(NAME sound-test COMMAND sound-test)
+declare_ssd_target(
+    NAME sound-test 
+    TYPE EXECUTABLE
+    SOURCES dispatchers-test.cpp sample-converter-test.cpp sound-test.cpp
+    LOCAL_DEPS laar::sound
+    TEST ON
+)
