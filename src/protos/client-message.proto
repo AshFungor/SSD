@@ -2,11 +2,13 @@ syntax = "proto3";
 
 package NSound;
 
-import "protos/client/base.proto"; 
+import "protos/client/stream.proto"; 
+import "protos/client/context.proto"; 
 
 message TClientMessage {
 
     oneof Request {
-        NClient.NBase.TBaseMessage BaseMessage = 1;
+        NClient.TStreamMessage stream_message = 1;
+        NClient.TContextMessage context_message = 2;
     }
 }

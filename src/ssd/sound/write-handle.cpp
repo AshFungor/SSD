@@ -15,7 +15,7 @@
 #include <memory>
 
 // proto
-#include <protos/client/base.pb.h>
+#include <protos/client/stream.pb.h>
 
 using namespace laar;
 
@@ -26,7 +26,7 @@ WriteHandle::WriteHandle(
     NSound::NCommon::TStreamConfiguration config, 
     std::weak_ptr<IListener> owner
 ) 
-    : sampleSize_(getSampleSize(config.samplespec().format()))
+    : sampleSize_(getSampleSize(config.sample_spec().format()))
     , config_(std::move(config)) // think of config here
     , buffer_(std::make_unique<laar::RingBuffer>(44100 * 4 * 120))
     , owner_(std::move(owner))
@@ -52,14 +52,14 @@ absl::Status WriteHandle::drain() {
 absl::StatusOr<int> WriteHandle::read(std::int32_t* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
-    if (buffer_->readableSize() / sizeof (std::int32_t) < config_.bufferconfig().prebuffingsize()) {
+    if (buffer_->readableSize() / sizeof (std::int32_t) < config_.buffer_config().prebuffing_size()) {
         PLOG(plog::debug) << "handle " << this << " is stalled, "
-            << "waiting for " << config_.bufferconfig().prebuffingsize() - buffer_->readableSize() / sizeof (std::int32_t)
-            << " samples (prebuffing size is " << config_.bufferconfig().prebuffingsize()
+            << "waiting for " << config_.buffer_config().prebuffing_size() - buffer_->readableSize() / sizeof (std::int32_t)
+            << " samples (prebuffing size is " << config_.buffer_config().prebuffing_size()
             << "; readable size is " << buffer_->readableSize() / sizeof (std::int32_t) << ")";
         return absl::DataLossError("handle is stalled, await");
     } else {
-        config_.mutable_bufferconfig()->set_prebuffingsize(0);
+        config_.mutable_buffer_config()->set_prebuffing_size(0);
     }
 
     std::size_t trail = 0;
@@ -100,7 +100,7 @@ absl::StatusOr<int> WriteHandle::write(const char* src, std::size_t size) {
     PLOG(plog::debug) << "receiving bytes in handle: " << size;
 
     for (std::size_t frame = 0; frame < size; ++frame) {
-        switch (config_.samplespec().format()) {
+        switch (config_.sample_spec().format()) {
             case ESamples::UNSIGNED_8:
                 std::memcpy(&sample8, src + frame * sizeof(sample8), sizeof(sample8));
                 converted = convertFromUnsigned8(sample8);
@@ -139,7 +139,7 @@ absl::StatusOr<int> WriteHandle::write(const char* src, std::size_t size) {
 }
 
 ESampleType WriteHandle::getFormat() const {
-    return config_.samplespec().format();
+    return config_.sample_spec().format();
 }
 
 bool WriteHandle::isAlive() noexcept {

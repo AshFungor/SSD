@@ -1,4 +1,5 @@
 // Boost
+#include <boost/asio/high_resolution_timer.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/io_context.hpp>
@@ -13,6 +14,11 @@
 // GTest
 #include <gtest/gtest.h>
 
+// Plog
+#include <plog/Log.h>
+#include <plog/Init.h>
+#include <plog/Initializers/RollingFileInitializer.h>
+
 // standard
 #include <memory>
 #include <string>
@@ -23,6 +29,7 @@
 #include <src/ssd/util/config-loader.hpp>
 
 using namespace laar;
+using namespace std::chrono;
 
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
@@ -48,6 +55,12 @@ protected:
     std::shared_ptr<ConfigHandler> handler;
 
     void SetUp() override {
+
+        std::string logsFile = testingConfigDir + "test-log.txt";
+        plog::init(plog::debug, logsFile.c_str());
+
+        PLOG(plog::debug) << "initilizing logging for a test...";
+
         context = std::make_shared<boost::asio::io_context>();
         handler = laar::ConfigHandler::configure(testingConfigDir, context);
 
@@ -68,12 +81,16 @@ protected:
 
 TEST_F(ConfigHandlerTest, SubscribeAndListen) {
     auto lifetime = std::make_shared<int>(1);
+    std::atomic<int> counter = 2;
 
     handler->subscribeOnDefaultConfig(
         "default", 
         [&](const nlohmann::json& config) {
             GTEST_COUT("config received: " << config);
             EXPECT_EQ(config.value<std::string>("default", "Not found!"), "default");
+            if (!--counter) {
+                context->stop();
+            }
         }, 
         lifetime
     );
@@ -82,6 +99,9 @@ TEST_F(ConfigHandlerTest, SubscribeAndListen) {
         [&](const nlohmann::json& config) {
             GTEST_COUT("config received: " << config);
             EXPECT_EQ(config.value<std::string>("dynamic", "Not found!"), "dynamic");
+            if (!--counter) {
+                context->stop();
+            }
         }, 
         lifetime
     );
@@ -91,6 +111,7 @@ TEST_F(ConfigHandlerTest, SubscribeAndListen) {
 
 TEST_F(ConfigHandlerTest, ReadUpdateToDynamicConfig) {
     auto lifetime = std::make_shared<int>(1);
+    auto timer = std::make_unique<boost::asio::high_resolution_timer>(*context, 200ms);
     int runNum = 0;
 
     handler->subscribeOnDynamicConfig(
@@ -99,6 +120,13 @@ TEST_F(ConfigHandlerTest, ReadUpdateToDynamicConfig) {
             if (runNum == 0) {
                 GTEST_COUT("initial config received: " << config);
                 EXPECT_EQ(config.value<std::string>("dynamic", "Not found!"), "dynamic");
+                // put config update
+                timer->async_wait([&](boost::system::error_code error) {
+                    ASSERT_FALSE(error);
+                    write(testingConfigDir + "dynamic.cfg", {
+                        {"dynamic", {{"dynamic", "new_value!"}}}
+                    });
+                });
             } else if (runNum == 1) {
                 GTEST_COUT("new config received: " << config);
                 EXPECT_EQ(config.value<std::string>("dynamic", "Not found!"), "new_value!");
@@ -108,12 +136,6 @@ TEST_F(ConfigHandlerTest, ReadUpdateToDynamicConfig) {
             ++runNum;
         }, 
         lifetime);
-
-    boost::asio::post(*context, [&]() {
-        write(testingConfigDir + "dynamic.cfg", {
-            {"dynamic", {{"dynamic", "new_value!"}}}
-        });
-    });
 
     context->run();
 }

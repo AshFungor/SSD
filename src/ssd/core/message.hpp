@@ -75,11 +75,13 @@ namespace laar {
                 return message->size_;
             }
 
+            inline static std::size_t total(const Message* message) {
+                return Size::header() + Size::variable(message) + Size::payload(message);
+            }
+
         };
 
         bool compareMetadata(const Message& other) const;
-
-        std::size_t byteSizeLong() const;
 
         // attributes
         std::uint8_t version() const;

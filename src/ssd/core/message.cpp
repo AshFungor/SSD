@@ -283,10 +283,6 @@ bool Message::compareMetadata(const Message& other) const {
         && size() == other.size();
 }
 
-std::size_t Message::byteSizeLong() const {
-    return Size::header() + Size::variable(this) + Size::payload(this);
-}
-
 // --- Message Factory ---
 std::shared_ptr<MessageFactory> MessageFactory::configure() {
     return std::shared_ptr<MessageFactory>(new MessageFactory{});

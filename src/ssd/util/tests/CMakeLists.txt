@@ -5,3 +5,5 @@ add_executable(util-test config-loader-test.cpp)
 target_compile_definitions(util-test PRIVATE BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/")
 
 target_link_libraries(util-test PRIVATE GTest::gtest_main laar::util)
+
+add_test(NAME util-test COMMAND util-test)

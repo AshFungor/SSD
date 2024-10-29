@@ -13,13 +13,12 @@ message TStreamMessage {
         uint64 size = 2; // in samples
     }
 
-    // Pulls sound data from recording stream
     message TPull {
-        uint32 size = 1;
+        uint32 size = 1; // in samples too
     }
 
     message TConnect {
-        TStreamConfiguration configuration = 1;
+        NCommon.TStreamConfiguration configuration = 1;
         NCommon.TPropertyList property_list = 2;
     }
 
@@ -29,4 +28,6 @@ message TStreamMessage {
         TConnect connect = 3;
         NCommon.TStreamDirective directive = 4;
     }
+
+    uint32 stream_id = 5;
 }

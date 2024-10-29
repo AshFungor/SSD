@@ -15,9 +15,9 @@
 #include <src/ssd/sound/dispatchers/bass-router-dispatcher.hpp>
 
 // protos
-#include <protos/client/base.pb.h>
+#include <protos/client/stream.pb.h>
 
-using namespace NSound::NClient::NBase;
+using namespace NSound::NClient;
 
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
@@ -227,13 +227,13 @@ TEST(DispatcherTest, TestBassRouting) {
     if (isSecondConfiguration) {
         GTEST_COUT("Second configuration: success");
     } else {
-        EXPECT_TRUE(false)
-            << "expected routed stream, got instead on first channel: "
+        GTEST_COUT("expected routed stream, got instead on first channel: "
             << arrayToString(out.get(), samples) << "\n"
             << "second channel: "
             << arrayToString(out.get() + samples, samples) << "\n"
             << "original: "
-            << arrayToString(in.get(), samples);
+            << arrayToString(in.get(), samples)
+        )
     }
 
 }

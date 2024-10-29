@@ -26,7 +26,7 @@
 namespace {
 
     void initMessage(NSound::TServiceMessage& message) {
-        message.mutable_basemessage()->mutable_streamalteredconfiguration()->set_opened(true);
+        message.mutable_stream_message()->mutable_connect_confirmal()->set_opened(true);
     }
 
     class MessageTest : public ::testing::Test {
@@ -160,7 +160,7 @@ TEST_F(MessageTest, TestParsingMultiple) {
         factory->withPayload(message).construct();
         laar::Message message = factory->constructed();
         message.writeToArray(buffer.get() + shift, bufferSize - shift);
-        shift += message.byteSizeLong();
+        shift += laar::Message::Size::total(&message);
     }
 
     GTEST_COUT("written bytes to array: " << shift << "; per message: " << shift / messagesTotal)
@@ -170,7 +170,7 @@ TEST_F(MessageTest, TestParsingMultiple) {
 
     std::stringstream oss {std::ios::out | std::ios::binary};
     oss << std::hex;
-    for (std::size_t byte = 0; byte < standard.byteSizeLong(); ++byte) {
+    for (std::size_t byte = 0; byte < laar::Message::Size::total(&standard); ++byte) {
         oss << "0x" << static_cast<int>(buffer[byte]) << ' ';
     }
 

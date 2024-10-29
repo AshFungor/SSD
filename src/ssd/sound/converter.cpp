@@ -8,7 +8,7 @@
 #include <absl/base/internal/endian.h>
 
 // proto
-#include <protos/client/base.pb.h>
+#include <protos/client/stream.pb.h>
 
 using ESamples = 
     NSound::NCommon::TStreamConfiguration::TSampleSpecification;

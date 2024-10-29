@@ -31,7 +31,7 @@
 #include <plog/Severity.h>
 
 // proto
-#include <protos/client/base.pb.h>
+#include <protos/client/stream.pb.h>
 
 
 namespace laar {

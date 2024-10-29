@@ -2,11 +2,14 @@ cmake_minimum_required(VERSION 3.15)
 
 set(PROTOS 
     # clint messages
-    client/base.proto
+    client/stream.proto
+    client/context.proto
     # service messages
-    service/base.proto
+    service/stream.proto
+    service/context.proto
     # common
     common/directives.proto
+    common/property-list.proto
     common/stream-configuration.proto
     # holders
     client-message.proto

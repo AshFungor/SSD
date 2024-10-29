@@ -34,9 +34,9 @@ message TStreamConfiguration {
         }
 
         // Sample holding type
-        TFormat Format = 1;
-        uint32 SampleRate = 2;
-        uint32 Channels = 3; 
+        TFormat format = 1;
+        uint32 sample_rate = 2;
+        uint32 channels = 3; 
     }
 
     // Channel mappings to supposed output - not used
@@ -51,34 +51,34 @@ message TStreamConfiguration {
         }
 
         message TMapValue {
-            oneof Label {
-                TLabeledPosition Position = 1;
+            oneof label {
+                TLabeledPosition position = 1;
                 // from 0 to 31 inclusive
-                int32 AUX = 2;
+                int32 aux = 2;
             }
         }
 
-        repeated TMapValue MappedChannel = 1;
+        repeated TMapValue mapped_channel = 1;
     }
 
     // Internal server buffer configuration
     message TBufferConfiguration {
-        uint32 Size = 1;
-        uint32 PrebuffingSize = 2;
-        uint32 MinRequestSize = 3;
-        uint32 FragmentSize = 4;
+        uint32 size = 1;
+        uint32 prebuffing_size = 2;
+        uint32 min_request_size = 3;
+        uint32 fragment_size = 4;
     }
 
     // descripive name for stream user
-    optional string ClientName = 1;
+    optional string client_name = 1;
     // descriptive name for stream
-    optional string StreamName = 2;
+    optional string stream_name = 2;
     // direction of the stream
-    TStreamDirection Direction = 3;
+    TStreamDirection direction = 3;
     // channel map
-    TChannelMap ChannelMap = 4;
+    TChannelMap channel_map = 4;
     // sample config
-    TSampleSpecification SampleSpec = 5;
+    TSampleSpecification sample_spec = 5;
     // buffer config
-    TBufferConfiguration BufferConfig = 6;
+    TBufferConfiguration buffer_config = 6;
 }

@@ -2,11 +2,13 @@ syntax = "proto3";
 
 package NSound;
 
-import "protos/service/base.proto"; 
+import "protos/service/stream.proto"; 
+import "protos/service/context.proto"; 
 
 message TServiceMessage {
 
     oneof Request {
-        NService.NBase.TBaseMessage BaseMessage = 1;
+        NService.TStreamMessage stream_message = 1;
+        NService.TContextMessage context_message = 2;
     }
 }

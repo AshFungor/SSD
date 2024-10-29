@@ -26,4 +26,8 @@ message TContextMessage {
 
     }
 
+    oneof response {
+        TQueryResult query_result = 1;
+    }
+
 }

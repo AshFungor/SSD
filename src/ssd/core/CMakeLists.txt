@@ -4,12 +4,14 @@ set(SOURCES
     routing-service.cpp
     session.cpp
     message.cpp
+    context.cpp
 )
 
 set(HEADERS 
     routing-service.hpp
     session.hpp
     message.hpp
+    context.hpp
 )
 
 add_library(core STATIC ${SOURCES} ${HEADERS})

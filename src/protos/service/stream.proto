@@ -8,7 +8,7 @@ import "protos/common/stream-configuration.proto";
 message TStreamMessage {
 
     message TConnectConfirmal {
-        TStreamConfiguration configuration = 1;
+        NCommon.TStreamConfiguration configuration = 1;
         bool opened = 2;
     }
 
@@ -19,6 +19,8 @@ message TStreamMessage {
     oneof Response {
         TPull pull = 1;
         TConnectConfirmal connect_confirmal = 2;
-        NSound.NCommon.TStreamStatePoll state_poll = 3;
+        NCommon.TStreamStatePoll state_poll = 3;
     }
+
+    uint32 stream_id = 4;
 }

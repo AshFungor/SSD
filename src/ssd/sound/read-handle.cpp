@@ -15,7 +15,7 @@
 #include <memory>
 
 // proto
-#include <protos/client/base.pb.h>
+#include <protos/client/stream.pb.h>
 
 using namespace laar;
 
@@ -27,8 +27,8 @@ ReadHandle::ReadHandle(
     NSound::NCommon::TStreamConfiguration config, 
     std::weak_ptr<IListener> owner
 ) 
-    : format_(config.samplespec().format())
-    , sampleSize_(getSampleSize(config.samplespec().format()))
+    : format_(config.sample_spec().format())
+    , sampleSize_(getSampleSize(config.sample_spec().format()))
     , owner_(std::move(owner))
 {}
 

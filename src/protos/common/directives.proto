@@ -11,7 +11,7 @@ message TStreamDirective {
         CLOSE = 2;
     }
 
-    EDirective Type = 1;
+    EDirective type = 1;
 }
 
 message TStreamStatePoll {

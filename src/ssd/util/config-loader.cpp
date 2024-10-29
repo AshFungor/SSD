@@ -72,6 +72,9 @@ absl::Status ConfigHandler::init() {
         status = parseConfig(default_);
         status.Update(parseConfig(dynamic_));
 
+        dynamic_.lastUpdatedTs = last_write_time(dynamic_.filepath);
+        default_.lastUpdatedTs = last_write_time(default_.filepath);
+
         if (status.ok()) {
             schedule(boost::system::errc::make_error_code(boost::system::errc::success));
         }

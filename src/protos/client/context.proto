@@ -2,11 +2,13 @@ syntax = "proto3";
 
 package NSound.NClient;
 
+import "protos/common/property-list.proto";
+
 message TContextMessage {
 
     message TConnect {
         string name = 1;
-        TPropertyList property_list = 2;
+        NCommon.TPropertyList property_list = 2;
     }
 
     message TQuery {
