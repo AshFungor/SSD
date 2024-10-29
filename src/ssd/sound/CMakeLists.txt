@@ -20,14 +20,13 @@ set(HEADERS
     audio-handler.hpp read-handle.hpp write-handle.hpp converter.hpp
 )
 
-add_library(sound STATIC ${SOURCES} ${HEADERS})
-
-# local deps
-target_link_libraries(sound PUBLIC laar::util laar::protos)
-# external deps
-target_link_libraries(sound PUBLIC rtaudio ${SSD_EXTERNAL_DEPS})
-# includes
-target_include_directories(sound PUBLIC ${SRC_ROOT})
+declare_ssd_target(
+    NAME sound 
+    TYPE STATIC 
+    SOURCES ${SOURCES} 
+    HEADERS ${HEADERS} 
+    LOCAL_DEPS laar::util laar::protos rtaudio
+)
 
 add_library(laar::sound ALIAS sound)
 
