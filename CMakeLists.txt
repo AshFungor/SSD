@@ -4,6 +4,7 @@ project(sound-server LANGUAGES CXX C)
 
 include(CTest)
 include(cmake/ssd-target.cmake)
+include(cmake/ssd-test.cmake)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 20)

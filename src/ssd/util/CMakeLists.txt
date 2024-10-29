@@ -6,8 +6,7 @@ set(HEADERS config-loader.hpp)
 declare_ssd_target(
     NAME util 
     TYPE STATIC 
-    SOURCES ${SOURCES} 
-    HEADERS ${HEADERS}
+    SOURCES ${SOURCES} ${HEADERS}
 )
 
 add_library(laar::util ALIAS util)

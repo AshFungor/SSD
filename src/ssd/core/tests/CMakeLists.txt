@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
-declare_ssd_target(
-    NAME core-test
-    TYPE EXECUTABLE
+declare_ssd_test(
+    TEST_NAME core-test
     SOURCES message-test.cpp 
-    LOCAL_DEPS laar::core
-    TEST ON
+    DEPS laar::core
 )

@@ -8,5 +8,5 @@ declare_ssd_target(
     NAME sound-server-daemon 
     TYPE EXECUTABLE 
     SOURCES main.cpp
-    LOCAL_DEPS laar::core laar::sound laar::util abseil::abseil
+    DEPS laar::core laar::sound laar::util abseil::abseil
 )

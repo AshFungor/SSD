@@ -23,9 +23,8 @@ set(HEADERS
 declare_ssd_target(
     NAME sound 
     TYPE STATIC 
-    SOURCES ${SOURCES} 
-    HEADERS ${HEADERS} 
-    LOCAL_DEPS laar::util laar::protos rtaudio
+    SOURCES ${SOURCES} ${HEADERS} 
+    DEPS laar::util laar::protos rtaudio
 )
 
 add_library(laar::sound ALIAS sound)

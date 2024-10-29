@@ -17,9 +17,8 @@ set(HEADERS
 declare_ssd_target(
     NAME core 
     TYPE STATIC 
-    SOURCES ${SOURCES} 
-    HEADERS ${HEADERS} 
-    LOCAL_DEPS laar::util laar::protos laar:sound
+    SOURCES ${SOURCES} ${HEADERS}
+    DEPS laar::util laar::protos laar::sound
 )
 
 add_library(laar::core ALIAS core)
