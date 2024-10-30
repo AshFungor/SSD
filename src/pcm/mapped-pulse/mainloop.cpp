@@ -309,7 +309,7 @@ int pa_mainloop_poll(pa_mainloop *m) {
         // run until quited
         auto guard = boost::asio::make_work_guard(*m->context);
         m->state.dispatched = m->context->run();
-    } else if (m->state.timeout > 0) {
+    } else if (m->state.timeout == 0) {
         // run only ready handlers
         m->state.dispatched = m->context->poll();
     } else {
@@ -374,6 +374,13 @@ void pa_mainloop_wakeup(pa_mainloop *m) {
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
     m->context->stop();
+}
+
+pa_mainloop_api* pa_mainloop_get_api(pa_mainloop* m) {
+    PCM_STUB();
+    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
+
+    return m->api.get();
 }
 
 void pa_mainloop_set_poll_func(pa_mainloop *m, pa_poll_func poll_func, void *userdata) {

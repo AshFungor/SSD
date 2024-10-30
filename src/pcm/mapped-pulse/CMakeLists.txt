@@ -16,10 +16,13 @@ set(HEADERS
     utils/macros.hpp
 )
 
-add_library(pcm STATIC ${HEADERS} ${SOURCES})
-
-target_link_libraries(pcm PUBLIC protos ${SSD_EXTERNAL_DEPS} laar::sound laar::core)
-
-target_include_directories(pcm PUBLIC ${CMAKE_SOURCE_DIR})
+declare_ssd_target(
+    NAME pcm 
+    TYPE STATIC 
+    SOURCES ${SOURCES} ${HEADERS}
+    DEPS laar::sound laar::core
+)
 
 add_library(laar::pcm ALIAS pcm)
+
+add_subdirectory(tests)
