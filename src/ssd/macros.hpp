@@ -6,6 +6,19 @@
 // pulse
 #include <pulse/gccmacro.h>
 
+#define PCM_STUB()                                                          \
+    pcm_log::log(absl::StrFormat(                                           \
+        "stub PCM: %s:%d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__),    \
+        pcm_log::ELogVerbosity::INFO                                       \
+    )
+
+#define PCM_MACRO_WRAPPER(macro, error_code)                        \
+    try {                                                           \
+        macro                                                       \
+    } catch (const std::exception& error) {                         \
+        pcm_log::log(error.what(), pcm_log::ELogVerbosity::ERROR);  \
+    }
+
 #define ENSURE_NOT_NULL(ptr)                                    \
     do {                                                        \
         if (ptr == nullptr) {                                   \

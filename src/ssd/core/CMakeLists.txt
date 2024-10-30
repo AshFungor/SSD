@@ -4,14 +4,12 @@ set(SOURCES
     routing-service.cpp
     session.cpp
     message.cpp
-    context.cpp
 )
 
 set(HEADERS 
     routing-service.hpp
     session.hpp
     message.hpp
-    context.hpp
 )
 
 declare_ssd_target(
