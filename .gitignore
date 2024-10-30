@@ -104,7 +104,6 @@ crashlytics-build.properties
 fabric.properties
 
 # VS Code and VS
-.vscode/
 .vs/
 
 # Json conan config
