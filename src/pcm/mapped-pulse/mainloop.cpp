@@ -1,13 +1,19 @@
-// pulse
-#include "pulse/def.h"
-#include "pulse/mainloop-api.h"
-#include <boost/asio/executor_work_guard.hpp>
-#include <boost/asio/io_context.hpp>
+// STD
 #include <chrono>
 #include <memory>
-#include <mutex>
-#include <pulse/mainloop.h>
+
+// pulse
 #include <pulse/xmalloc.h>
+#include <pulse/mainloop.h>
+#include <pulse/mainloop-api.h>
+
+// boost
+#include <boost/bind/bind.hpp>
+#include <boost/asio/post.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/posix/stream_descriptor.hpp>
 
 // abseil
 #include <absl/strings/str_format.h>
@@ -29,12 +35,236 @@ struct pa_mainloop {
     } state;
 };
 
+struct pa_io_event {
+    std::unique_ptr<boost::asio::posix::stream_descriptor> stream;
+
+    struct State {
+        pa_io_event_destroy_cb_t cbDestroy;
+        pa_mainloop_api* api;
+        void* userdata;
+    } state;
+};
+
+struct pa_time_event {
+    std::unique_ptr<boost::asio::steady_timer> timer;
+
+    struct State {
+        pa_time_event_destroy_cb_t cbDestroy;
+        pa_time_event_cb_t cbComplete;
+        pa_mainloop_api* api;
+        void* userdata;
+    } state;
+};
+
+struct pa_defer_event {
+
+    struct State {
+        pa_defer_event_destroy_cb_t cbDestroy;
+        pa_mainloop_api* api;
+        void* userdata;
+        int* b;
+    } state;
+};
+
 namespace {
+
+    enum EDefferedState {
+        ON, OFF, REMOVED
+    };
+
+    pa_io_event* io_new(pa_mainloop_api* a, int fd, pa_io_event_flags_t events, pa_io_event_cb_t callback, void* userdata) {
+        PCM_STUB();
+        UNUSED(events);
+        UNUSED(callback);
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
+
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        auto io_event = reinterpret_cast<pa_io_event*>(pa_xmalloc(sizeof(pa_io_event)));
+        std::construct_at(io_event);
+
+        io_event->state.api = a;
+        io_event->state.cbDestroy = nullptr;
+        io_event->state.userdata = userdata;
+        io_event->stream = std::make_unique<boost::asio::posix::stream_descriptor>(*mainloop->context, fd);
+
+        // impl?
+
+        return io_event;
+    }
+
+    void io_enable(pa_io_event* e, pa_io_event_flags_t events) {
+        PCM_STUB();
+        UNUSED(events);
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        // do nothing for now
+    }
+
+    void io_free(pa_io_event* e) {
+        PCM_STUB();
+
+        if (e && e->state.cbDestroy) {
+            e->state.cbDestroy(e->state.api, e, e->state.userdata);
+        }
+
+        pa_xfree(e);
+    }
+
+    void io_set_destroy(pa_io_event* e, pa_io_event_destroy_cb_t cb) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        e->state.cbDestroy = cb;
+    }
+
+    pa_time_event* time_new(pa_mainloop_api* a, const struct timeval* tv, pa_time_event_cb_t cb, void* userdata) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(tv);, PA_ERR_EXIST);
+
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        auto timer = reinterpret_cast<pa_time_event*>(pa_xmalloc(sizeof(pa_time_event)));
+        std::construct_at(timer);
+
+        timer->timer = std::make_unique<boost::asio::steady_timer>(*mainloop->context);
+        timer->state.api = a;
+        timer->state.cbComplete = cb;
+        timer->state.cbDestroy = nullptr;
+        timer->state.userdata = userdata;
+
+        timer->timer->expires_after(std::chrono::seconds(tv->tv_sec) + std::chrono::microseconds(tv->tv_usec));
+        timer->timer->async_wait([timer, tv](const boost::system::error_code& error) {
+            if (!error && timer->state.cbComplete) {
+                timer->state.cbComplete(timer->state.api, timer, tv, timer->state.userdata);
+            }
+        });
+
+        return timer;
+    }
+
+    void time_restart(pa_time_event* e, const struct timeval *tv) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        if (std::chrono::steady_clock::now() < e->timer->expiry()) {
+            e->timer->cancel();
+        }
+
+        e->timer->expires_after(std::chrono::seconds(tv->tv_sec) + std::chrono::microseconds(tv->tv_usec));
+        e->timer->async_wait([e, tv](const boost::system::error_code& error) {
+            if (!error && e->state.cbComplete) {
+                e->state.cbComplete(e->state.api, e, tv, e->state.userdata);
+            }
+        });
+    }
+    
+    void time_free(pa_time_event* e) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        if (std::chrono::steady_clock::now() < e->timer->expiry()) {
+            e->timer->cancel();
+        }
+
+        if (e->state.cbDestroy) {
+            e->state.cbDestroy(e->state.api, e, e->state.userdata);
+        }
+
+        pa_xfree(e);
+    }
+
+    void time_set_destroy(pa_time_event* e, pa_time_event_destroy_cb_t cb) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        e->state.cbDestroy = cb;
+    }
+
+    pa_defer_event* defer_new(pa_mainloop_api* a, pa_defer_event_cb_t cb, void* userdata) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
+
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        auto defer = reinterpret_cast<pa_defer_event*>(pa_xmalloc(sizeof(pa_defer_event)));
+        std::construct_at(defer);
+
+        defer->state.b = new int{ON};
+        defer->state.api = a;
+        defer->state.userdata = userdata;
+        defer->state.cbDestroy = nullptr;
+
+        std::function<void(void)> deffered;
+        deffered = [defer, cb, b = defer->state.b, &deffered]() {
+            if (*b == REMOVED) {
+                delete b;
+                return;
+            }
+
+            if (*b == ON && defer->state.b && cb) {
+                cb(defer->state.api, defer, defer->state.userdata);
+            }
+
+            auto mainloop = reinterpret_cast<pa_mainloop*>(defer->state.api);
+            boost::asio::post(*mainloop->context, deffered);
+        };
+
+        boost::asio::post(*mainloop->context, deffered);
+        return defer;
+    }
+
+    void defer_enable(pa_defer_event* e, int b) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        *e->state.b = (b) ? ON : OFF;
+    }
+
+    void defer_free(pa_defer_event* e) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        if (e->state.cbDestroy) {
+            e->state.cbDestroy(e->state.api, e, e->state.userdata);
+        }
+
+        *e->state.b = REMOVED;
+        pa_xfree(e);
+    }
+
+    void defer_set_destroy(pa_defer_event *e, pa_defer_event_destroy_cb_t cb) {
+        PCM_STUB();
+        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+
+        e->state.cbDestroy = cb;
+    }
+
+    void quit(pa_mainloop_api* a, int retval) {
+        PCM_STUB();
+
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        pa_mainloop_quit(mainloop, retval);
+    }
 
     void initMainloopApi(pa_mainloop* m) {
         m->api = std::make_unique<pa_mainloop_api>();
         m->api->userdata = m;
 
+        m->api->io_new = io_new;
+        m->api->io_free = io_free;
+        m->api->io_enable = io_enable;
+        m->api->io_set_destroy = io_set_destroy;
+
+        m->api->time_new = time_new;
+        m->api->time_restart = time_restart;
+        m->api->time_set_destroy = time_set_destroy;
+        m->api->time_free = time_free;
+
+        m->api->defer_new = defer_new;
+        m->api->defer_free = defer_free;
+        m->api->defer_enable = defer_enable;
+        m->api->defer_set_destroy = defer_set_destroy;
+
+        m->api->quit = quit;
         // init callbacks here, try to make as much as possibe
     }
 
@@ -152,11 +382,3 @@ void pa_mainloop_set_poll_func(pa_mainloop *m, pa_poll_func poll_func, void *use
     UNUSED(userdata);
     UNUSED(poll_func);
 }
-
-
-
-
-
-
-
-
