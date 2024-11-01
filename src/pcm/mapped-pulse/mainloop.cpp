@@ -193,8 +193,8 @@ namespace {
         defer->state.userdata = userdata;
         defer->state.cbDestroy = nullptr;
 
-        std::function<void(void)> deffered;
-        deffered = [defer, cb, b = defer->state.b, &deffered]() {
+        std::function<void(void)> deferred;
+        deferred = [defer, cb, b = defer->state.b, &deferred]() {
             if (*b == REMOVED) {
                 delete b;
                 return;
@@ -205,10 +205,10 @@ namespace {
             }
 
             auto mainloop = reinterpret_cast<pa_mainloop*>(defer->state.api);
-            boost::asio::post(*mainloop->context, deffered);
+            boost::asio::post(*mainloop->context, deferred);
         };
 
-        boost::asio::post(*mainloop->context, deffered);
+        boost::asio::post(*mainloop->context, deferred);
         return defer;
     }
 
@@ -265,7 +265,7 @@ namespace {
         m->api->defer_set_destroy = defer_set_destroy;
 
         m->api->quit = quit;
-        // init callbacks here, try to make as much as possibe
+        // init callbacks here, try to make as much as possible
     }
 
 }
@@ -306,7 +306,7 @@ int pa_mainloop_poll(pa_mainloop *m) {
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
     if (m->state.timeout < 0) {
-        // run until quited
+        // run until quit
         auto guard = boost::asio::make_work_guard(*m->context);
         m->state.dispatched = m->context->run();
     } else if (m->state.timeout == 0) {

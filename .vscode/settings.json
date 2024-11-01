@@ -1,0 +1,11 @@
+{
+    "command-runner.terminal.name": "runCommand",
+    "command-runner.terminal.autoClear": true,
+    "command-runner.terminal.autoFocus": true,
+    "command-runner.commands": {
+        "SSD: configure": "cd ${workspaceFolder} && ./scripts/build.py -c --config Debug --link",
+        "SSD: build": "cd ${workspaceFolder} && ./scripts/build.py -b --config Debug --link",
+        "SSD: test": "cd ${workspaceFolder}/build/Debug && cmake --build . --target test",
+        "SSD: rebuild protobuf": "cd ${workspaceFolder}/build/Debug && cmake  --build . --target protos"
+    }
+}
