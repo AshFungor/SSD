@@ -10,9 +10,12 @@
 // boost
 #include <boost/bind/bind.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/defer.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/system/detail/errc.hpp>
 #include <boost/asio/executor_work_guard.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
 
 // abseil
@@ -57,9 +60,12 @@ struct pa_time_event {
 };
 
 struct pa_defer_event {
+    std::function<void(const boost::system::error_code&)> functor;
+    std::unique_ptr<boost::asio::steady_timer> timer;
 
     struct State {
         pa_defer_event_destroy_cb_t cbDestroy;
+        pa_defer_event_cb_t cbDefer;
         pa_mainloop_api* api;
         void* userdata;
         int* b;
@@ -68,7 +74,10 @@ struct pa_defer_event {
 
 namespace {
 
-    enum EDefferedState {
+    constexpr microseconds MainloopIterationTime {100};
+    constexpr microseconds DeferEventsTriggerTime {MainloopIterationTime.count() + 1};
+
+    enum EDeferredState {
         ON, OFF, REMOVED
     };
 
@@ -78,7 +87,7 @@ namespace {
         UNUSED(callback);
         PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
 
-        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);
         auto io_event = reinterpret_cast<pa_io_event*>(pa_xmalloc(sizeof(pa_io_event)));
         std::construct_at(io_event);
 
@@ -122,7 +131,7 @@ namespace {
         PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
         PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(tv);, PA_ERR_EXIST);
 
-        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);
         auto timer = reinterpret_cast<pa_time_event*>(pa_xmalloc(sizeof(pa_time_event)));
         std::construct_at(timer);
 
@@ -184,7 +193,7 @@ namespace {
         PCM_STUB();
         PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
 
-        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);
         auto defer = reinterpret_cast<pa_defer_event*>(pa_xmalloc(sizeof(pa_defer_event)));
         std::construct_at(defer);
 
@@ -192,23 +201,27 @@ namespace {
         defer->state.api = a;
         defer->state.userdata = userdata;
         defer->state.cbDestroy = nullptr;
+        defer->state.cbDefer = cb;
 
-        std::function<void(void)> deferred;
-        deferred = [defer, cb, b = defer->state.b, &deferred]() {
-            if (*b == REMOVED) {
+        defer->timer = std::make_unique<boost::asio::steady_timer>(*mainloop->context);
+        defer->functor = [defer, b = defer->state.b](const boost::system::error_code& error) {
+            if (*b == REMOVED || error) {
                 delete b;
                 return;
             }
 
-            if (*b == ON && defer->state.b && cb) {
-                cb(defer->state.api, defer, defer->state.userdata);
+            if (*b == ON && defer->state.cbDefer) {
+                defer->state.cbDefer(defer->state.api, defer, defer->state.userdata);
             }
 
-            auto mainloop = reinterpret_cast<pa_mainloop*>(defer->state.api);
-            boost::asio::post(*mainloop->context, deferred);
+            // TODO: fix issue with deferred events overhead: when too many
+            // events are registered and they take most of single iteration time, 
+            // other stuff (timers, I/O) might perform poorly.
+            defer->timer->expires_after(DeferEventsTriggerTime);
+            defer->timer->async_wait(defer->functor);
         };
 
-        boost::asio::post(*mainloop->context, deferred);
+        boost::asio::defer(*mainloop->context, boost::bind(defer->functor, boost::system::error_code{}));
         return defer;
     }
 
@@ -241,7 +254,7 @@ namespace {
     void quit(pa_mainloop_api* a, int retval) {
         PCM_STUB();
 
-        auto mainloop = reinterpret_cast<pa_mainloop*>(a);
+        auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);
         pa_mainloop_quit(mainloop, retval);
     }
 
@@ -309,12 +322,9 @@ int pa_mainloop_poll(pa_mainloop *m) {
         // run until quit
         auto guard = boost::asio::make_work_guard(*m->context);
         m->state.dispatched = m->context->run();
-    } else if (m->state.timeout == 0) {
-        // run only ready handlers
-        m->state.dispatched = m->context->poll();
     } else {
-        // run for a duration
-        m->state.dispatched = m->context->run_for(milliseconds{m->state.timeout});
+        auto guard = boost::asio::make_work_guard(*m->context);
+        m->state.dispatched = m->context->run_for(std::max(MainloopIterationTime, microseconds{m->state.timeout}));
     }   
 
     m->state.timeout = 0;
@@ -325,7 +335,7 @@ int pa_mainloop_dispatch(pa_mainloop *m) {
     PCM_STUB();
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
-    // poll already dispatches things, no need fot this
+    // poll already dispatches things, no need for this
     int dispatched = m->state.dispatched;
     m->state.dispatched = 0;
     return dispatched;
@@ -358,7 +368,9 @@ int pa_mainloop_run(pa_mainloop *m, int *retval) {
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
     pa_mainloop_iterate(m, true, retval);
-    return m->state.retval;
+
+    // TODO: this should handle errors
+    return PA_OK;
 }
 
 void pa_mainloop_quit(pa_mainloop *m, int retval) {

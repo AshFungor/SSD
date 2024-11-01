@@ -61,11 +61,13 @@ std::ostream& __pcm_trace_internal::warning(std::ostream& os) {
 }
 
 absl::Status pcm_log::configureLogging(std::ostream* os) {
+    std::unique_lock<std::mutex> lock {lock_};
     if (!os) {
         return absl::OkStatus();
     }
+
     os_ = os;
-    return (os_->bad()) ? absl::InternalError("steam check failed") : absl::OkStatus();
+    return (os_->bad()) ? absl::InternalError("stream check failed") : absl::OkStatus();
 }
 
 void pcm_log::log(const std::string& message, ELogVerbosity verbosity) {
@@ -76,13 +78,13 @@ void pcm_log::log(const std::string& message, ELogVerbosity verbosity) {
 
     switch (verbosity) {
         case pcm_log::ELogVerbosity::ERROR:
-            __pcm_trace_internal::error(*os_) << message;
+            __pcm_trace_internal::error(*os_) << message << "\n";
             return;
         case pcm_log::ELogVerbosity::WARNING:
-            __pcm_trace_internal::warning(*os_) << message;
+            __pcm_trace_internal::warning(*os_) << message << "\n";
             return;
         case pcm_log::ELogVerbosity::INFO:
-            __pcm_trace_internal::info(*os_) << message;
+            __pcm_trace_internal::info(*os_) << message << "\n";
             return;
     }
 }
