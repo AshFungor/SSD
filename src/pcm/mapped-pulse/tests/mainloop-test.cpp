@@ -133,3 +133,27 @@ TEST_F(MainloopTest, TestTimer) {
     api->time_free(event);
     pa_mainloop_free(m);
 }
+
+TEST_F(MainloopTest, TestOnceCallback) {
+    pa_mainloop* m = pa_mainloop_new();
+    pa_mainloop_api* api = pa_mainloop_get_api(m);
+
+    int* calledTimes = new int{0};
+    auto onceCallback = [](pa_mainloop_api* a, void* data) {
+        UNUSED(a);
+
+        auto calledTimes = reinterpret_cast<int*>(data);
+        ++(*calledTimes);
+        GTEST_COUT("callback called times " << *calledTimes << " in total")
+    };
+
+    pa_mainloop_api_once(api, onceCallback, calledTimes);
+    pa_mainloop_api_once(api, onceCallback, calledTimes);
+
+    pa_mainloop_iterate(m, 0, nullptr);
+
+    ASSERT_EQ(*calledTimes, 2);
+    delete calledTimes;
+
+    pa_mainloop_free(m);
+}

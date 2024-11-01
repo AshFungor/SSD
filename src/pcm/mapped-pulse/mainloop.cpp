@@ -77,9 +77,34 @@ namespace {
     constexpr microseconds MainloopIterationTime {100};
     constexpr microseconds DeferEventsTriggerTime {MainloopIterationTime.count() + 1};
 
+    struct once_info {
+        void (*callback)(pa_mainloop_api*m, void *userdata);
+        void *userdata;
+    };
+
     enum EDeferredState {
         ON, OFF, REMOVED
     };
+
+    void once_callback(pa_mainloop_api* m, pa_defer_event* e, void* userdata) {
+        auto i = reinterpret_cast<once_info*>(userdata);
+
+        if (i->callback) {
+            i->callback(m, i->userdata);
+        }
+
+        if (m->defer_free) {
+            m->defer_free(e);
+        }
+    }
+
+    void free_callback(pa_mainloop_api *m, pa_defer_event *e, void *userdata) {
+        UNUSED(m);
+        UNUSED(e);
+
+        auto i = reinterpret_cast<once_info*>(userdata);
+        pa_xfree(i);
+    }
 
     pa_io_event* io_new(pa_mainloop_api* a, int fd, pa_io_event_flags_t events, pa_io_event_cb_t callback, void* userdata) {
         PCM_STUB();
@@ -210,6 +235,9 @@ namespace {
                 return;
             }
 
+            // defer might be cleared inside callback, so preserve any data we need now
+            auto timer = std::move(defer->timer);
+            auto functor = std::move(defer->functor);
             if (*b == ON && defer->state.cbDefer) {
                 defer->state.cbDefer(defer->state.api, defer, defer->state.userdata);
             }
@@ -217,8 +245,14 @@ namespace {
             // TODO: fix issue with deferred events overhead: when too many
             // events are registered and they take most of single iteration time, 
             // other stuff (timers, I/O) might perform poorly.
-            defer->timer->expires_after(DeferEventsTriggerTime);
-            defer->timer->async_wait(defer->functor);
+            timer->expires_after(DeferEventsTriggerTime);
+            timer->async_wait(functor);
+
+            // return data back to state
+            if (*b != REMOVED) {
+                defer->timer = std::move(timer);
+                defer->functor = std::move(functor);
+            }
         };
 
         boost::asio::defer(*mainloop->context, boost::bind(defer->functor, boost::system::error_code{}));
@@ -400,4 +434,17 @@ void pa_mainloop_set_poll_func(pa_mainloop *m, pa_poll_func poll_func, void *use
     UNUSED(m);
     UNUSED(userdata);
     UNUSED(poll_func);
+}
+
+void pa_mainloop_api_once(pa_mainloop_api* m, void (*callback)(pa_mainloop_api *m, void *userdata), void *userdata) {
+    PCM_STUB();
+    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
+    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(callback);, PA_ERR_EXIST);
+
+    auto i = new once_info;
+    i->callback = callback;
+    i->userdata = userdata;
+
+    auto e = m->defer_new(m, once_callback, i);
+    m->defer_set_destroy(e, free_callback);
 }
