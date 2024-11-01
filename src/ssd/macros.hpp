@@ -6,6 +6,13 @@
 // pulse
 #include <pulse/gccmacro.h>
 
+#ifdef __GNUC__
+#define PCM_GCC_NORETURN __attribute__((noreturn))
+#else
+/** Macro for no-return functions */
+#define PCM_GCC_NORETURN
+#endif
+
 // STUB for fully functional APIs
 #define PCM_STUB()                                                          \
     pcm_log::log(absl::StrFormat(                                           \

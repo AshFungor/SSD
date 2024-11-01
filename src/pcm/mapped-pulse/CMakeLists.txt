@@ -6,14 +6,14 @@ set(SOURCES
     mainloop/mainloop.cpp
     mainloop/threaded-mainloop.cpp
     trace/trace.cpp 
-    utils/utf8.cpp 
+    utils/utf8.cpp
+    utils/version.cpp
     utils/xmalloc.cpp
     utils/channel-map.cpp
 )
 set(HEADERS 
     simple.hpp 
     trace/trace.hpp 
-    utils/macros.hpp
 )
 
 declare_ssd_target(

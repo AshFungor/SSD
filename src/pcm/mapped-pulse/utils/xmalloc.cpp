@@ -10,8 +10,8 @@
 #include <pulse/xmalloc.h>
 
 // local
+#include <src/ssd/macros.hpp>
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
-#include <src/pcm/mapped-pulse/utils/macros.hpp>
 
 // memory allocation provided by pulse.
 
