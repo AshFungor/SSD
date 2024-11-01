@@ -8,6 +8,7 @@ set(SOURCES
     trace/trace.cpp 
     utils/utf8.cpp
     utils/version.cpp
+    utils/util.cpp
     utils/xmalloc.cpp
     utils/channel-map.cpp
 )
