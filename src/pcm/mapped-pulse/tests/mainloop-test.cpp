@@ -145,12 +145,16 @@ TEST_F(MainloopTest, TestOnceCallback) {
         auto calledTimes = reinterpret_cast<int*>(data);
         ++(*calledTimes);
         GTEST_COUT("callback called times " << *calledTimes << " in total")
+
+        if (*calledTimes >= 2) {
+            a->quit(a, PA_OK);
+        }
     };
 
     pa_mainloop_api_once(api, onceCallback, calledTimes);
     pa_mainloop_api_once(api, onceCallback, calledTimes);
 
-    pa_mainloop_iterate(m, 0, nullptr);
+    pa_mainloop_run(m, nullptr);
 
     ASSERT_EQ(*calledTimes, 2);
     delete calledTimes;

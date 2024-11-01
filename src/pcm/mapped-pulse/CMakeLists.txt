@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.15)
 set(SOURCES 
     simple.cpp 
     context.cpp
-    mainloop.cpp
-    threaded-mainloop.cpp
+    mainloop/mainloop.cpp
+    mainloop/threaded-mainloop.cpp
     trace/trace.cpp 
     utils/utf8.cpp 
     utils/xmalloc.cpp

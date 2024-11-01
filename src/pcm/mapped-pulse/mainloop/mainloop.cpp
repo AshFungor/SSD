@@ -24,53 +24,9 @@
 // laar
 #include <src/ssd/macros.hpp>
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
+#include <src/pcm/mapped-pulse/mainloop/common.hpp>
 
 using namespace std::chrono;
-
-struct pa_mainloop {
-    std::unique_ptr<boost::asio::io_context> context;
-    std::unique_ptr<pa_mainloop_api> api;
-    
-    struct State {
-        int timeout = 0;
-        int retval = PA_OK;
-        int dispatched = 0;
-    } state;
-};
-
-struct pa_io_event {
-    std::unique_ptr<boost::asio::posix::stream_descriptor> stream;
-
-    struct State {
-        pa_io_event_destroy_cb_t cbDestroy;
-        pa_mainloop_api* api;
-        void* userdata;
-    } state;
-};
-
-struct pa_time_event {
-    std::unique_ptr<boost::asio::steady_timer> timer;
-
-    struct State {
-        pa_time_event_destroy_cb_t cbDestroy;
-        pa_time_event_cb_t cbComplete;
-        pa_mainloop_api* api;
-        void* userdata;
-    } state;
-};
-
-struct pa_defer_event {
-    std::function<void(const boost::system::error_code&)> functor;
-    std::unique_ptr<boost::asio::steady_timer> timer;
-
-    struct State {
-        pa_defer_event_destroy_cb_t cbDestroy;
-        pa_defer_event_cb_t cbDefer;
-        pa_mainloop_api* api;
-        void* userdata;
-        int* b;
-    } state;
-};
 
 namespace {
 
@@ -110,7 +66,7 @@ namespace {
         PCM_STUB();
         UNUSED(events);
         UNUSED(callback);
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(a));
 
         auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);
         auto io_event = reinterpret_cast<pa_io_event*>(pa_xmalloc(sizeof(pa_io_event)));
@@ -119,7 +75,7 @@ namespace {
         io_event->state.api = a;
         io_event->state.cbDestroy = nullptr;
         io_event->state.userdata = userdata;
-        io_event->stream = std::make_unique<boost::asio::posix::stream_descriptor>(*mainloop->context, fd);
+        io_event->stream = std::make_unique<boost::asio::posix::stream_descriptor>(*mainloop->impl->context, fd);
 
         // impl?
 
@@ -129,7 +85,7 @@ namespace {
     void io_enable(pa_io_event* e, pa_io_event_flags_t events) {
         PCM_STUB();
         UNUSED(events);
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         // do nothing for now
     }
@@ -146,21 +102,21 @@ namespace {
 
     void io_set_destroy(pa_io_event* e, pa_io_event_destroy_cb_t cb) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         e->state.cbDestroy = cb;
     }
 
     pa_time_event* time_new(pa_mainloop_api* a, const struct timeval* tv, pa_time_event_cb_t cb, void* userdata) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(tv);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(a));
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(tv));
 
         auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);
         auto timer = reinterpret_cast<pa_time_event*>(pa_xmalloc(sizeof(pa_time_event)));
         std::construct_at(timer);
 
-        timer->timer = std::make_unique<boost::asio::steady_timer>(*mainloop->context);
+        timer->timer = std::make_unique<boost::asio::steady_timer>(*mainloop->impl->context);
         timer->state.api = a;
         timer->state.cbComplete = cb;
         timer->state.cbDestroy = nullptr;
@@ -178,7 +134,7 @@ namespace {
 
     void time_restart(pa_time_event* e, const struct timeval *tv) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         if (std::chrono::steady_clock::now() < e->timer->expiry()) {
             e->timer->cancel();
@@ -194,7 +150,7 @@ namespace {
     
     void time_free(pa_time_event* e) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         if (std::chrono::steady_clock::now() < e->timer->expiry()) {
             e->timer->cancel();
@@ -209,14 +165,14 @@ namespace {
 
     void time_set_destroy(pa_time_event* e, pa_time_event_destroy_cb_t cb) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         e->state.cbDestroy = cb;
     }
 
     pa_defer_event* defer_new(pa_mainloop_api* a, pa_defer_event_cb_t cb, void* userdata) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(a);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(a));
 
         auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);
         auto defer = reinterpret_cast<pa_defer_event*>(pa_xmalloc(sizeof(pa_defer_event)));
@@ -228,7 +184,7 @@ namespace {
         defer->state.cbDestroy = nullptr;
         defer->state.cbDefer = cb;
 
-        defer->timer = std::make_unique<boost::asio::steady_timer>(*mainloop->context);
+        defer->timer = std::make_unique<boost::asio::steady_timer>(*mainloop->impl->context);
         defer->functor = [defer, b = defer->state.b](const boost::system::error_code& error) {
             if (*b == REMOVED || error) {
                 delete b;
@@ -255,20 +211,20 @@ namespace {
             }
         };
 
-        boost::asio::defer(*mainloop->context, boost::bind(defer->functor, boost::system::error_code{}));
+        boost::asio::defer(*mainloop->impl->context, boost::bind(defer->functor, boost::system::error_code{}));
         return defer;
     }
 
     void defer_enable(pa_defer_event* e, int b) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         *e->state.b = (b) ? ON : OFF;
     }
 
     void defer_free(pa_defer_event* e) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         if (e->state.cbDestroy) {
             e->state.cbDestroy(e->state.api, e, e->state.userdata);
@@ -280,7 +236,7 @@ namespace {
 
     void defer_set_destroy(pa_defer_event *e, pa_defer_event_destroy_cb_t cb) {
         PCM_STUB();
-        PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(e);, PA_ERR_EXIST);
+        PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
         e->state.cbDestroy = cb;
     }
@@ -293,26 +249,30 @@ namespace {
     }
 
     void initMainloopApi(pa_mainloop* m) {
-        m->api = std::make_unique<pa_mainloop_api>();
-        m->api->userdata = m;
+        m->impl->api = std::make_unique<pa_mainloop_api>();
+        m->impl->api->userdata = m;
 
-        m->api->io_new = io_new;
-        m->api->io_free = io_free;
-        m->api->io_enable = io_enable;
-        m->api->io_set_destroy = io_set_destroy;
-
-        m->api->time_new = time_new;
-        m->api->time_restart = time_restart;
-        m->api->time_set_destroy = time_set_destroy;
-        m->api->time_free = time_free;
-
-        m->api->defer_new = defer_new;
-        m->api->defer_free = defer_free;
-        m->api->defer_enable = defer_enable;
-        m->api->defer_set_destroy = defer_set_destroy;
-
-        m->api->quit = quit;
         // init callbacks here, try to make as much as possible
+
+        // this is bullshit, I dunno how to support that
+        m->impl->api->io_new = io_new;
+        m->impl->api->io_free = io_free;
+        m->impl->api->io_enable = io_enable;
+        m->impl->api->io_set_destroy = io_set_destroy;
+
+        // full support
+        m->impl->api->time_new = time_new;
+        m->impl->api->time_restart = time_restart;
+        m->impl->api->time_set_destroy = time_set_destroy;
+        m->impl->api->time_free = time_free;
+
+        // partial support, have some issues with implementation
+        m->impl->api->defer_new = defer_new;
+        m->impl->api->defer_free = defer_free;
+        m->impl->api->defer_enable = defer_enable;
+        m->impl->api->defer_set_destroy = defer_set_destroy;
+
+        m->impl->api->quit = quit;
     }
 
 }
@@ -323,16 +283,19 @@ pa_mainloop *pa_mainloop_new(void) {
     pa_mainloop* mainloop = static_cast<pa_mainloop*>(pa_xmalloc(sizeof(pa_mainloop)));
     std::construct_at(mainloop);
 
+    mainloop->impl = new struct mainloop;
+    mainloop->impl->threading = nullptr;
+
     initMainloopApi(mainloop);
 
-    mainloop->context = std::make_unique<boost::asio::io_context>();
+    mainloop->impl->context = std::make_unique<boost::asio::io_context>();
     return mainloop;
 }
 
 void pa_mainloop_free(pa_mainloop* m) {
     PCM_STUB();
 
-    pa_mainloop_quit(m, PA_OK);
+    delete m->impl;
     pa_xfree(m);
 }
 
@@ -340,11 +303,11 @@ int pa_mainloop_prepare(pa_mainloop *m, int timeout) {
     PCM_STUB();
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
-    if (m->context->stopped()) {
-        m->context->restart();
+    if (m->impl->context->stopped()) {
+        m->impl->context->restart();
     }
 
-    m->state.timeout = timeout;
+    m->impl->state.timeout = timeout;
     return PA_OK;
 }
 
@@ -352,17 +315,17 @@ int pa_mainloop_poll(pa_mainloop *m) {
     PCM_STUB();
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
-    if (m->state.timeout < 0) {
+    if (m->impl->state.timeout < 0) {
         // run until quit
-        auto guard = boost::asio::make_work_guard(*m->context);
-        m->state.dispatched = m->context->run();
+        auto guard = boost::asio::make_work_guard(*m->impl->context);
+        m->impl->state.dispatched = m->impl->context->run();
     } else {
-        auto guard = boost::asio::make_work_guard(*m->context);
-        m->state.dispatched = m->context->run_for(std::max(MainloopIterationTime, microseconds{m->state.timeout}));
+        auto guard = boost::asio::make_work_guard(*m->impl->context);
+        m->impl->state.dispatched = m->impl->context->run_for(std::max(MainloopIterationTime, microseconds{m->impl->state.timeout}));
     }   
 
-    m->state.timeout = 0;
-    return m->state.retval;
+    m->impl->state.timeout = 0;
+    return m->impl->state.retval;
 }
 
 int pa_mainloop_dispatch(pa_mainloop *m) {
@@ -370,8 +333,8 @@ int pa_mainloop_dispatch(pa_mainloop *m) {
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
     // poll already dispatches things, no need for this
-    int dispatched = m->state.dispatched;
-    m->state.dispatched = 0;
+    int dispatched = m->impl->state.dispatched;
+    m->impl->state.dispatched = 0;
     return dispatched;
 }
 
@@ -379,7 +342,7 @@ int pa_mainloop_get_retval(const pa_mainloop *m) {
     PCM_STUB();
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
 
-    return m->state.retval;
+    return m->impl->state.retval;
 }
 
 int pa_mainloop_iterate(pa_mainloop *m, int block, int *retval) {
@@ -391,10 +354,10 @@ int pa_mainloop_iterate(pa_mainloop *m, int block, int *retval) {
     pa_mainloop_dispatch(m);
 
     if (retval) {
-        *retval = m->state.retval;
+        *retval = m->impl->state.retval;
     }
 
-    return m->state.dispatched;
+    return m->impl->state.dispatched;
 }
 
 int pa_mainloop_run(pa_mainloop *m, int *retval) {
@@ -409,24 +372,24 @@ int pa_mainloop_run(pa_mainloop *m, int *retval) {
 
 void pa_mainloop_quit(pa_mainloop *m, int retval) {
     PCM_STUB();
-    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
+    PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(m));
 
-    m->state.retval = retval;
-    m->context->stop();
+    m->impl->state.retval = retval;
+    m->impl->context->stop();
 }
 
 void pa_mainloop_wakeup(pa_mainloop *m) {
     PCM_STUB();
-    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
+    PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(m));
 
-    m->context->stop();
+    m->impl->context->stop();
 }
 
 pa_mainloop_api* pa_mainloop_get_api(pa_mainloop* m) {
     PCM_STUB();
-    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
+    PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(m));
 
-    return m->api.get();
+    return m->impl->api.get();
 }
 
 void pa_mainloop_set_poll_func(pa_mainloop *m, pa_poll_func poll_func, void *userdata) {
@@ -438,8 +401,8 @@ void pa_mainloop_set_poll_func(pa_mainloop *m, pa_poll_func poll_func, void *use
 
 void pa_mainloop_api_once(pa_mainloop_api* m, void (*callback)(pa_mainloop_api *m, void *userdata), void *userdata) {
     PCM_STUB();
-    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(m);, PA_ERR_EXIST);
-    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(callback);, PA_ERR_EXIST);
+    PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(m));
+    PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(callback));
 
     auto i = new once_info;
     i->callback = callback;

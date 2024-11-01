@@ -9,12 +9,20 @@
 #define PCM_STUB()                                                          \
     pcm_log::log(absl::StrFormat(                                           \
         "stub PCM: %s:%d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__),    \
-        pcm_log::ELogVerbosity::INFO                                       \
+        pcm_log::ELogVerbosity::INFO                                        \
     )
 
 #define PCM_MACRO_WRAPPER(macro, error_code)                        \
     try {                                                           \
-        macro                                                       \
+        macro;                                                      \
+    } catch (const std::exception& error) {                         \
+        pcm_log::log(error.what(), pcm_log::ELogVerbosity::ERROR);  \
+        return error_code;                                          \
+    }
+
+#define PCM_MACRO_WRAPPER_NO_RETURN(macro)                          \
+    try {                                                           \
+        macro;                                                      \
     } catch (const std::exception& error) {                         \
         pcm_log::log(error.what(), pcm_log::ELogVerbosity::ERROR);  \
     }
