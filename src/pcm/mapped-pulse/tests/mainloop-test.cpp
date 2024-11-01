@@ -1,6 +1,7 @@
 // pulse
 #include <pulse/mainloop.h>
 #include <pulse/mainloop-api.h>
+#include <pulse/thread-mainloop.h>
 
 // GTest
 #include <gtest/gtest.h>
@@ -12,6 +13,7 @@
 // laar
 #include <src/ssd/macros.hpp>
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
+#include <src/pcm/mapped-pulse/mainloop/common.hpp>
 
 #define GTEST_COUT(chain) \
     std::cerr << "[INFO      ] " << chain << '\n';
@@ -70,6 +72,24 @@ namespace {
 
     };
 
+}
+
+TEST_F(MainloopTest, TestReinterpretCast) {
+    // this test is used to ensure that
+    // casting pa_mainloop and pa_threaded_mainloop between
+    // each other works
+
+    pa_mainloop* m = pa_mainloop_new();
+    pa_threaded_mainloop* tm = reinterpret_cast<pa_threaded_mainloop*>(m);
+
+    ASSERT_EQ(m->impl, tm->impl);
+    pa_mainloop_free(m);
+
+    pa_threaded_mainloop* tm_2 = pa_threaded_mainloop_new();
+    pa_mainloop* m_2 = reinterpret_cast<pa_mainloop*>(m);
+
+    ASSERT_EQ(m_2->impl, tm_2->impl);
+    pa_threaded_mainloop_free(tm_2);
 }
 
 TEST_F(MainloopTest, TestDeferred) {
@@ -160,4 +180,58 @@ TEST_F(MainloopTest, TestOnceCallback) {
     delete calledTimes;
 
     pa_mainloop_free(m);
+}
+
+TEST_F(MainloopTest, TestThreaded) {
+    pa_threaded_mainloop* m = pa_threaded_mainloop_new();
+    pa_threaded_mainloop_start(m);
+
+    pa_mainloop_api* api = pa_threaded_mainloop_get_api(m);
+
+    struct Checks {
+        pa_threaded_mainloop* m;
+
+        bool timer = false;
+        bool deferred = false;
+    };
+
+    auto checks = new Checks;
+    checks->m = m;
+
+    auto deferred = [](pa_mainloop_api* api, pa_defer_event* e, void* userdata) {
+        auto checks = reinterpret_cast<Checks*>(userdata);
+        
+        GTEST_COUT("async called deferred");
+        checks->deferred = true;
+
+        api->defer_enable(e, 0);
+        api->defer_free(e);
+    };
+
+    auto expired = [](pa_mainloop_api* api, pa_time_event* e, const struct timeval* tv, void* userdata) {
+        UNUSED(tv);
+        auto checks = reinterpret_cast<Checks*>(userdata);
+        
+        GTEST_COUT("async called timer");
+        checks->timer = true;
+
+        api->time_free(e);
+        // this callback should take longer than deferred
+        pa_threaded_mainloop_signal(checks->m, 0);
+    };
+
+    pa_threaded_mainloop_lock(m);
+    timeval expires {
+        .tv_sec = 0,
+        .tv_usec = 3000 // 3 ms
+    };
+    api->defer_new(api, deferred, checks);
+    api->time_new(api, &expires, expired, checks);
+    pa_threaded_mainloop_unlock(m);
+
+    // wait for timer & deferred to return
+    pa_threaded_mainloop_wait(m);
+
+    delete checks;
+    pa_threaded_mainloop_free(m);
 }

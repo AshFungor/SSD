@@ -63,7 +63,7 @@ namespace {
     }
 
     pa_io_event* io_new(pa_mainloop_api* a, int fd, pa_io_event_flags_t events, pa_io_event_cb_t callback, void* userdata) {
-        PCM_STUB();
+        PCM_MISSED_STUB();
         UNUSED(events);
         UNUSED(callback);
         PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(a));
@@ -83,7 +83,7 @@ namespace {
     }
 
     void io_enable(pa_io_event* e, pa_io_event_flags_t events) {
-        PCM_STUB();
+        PCM_MISSED_STUB();
         UNUSED(events);
         PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
@@ -171,7 +171,7 @@ namespace {
     }
 
     pa_defer_event* defer_new(pa_mainloop_api* a, pa_defer_event_cb_t cb, void* userdata) {
-        PCM_STUB();
+        PCM_PARTIAL_STUB();
         PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(a));
 
         auto mainloop = reinterpret_cast<pa_mainloop*>(a->userdata);

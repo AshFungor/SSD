@@ -6,10 +6,26 @@
 // pulse
 #include <pulse/gccmacro.h>
 
+// STUB for fully functional APIs
 #define PCM_STUB()                                                          \
     pcm_log::log(absl::StrFormat(                                           \
         "stub PCM: %s:%d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__),    \
         pcm_log::ELogVerbosity::INFO                                        \
+    )
+
+// STUB for partially functional APIs, behaviors might vary
+// or certain composition of arguments unsupported.
+#define PCM_PARTIAL_STUB()                                                              \
+    pcm_log::log(absl::StrFormat(                                                       \
+        "stub PCM (partial): %s:%d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__),      \
+        pcm_log::ELogVerbosity::WARNING                                                 \
+    )
+
+// STUB is not available for this API call.
+#define PCM_MISSED_STUB()                                                               \
+    pcm_log::log(absl::StrFormat(                                                       \
+        "stub PCM (flatlined): %s:%d: %s", __FILE__, __LINE__, __PRETTY_FUNCTION__),    \
+        pcm_log::ELogVerbosity::ERROR                                                   \
     )
 
 #define PCM_MACRO_WRAPPER(macro, error_code)                        \
