@@ -26,6 +26,8 @@
 // data obtained from pa_mainloop_new() or pa_threaded_mainloop_new()
 // will be valid in PCM.
 
+// above is not relevant anymore :)
+
 struct mainloop {
 
     struct Threading {
@@ -62,12 +64,15 @@ struct pa_mainloop {
 };
 
 struct pa_io_event {
-    std::unique_ptr<boost::asio::posix::stream_descriptor> stream;
+    pa_defer_event* trigger;
 
     struct State {
         pa_io_event_destroy_cb_t cbDestroy;
+        pa_io_event_cb_t cbNotify;
+        pa_io_event_flags_t flags;
         pa_mainloop_api* api;
         void* userdata;
+        int fd;
     } state;
 };
 
@@ -92,5 +97,6 @@ struct pa_defer_event {
         pa_mainloop_api* api;
         void* userdata;
         int* b;
+        int* defer_check;
     } state;
 };

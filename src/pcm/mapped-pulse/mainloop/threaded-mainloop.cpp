@@ -46,6 +46,7 @@ pa_threaded_mainloop *pa_threaded_mainloop_new(void) {
     impl->threading->abort = false;
     auto m = static_cast<pa_threaded_mainloop*>(pa_xmalloc(sizeof(pa_threaded_mainloop)));
     std::construct_at(m);
+    impl->api->userdata = m;
     m->impl = impl;
 
     return m;
@@ -59,6 +60,7 @@ void pa_threaded_mainloop_free(pa_threaded_mainloop* m) {
     pa_threaded_mainloop_stop(m);
 
     delete m->impl;
+    std::destroy_at(m);
     pa_xfree(m);
 }
 

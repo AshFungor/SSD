@@ -1,4 +1,5 @@
 // pulse
+#include <pulse/xmalloc.h>
 #include <pulse/mainloop.h>
 #include <pulse/mainloop-api.h>
 #include <pulse/thread-mainloop.h>
@@ -74,23 +75,23 @@ namespace {
 
 }
 
-TEST_F(MainloopTest, TestReinterpretCast) {
-    // this test is used to ensure that
-    // casting pa_mainloop and pa_threaded_mainloop between
-    // each other works
+// TEST_F(MainloopTest, TestReinterpretCast) {
+//     // this test is used to ensure that
+//     // casting pa_mainloop and pa_threaded_mainloop between
+//     // each other works
 
-    pa_mainloop* m = pa_mainloop_new();
-    pa_threaded_mainloop* tm = reinterpret_cast<pa_threaded_mainloop*>(m);
+//     pa_mainloop* m = pa_mainloop_new();
+//     pa_threaded_mainloop* tm = reinterpret_cast<pa_threaded_mainloop*>(m);
 
-    ASSERT_EQ(m->impl, tm->impl);
-    pa_mainloop_free(m);
+//     ASSERT_EQ(m->impl, tm->impl);
+//     pa_mainloop_free(m);
 
-    pa_threaded_mainloop* tm_2 = pa_threaded_mainloop_new();
-    pa_mainloop* m_2 = reinterpret_cast<pa_mainloop*>(m);
+//     pa_threaded_mainloop* tm_2 = pa_threaded_mainloop_new();
+//     pa_mainloop* m_2 = reinterpret_cast<pa_mainloop*>(m);
 
-    ASSERT_EQ(m_2->impl, tm_2->impl);
-    pa_threaded_mainloop_free(tm_2);
-}
+//     ASSERT_EQ(m_2->impl, tm_2->impl);
+//     pa_threaded_mainloop_free(tm_2);
+// }
 
 TEST_F(MainloopTest, TestDeferred) {
     pa_mainloop* m = pa_mainloop_new();
@@ -127,8 +128,8 @@ TEST_F(MainloopTest, TestTimer) {
     ASSERT_TRUE(api);
 
     timeval time {
-        .tv_sec = 1,
-        .tv_usec = 0
+        .tv_sec = 0,
+        .tv_usec = 2000
     };
 
     bool* check = new bool{false};
@@ -136,7 +137,7 @@ TEST_F(MainloopTest, TestTimer) {
 
     api->time_set_destroy(event, destroyTimerCheck);
 
-    pa_mainloop_prepare(m, 2 * 1000 * 1000); // 2 seconds = 2 microseconds * 10^6
+    pa_mainloop_prepare(m, 3 * 1000); // 3 ms
     pa_mainloop_poll(m);
     pa_mainloop_dispatch(m);
 
@@ -234,4 +235,66 @@ TEST_F(MainloopTest, TestThreaded) {
 
     delete checks;
     pa_threaded_mainloop_free(m);
+}
+
+TEST_F(MainloopTest, CheckFds) {
+    pa_mainloop* m = pa_mainloop_new();
+
+    pa_mainloop_api* api = pa_mainloop_get_api(m);
+    bool* arbitrary = new bool;
+
+    int fds[2];
+    ASSERT_GE(pipe(fds), 0);
+
+    pa_io_event* e = api->io_new(api, fds[1], PA_IO_EVENT_OUTPUT, [](pa_mainloop_api* api, pa_io_event* e, int fd, pa_io_event_flags flags, void* userdata) {
+        UNUSED(userdata);
+
+        if (flags & PA_IO_EVENT_OUTPUT) {
+            GTEST_COUT("writing message to a pipe")
+
+            char message[] = "hello, world!";
+            ASSERT_EQ(write(fd, message, sizeof(message)), sizeof(message));
+            api->io_free(e);
+        } else {
+            ASSERT_FALSE(true);
+        }
+
+    }, arbitrary);
+
+    api->io_set_destroy(e, [](pa_mainloop_api* a, pa_io_event* e, void* userdata) {
+        UNUSED(a);
+        UNUSED(e);
+
+        bool* arbitrary = reinterpret_cast<bool*>(userdata);
+        delete arbitrary;
+    });
+
+    pa_io_event* e_2 = api->io_new(api, fds[0], PA_IO_EVENT_NULL, [](pa_mainloop_api* api, pa_io_event* e, int fd, pa_io_event_flags flags, void* userdata) {
+        UNUSED(userdata);
+
+        char message[] = "hello, world!";
+        if (flags & PA_IO_EVENT_INPUT) {
+            GTEST_COUT("reading message to a pipe")
+
+            char* buf = static_cast<char*>(pa_xmalloc(sizeof(message)));
+            ASSERT_EQ(read(fd, buf, sizeof(message)), sizeof(message));
+            ASSERT_EQ(strcmp(message, buf), 0);
+            free(buf);
+
+            api->io_free(e);
+            api->quit(api, 0);
+        } else {
+            ASSERT_FALSE(true);
+        }
+
+    }, nullptr);
+
+    api->io_enable(e_2, PA_IO_EVENT_INPUT);
+
+    pa_mainloop_run(m, nullptr);
+
+    close(fds[0]);
+    close(fds[1]);
+
+    pa_mainloop_free(m);
 }

@@ -17,5 +17,10 @@ function(declare_ssd_test)
     declare_ssd_target(NAME ${ssd_test_TEST_NAME} TYPE EXECUTABLE SOURCES ${ssd_test_SOURCES} DEPS ${ssd_test_DEPS} GTest::gtest_main GTest::gmock)    
     add_test(NAME ${ssd_test_TEST_NAME} COMMAND ${ssd_test_TEST_NAME})
 
+    if (CMAKE_COMPILER_IS_GNUCXX)
+        target_compile_options(${ssd_test_TEST_NAME} PUBLIC -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(${ssd_test_TEST_NAME} PUBLIC -fsanitize=address -fno-omit-frame-pointer)
+    endif()
+
 endfunction()
 
