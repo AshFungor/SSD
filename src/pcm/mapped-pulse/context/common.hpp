@@ -6,6 +6,7 @@
 #include "pulse/mainloop-api.h"
 #include "pulse/operation.h"
 #include "pulse/xmalloc.h"
+#include "src/ssd/core/message.hpp"
 #include <memory>
 #include <pulse/context.h>
 
@@ -46,14 +47,20 @@ struct pa_context {
     } callbacks;
 
     struct NetworkState {
+        // message handling
+        std::shared_ptr<laar::MessageFactory> factory;
+
+        // low-level IO
+        int fd;
         std::unique_ptr<std::uint8_t[]> buffer;
         std::size_t size; 
     } network;
 
     struct State {
-        pa_context_state_t state = PA_CONTEXT_UNCONNECTED;
-        int refs = 0;
-        int error = PA_OK;
+        pa_mainloop_api* api;
+        pa_context_state_t state;
+        int refs;
+        int error;
     } state;
 };
 
