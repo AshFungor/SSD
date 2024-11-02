@@ -12,3 +12,7 @@ message TClientMessage {
         NClient.TContextMessage context_message = 2;
     }
 }
+
+message TClientMessageStream {
+    repeated TClientMessage stream = 1;
+}

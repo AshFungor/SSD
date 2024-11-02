@@ -12,3 +12,7 @@ message TServiceMessage {
         NService.TContextMessage context_message = 2;
     }
 }
+
+message TServiceMessageStream {
+    repeated TServiceMessage stream = 1;
+}
