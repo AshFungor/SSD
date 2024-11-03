@@ -1,33 +1,41 @@
 #pragma once
 
-// pulse
-#include "protos/server-message.pb.h"
-#include "pulse/def.h"
-#include "pulse/mainloop-api.h"
-#include "pulse/operation.h"
-#include "pulse/xmalloc.h"
-#include "src/ssd/core/message.hpp"
+// STD
 #include <memory>
+
+// pulse
+#include <pulse/def.h>
+#include <pulse/xmalloc.h>
 #include <pulse/context.h>
+#include <pulse/operation.h>
+#include <pulse/mainloop-api.h>
 
 // abseil
 #include <absl/strings/str_format.h>
 
+// proto
+#include <protos/server-message.pb.h>
+
 // laar
-#include <queue>
 #include <src/ssd/macros.hpp>
+#include <src/ssd/core/message.hpp>
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
 
 namespace laar {
 
+    template<typename T>
     struct CallbackWrapper {
-        pa_context_notify_cb_t cb;
+        T cb;
         void* userdata;
     };
 
 }
 
 struct pa_operation {
+    void (*cbSuccess)(laar::Message message, void* owner);
+    void* owner;
+
+    int refs;
     pa_operation_state_t state;
     pa_operation_notify_cb_t cbNotify;
     void* userdata;
@@ -36,19 +44,25 @@ struct pa_operation {
 struct pa_context {
 
     struct QueuedMessage {
-        NSound::TServiceMessage message;
+        laar::Message message;
         pa_operation* op;
     };
 
-    std::deque<QueuedMessage> outQueue;
+    std::list<QueuedMessage> out;
 
     struct Callbacks {
-        laar::CallbackWrapper notify;
+        laar::CallbackWrapper<pa_context_notify_cb_t> notify;
+        laar::CallbackWrapper<pa_context_notify_cb_t> drained;
     } callbacks;
 
     struct NetworkState {
         // message handling
         std::shared_ptr<laar::MessageFactory> factory;
+        
+        int mode;
+        std::size_t total;
+        std::size_t expected;
+        std::size_t current;
 
         // low-level IO
         int fd;
@@ -57,11 +71,18 @@ struct pa_context {
     } network;
 
     struct State {
+        pa_operation* drain;
+
+        std::string name;
         pa_mainloop_api* api;
         pa_context_state_t state;
         int refs;
         int error;
     } state;
+
+    struct Events {
+        pa_io_event* iter;
+    } events;
 };
 
 namespace laar {
@@ -69,18 +90,12 @@ namespace laar {
     inline void updateOp(pa_operation* op, pa_operation_state_t state) {
         PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(op));
 
-        op->state = state;
-        if (op->cbNotify) {
-            op->cbNotify(op, op->userdata);
+        if (state != PA_OPERATION_CANCELLED) {
+            op->state = state;
+            if (op->cbNotify) {
+                op->cbNotify(op, op->userdata);
+            }
         }
-    }
-
-    inline NSound::TServiceMessageStream parseQueue(pa_context* context) {
-        NSound::TServiceMessageStream stream;
-        for (std::deque<pa_context::QueuedMessage>::iterator iter = context->outQueue.begin(); iter != context->outQueue.end(); ++iter) {
-            stream.mutable_stream()->Add(std::move(iter->message));
-        }
-        return stream;
     }
 
 }

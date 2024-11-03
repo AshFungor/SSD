@@ -7,6 +7,7 @@
 #include <concepts>
 
 // protos
+#include <protos/holder.pb.h>
 #include <protos/server-message.pb.h>
 
 namespace laar {
@@ -25,7 +26,7 @@ namespace laar {
     }
 
     using MessageSimplePayloadType = std::uint32_t;
-    using MessageProtobufPayloadType = NSound::TServiceMessage;
+    using MessageProtobufPayloadType = NSound::THolder;
 
     template<std::uint8_t PayloadType>
     using MessagePayloadTypeMatch = 

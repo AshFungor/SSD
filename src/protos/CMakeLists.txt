@@ -12,6 +12,7 @@ set(PROTOS
     common/property-list.proto
     common/stream-configuration.proto
     # holders
+    holder.proto
     client-message.proto
     server-message.proto
 )

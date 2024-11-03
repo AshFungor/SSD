@@ -18,6 +18,7 @@
 #include <google/protobuf/util/message_differencer.h>
 
 // protos
+#include <protos/holder.pb.h>
 #include <protos/server-message.pb.h>
 
 #define GTEST_COUT(chain) \
@@ -25,8 +26,8 @@
 
 namespace {
 
-    void initMessage(NSound::TServiceMessage& message) {
-        message.mutable_stream_message()->mutable_connect_confirmal()->set_opened(true);
+    void initMessage(NSound::THolder& message) {
+        message.mutable_server()->mutable_stream_message()->mutable_connect_confirmal()->set_opened(true);
     }
 
     class MessageTest : public ::testing::Test {
@@ -98,7 +99,7 @@ TEST_F(MessageTest, TestProtobufConstruction) {
         ->withMessageVersion(laar::message::version::FIRST, true)
         .withType(laar::message::type::PROTOBUF, true);
 
-    NSound::TServiceMessage message;
+    NSound::THolder message;
     initMessage(message);
     GTEST_COUT("writing message with size: " << message.ByteSizeLong())
 
@@ -137,7 +138,7 @@ TEST_F(MessageTest, TestParsing) {
 }
 
 TEST_F(MessageTest, TestParsingMultiple) {
-    NSound::TServiceMessage message;
+    NSound::THolder message;
     initMessage(message);
 
     factory

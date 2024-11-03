@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package NSound;
+
+import "protos/client-message.proto"; 
+import "protos/server-message.proto"; 
+
+message THolder {
+
+    oneof msg {
+        TClientMessage client = 1;
+        TServiceMessage server = 2;
+    }
+}

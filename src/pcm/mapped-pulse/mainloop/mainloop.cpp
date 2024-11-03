@@ -36,6 +36,7 @@ using namespace std::chrono;
 namespace {
 
     void fillEvents(short* events, pa_io_event_flags_t flags) {
+        (*events) = 0;
         (*events) |= (flags & PA_IO_EVENT_INPUT) ? POLLIN : 0;
         (*events) |= (flags & PA_IO_EVENT_OUTPUT) ? POLLOUT : 0;
         (*events) |= (flags & PA_IO_EVENT_ERROR) ? POLLERR : 0;
@@ -43,6 +44,7 @@ namespace {
     }
 
     void fillFlags(pa_io_event_flags_t* flags, short events) {
+        (*flags) = static_cast<pa_io_event_flags_t>(0);
         (*flags) = static_cast<pa_io_event_flags_t>((*flags) | ((events & POLLIN) ? PA_IO_EVENT_INPUT : 0));
         (*flags) = static_cast<pa_io_event_flags_t>((*flags) | ((events & POLLOUT) ? PA_IO_EVENT_OUTPUT : 0));
         (*flags) = static_cast<pa_io_event_flags_t>((*flags) | ((events & POLLERR) ? PA_IO_EVENT_ERROR : 0));
@@ -102,6 +104,7 @@ namespace {
             struct pollfd pfd;
             pfd.fd = io->state.fd;
             pfd.events = 0;
+            pfd.revents = 0;
             fillEvents(&pfd.events, io->state.flags);
 
             if (poll(&pfd, 1, 0) < 0) {

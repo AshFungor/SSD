@@ -2,6 +2,7 @@
 #include <memory>
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 
 // Plog
 #include <plog/Log.h>
@@ -13,7 +14,6 @@
 // laar
 #include <src/ssd/macros.hpp>
 #include <src/ssd/core/message.hpp>
-#include <variant>
 
 using namespace laar;
 
