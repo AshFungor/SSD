@@ -4,6 +4,7 @@ set(SOURCES
     simple.cpp 
     context/context.cpp
     context/operation.cpp
+    context/stream.cpp
     mainloop/mainloop.cpp
     mainloop/threaded-mainloop.cpp
     trace/trace.cpp 

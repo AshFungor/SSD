@@ -248,6 +248,14 @@ pa_context *pa_context_new(pa_mainloop_api* m, const char* name) {
     return context;
 }
 
+pa_context *pa_context_new_with_proplist(pa_mainloop_api* mainloop, const char* name, const pa_proplist* proplist) {
+    PCM_STUB();
+    UNUSED(proplist);
+    PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(mainloop));
+
+    return pa_context_new(mainloop, name);
+}
+
 int pa_context_connect(pa_context *c, const char *server, pa_context_flags_t flags, const pa_spawn_api *api) {
     PCM_STUB();
     UNUSED(server);

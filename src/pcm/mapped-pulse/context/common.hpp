@@ -1,13 +1,17 @@
 #pragma once
 
 // STD
+#include "pulse/stream.h"
+#include <cstdint>
 #include <memory>
 
 // pulse
 #include <pulse/def.h>
+#include <pulse/sample.h>
 #include <pulse/xmalloc.h>
 #include <pulse/context.h>
 #include <pulse/operation.h>
+#include <pulse/channelmap.h>
 #include <pulse/mainloop-api.h>
 
 // abseil
@@ -21,7 +25,18 @@
 #include <src/ssd/core/message.hpp>
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
 
+// protos
+#include <protos/common/stream-configuration.pb.h>
+
 namespace laar {
+
+    // robust - 2 secs of playback, so
+    // 44000 * 2 / 1000 = 88 calls
+    // 1 / 88 => every 10 ms 1000 samples
+    // in reality this should be managed by server 
+    // via two-sided protocol, but this one works fine for now
+    inline constexpr std::size_t SamplesPerTimeFrame = 1000;
+    inline constexpr std::chrono::milliseconds TimeFrame (10);
 
     template<typename T>
     struct CallbackWrapper {
@@ -39,6 +54,46 @@ struct pa_operation {
     pa_operation_state_t state;
     pa_operation_notify_cb_t cbNotify;
     void* userdata;
+};
+
+struct pa_stream {
+
+    struct Callbacks {
+        laar::CallbackWrapper<pa_stream_request_cb_t> write;
+        laar::CallbackWrapper<pa_stream_request_cb_t> read;
+        laar::CallbackWrapper<pa_stream_notify_cb_t> state;
+        laar::CallbackWrapper<pa_stream_notify_cb_t> start;
+        laar::CallbackWrapper<pa_stream_notify_cb_t> drain;
+    } callbacks;
+
+    struct PulseAttributes {
+        std::string name;
+        pa_stream_direction dir;
+        pa_channel_map map;
+        pa_sample_spec spec;
+        pa_buffer_attr buffer;
+    } pulseAttributes;
+
+    struct Buffer {
+        std::unique_ptr<std::uint8_t[]> buffer;
+        std::size_t size;
+        std::size_t rPos;
+        std::size_t wPos;
+        std::size_t avail;
+        bool directWrite;
+    } buffer;
+
+    struct Network {
+        NSound::NCommon::TStreamConfiguration config;
+        std::uint32_t id;
+    } network;
+
+    struct State {
+        pa_stream_state_t state;
+        pa_context* context;
+        int refs;
+    } state;
+
 };
 
 struct pa_context {
