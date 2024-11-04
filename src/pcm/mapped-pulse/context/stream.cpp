@@ -1,13 +1,4 @@
 // pulse
-#include "protos/client/stream.pb.h"
-#include "protos/common/stream-configuration.pb.h"
-#include "protos/holder.pb.h"
-#include "protos/service/stream.pb.h"
-#include "src/ssd/core/message.hpp"
-#include <absl/strings/str_format.h>
-#include <bits/types/struct_timeval.h>
-#include <cstddef>
-#include <cstdint>
 #include <pulse/def.h>
 #include <pulse/cdecl.h>
 #include <pulse/stream.h>
@@ -21,14 +12,26 @@
 #include <pulse/operation.h>
 #include <pulse/channelmap.h>
 
+// Abseil
+#include <absl/strings/str_format.h>
+
 // STD
 #include <memory>
+#include <cstddef>
+#include <cstdint>
 
 // laar
 #include <src/ssd/macros.hpp>
+#include <src/ssd/core/message.hpp>
 #include <src/ssd/sound/converter.hpp>
 #include <src/pcm/mapped-pulse/trace/trace.hpp>
 #include <src/pcm/mapped-pulse/context/common.hpp>
+
+// proto
+#include <protos/holder.pb.h>
+#include <protos/client/stream.pb.h>
+#include <protos/service/stream.pb.h>
+#include <protos/common/stream-configuration.pb.h>
 
 namespace {
 
@@ -41,6 +44,27 @@ namespace {
         if (s->callbacks.state.cb) {
             s->callbacks.state.cb(s, s->callbacks.state.userdata);
         }
+    }
+
+    void drained(pa_stream* s) {
+        if (!--s->state.ops) {
+            if (s->state.drain) {
+                if (s->callbacks.drain.cb) {
+                    s->callbacks.drain.cb(s, 1, s->callbacks.drain.userdata);
+                }
+                laar::updateOp(s->state.drain, PA_OPERATION_DONE);
+            }
+        }
+    }
+
+    void confirmWrite(laar::Message message, void* userdata) {
+        pa_stream* s = reinterpret_cast<pa_stream*>(userdata);
+
+        if (message.type() != laar::message::type::SIMPLE || laar::messagePayload<laar::message::type::SIMPLE>(message) != laar::ACK) {
+            changeStreamState(s, PA_STREAM_FAILED);
+        }
+        
+        drained(s);
     }
 
     void cleanup(pa_mainloop_api* a, pa_stream* s, pa_time_event* e) {
@@ -59,15 +83,20 @@ namespace {
             return;
         }
 
-        s->buffer.avail += laar::SamplesPerTimeFrame * laar::getSampleSize(s->network.config.sample_spec().format());;
-        if (s->buffer.avail > s->buffer.size) {
-            pcm_log::log("avail reached the size of buffer, aborting stream", pcm_log::ELogVerbosity::ERROR);
-            cleanup(a, s, e);
-            return;
-        }
+        // skip cycle if corked
+        if (!s->state.cork) {
 
-        if (s->callbacks.write.cb) {
-            s->callbacks.write.cb(s, s->buffer.avail - s->buffer.wPos, s->callbacks.write.userdata);
+            s->buffer.avail += laar::SamplesPerTimeFrame * laar::getSampleSize(s->network.config.sample_spec().format());;
+            if (s->buffer.avail > s->buffer.size) {
+                pcm_log::log("avail reached the size of buffer, aborting stream", pcm_log::ELogVerbosity::ERROR);
+                cleanup(a, s, e);
+                return;
+            }
+
+            if (s->callbacks.write.cb) {
+                s->callbacks.write.cb(s, s->buffer.avail - s->buffer.wPos, s->callbacks.write.userdata);
+            }
+        
         }
 
         pa_context_rttime_restart(s->state.context, e, laar::TimeFrame.count() * 1000);
@@ -86,6 +115,8 @@ namespace {
         } else {
             changeStreamState(s, PA_STREAM_FAILED);
         }
+
+        drained(s);
 
         // set up timer event for data writing
         pa_context_rttime_new(s->state.context, laar::TimeFrame.count() * 1000, queryStream, s);
@@ -165,7 +196,9 @@ namespace {
         o->cbNotify = nullptr;
         o->userdata = nullptr;
         o->refs = 0;
+        o->state = PA_OPERATION_RUNNING;
 
+        ++s->state.ops;
         pa_operation_ref(o);
 
         auto message = s->state.context->network.factory->withType(laar::message::type::PROTOBUF)
@@ -313,7 +346,10 @@ int pa_stream_connect_record(pa_stream *s, const char *dev, const pa_buffer_attr
 }
 
 int pa_stream_disconnect(pa_stream* s) {
-    PCM_STUB();
+    PCM_MISSED_STUB();
+    UNUSED(s);
+
+    return PA_OK;
 }
 
 int pa_stream_begin_write(pa_stream* p, void** data, size_t* nbytes) {
@@ -335,6 +371,12 @@ int pa_stream_cancel_write(pa_stream* p) {
 }
 
 int pa_stream_write(pa_stream* p, const void* data, size_t nbytes, pa_free_cb_t free_cb, int64_t offset, pa_seek_mode_t seek) {
+    PCM_STUB();
+
+    return pa_stream_write_ext_free(p, data, nbytes, free_cb, const_cast<void*>(data), offset, seek);
+}
+
+int pa_stream_write_ext_free(pa_stream* p, const void* data, size_t nbytes, pa_free_cb_t free_cb, void* free_cb_data, int64_t offset, pa_seek_mode_t seek) {
     PCM_STUB();
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(p), PA_ERR_EXIST);
     PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(data), PA_ERR_EXIST);
@@ -367,38 +409,61 @@ int pa_stream_write(pa_stream* p, const void* data, size_t nbytes, pa_free_cb_t 
         pcm_log::log("writing ended, assembling call", pcm_log::ELogVerbosity::INFO);
     }
 
-    NSound::THolder holder;
-    NSound::NClient::TStreamMessage streamMessage;
-
     // prepare for tiling data
-    std:;size_t avail = p->buffer.avail - p->buffer.wPos;
     std::size_t tileSize = pa_context_get_tile_size(p->state.context, &p->pulseAttributes.spec);
     auto temp = std::make_unique<std::uint8_t[]>(tileSize);
-    std::size_t tileCount = avail / tileSize;
 
-    for (std::size_t tile = 0; tile < tileCount; ++tile) {
-        std::size_t start = tile * tileSize;
-        std::size_t end = start + tileSize;
+    for (; p->buffer.rPos < p->buffer.avail; p->buffer.rPos += tileSize) {
+        std::size_t end = std::min(p->buffer.rPos + tileSize, p->buffer.avail);
 
-        std::memcpy(temp.get(), p->buffer.buffer.get() + p->buffer.wPos + start, end - start);
+        std::memcpy(temp.get(), p->buffer.buffer.get() + p->buffer.rPos, end - p->buffer.rPos);
+
+        NSound::THolder holder;
+        NSound::NClient::TStreamMessage streamMessage;
+        streamMessage.mutable_push()->set_data(std::string{reinterpret_cast<char*>(temp.get()), tileSize});
+        streamMessage.mutable_push()->set_size(tileSize / laar::getSampleSize(p->network.config.sample_spec().format()));
+
+        *holder.mutable_client()->mutable_stream_message() = std::move(streamMessage);
+
+        auto msg = p->state.context->network.factory->withPayload(laar::message::type::PROTOBUF)
+            .withPayload(std::move(holder))
+            .construct()
+            .constructed();
+
+        pa_operation* o = new pa_operation;
+        o->cbNotify = nullptr;
+        o->cbSuccess = confirmWrite;
+        o->owner = p;
+        o->refs = 0;
+        o->state = PA_OPERATION_RUNNING;
+        o->userdata = nullptr;
+
+        ++p->state.ops;
+        pa_operation_ref(o);
+
+        p->state.context->out.push_back(pa_context::QueuedMessage{
+            .message = std::move(msg),
+            .op = o
+        });
     }
 
-    // handle last chunk
-    if (tileCount * tileSize < avail) {
-
-    }
 
     // if relative, update internal wPos
-    if (seek == PA_SEEK_RELATIVE) {
+    if (seek == PA_SEEK_RELATIVE && !offset) {
         p->buffer.wPos += nbytes;
+
+        ENSURE_FAIL_UNLESS(p->buffer.rPos == p->buffer.wPos);
+        ENSURE_FAIL_UNLESS(p->buffer.wPos == p->buffer.avail);
+
+        p->buffer.rPos = p->buffer.wPos = p->buffer.wPos;
+    }
+
+    if (free_cb) {
+        free_cb(free_cb_data);
     }
 
     p->buffer.directWrite = false;
     return PA_OK;
-}
-
-int pa_stream_write_ext_free(pa_stream* p, const void* data, size_t nbytes, pa_free_cb_t free_cb, void* free_cb_data, int64_t offset, pa_seek_mode_t seek) {
-    
 }
 
 
@@ -432,7 +497,24 @@ size_t pa_stream_readable_size(const pa_stream* p) {
 }
 
 pa_operation* pa_stream_drain(pa_stream* s, pa_stream_success_cb_t cb, void* userdata) {
+    PCM_STUB();
+    PCM_MACRO_WRAPPER(ENSURE_NOT_NULL(s), nullptr);
 
+    pa_operation* o = new pa_operation;
+    o->cbNotify = nullptr;
+    o->cbSuccess = nullptr;
+    o->owner = nullptr;
+    o->state = PA_OPERATION_RUNNING;
+    o->userdata = nullptr;
+    o->refs = 0;
+
+    pa_operation_ref(o);
+
+    s->callbacks.drain.cb = cb;
+    s->callbacks.drain.userdata = userdata;
+    s->state.drain = o;
+
+    return o;
 }
 
 pa_operation* pa_stream_update_timing_info(pa_stream* p, pa_stream_success_cb_t cb, void* userdata) {

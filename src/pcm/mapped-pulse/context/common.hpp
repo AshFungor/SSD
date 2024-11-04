@@ -63,7 +63,7 @@ struct pa_stream {
         laar::CallbackWrapper<pa_stream_request_cb_t> read;
         laar::CallbackWrapper<pa_stream_notify_cb_t> state;
         laar::CallbackWrapper<pa_stream_notify_cb_t> start;
-        laar::CallbackWrapper<pa_stream_notify_cb_t> drain;
+        laar::CallbackWrapper<pa_stream_success_cb_t> drain;
     } callbacks;
 
     struct PulseAttributes {
@@ -89,9 +89,13 @@ struct pa_stream {
     } network;
 
     struct State {
+        bool cork;
         pa_stream_state_t state;
         pa_context* context;
         int refs;
+
+        pa_operation* drain;
+        int ops;
     } state;
 
 };
