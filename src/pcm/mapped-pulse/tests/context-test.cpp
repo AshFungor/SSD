@@ -124,6 +124,7 @@ namespace {
         }
 
         close(socket.cfd);
+        close(fd);
     }
 
     class ContextTest : public ::testing::Test {
@@ -142,12 +143,26 @@ namespace {
             addr.sin_port = laar::Port;
             addr.sin_family = AF_INET;
             
+            int retries = 120;
+            int delay = 1;
+
             if (inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) < 0) {
                 SYSCALL_FALLBACK();
             }
 
-            if (bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(sockaddr_in)) < 0) {
-                SYSCALL_FALLBACK();
+            for (int i = 0; i < retries; ++i) {
+                if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
+                    break;
+                }
+
+                if (i == retries - 1) {
+                    close(fd);
+                    pcm_log::log("failed", pcm_log::ELogVerbosity::WARNING);
+                    std::abort();
+                }
+
+                pcm_log::log(absl::StrFormat("Bind failed, try: %d", i + 1), pcm_log::ELogVerbosity::WARNING);
+                std::this_thread::sleep_for(std::chrono::seconds(delay));
             }
 
             if (listen(fd, 1) < 0) {
@@ -158,8 +173,6 @@ namespace {
         }
 
         void TearDown() override {
-            close(fd);
-
             pa_mainloop_free(m);
             if (server->joinable()) {
                 server->join();

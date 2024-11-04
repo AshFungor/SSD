@@ -53,14 +53,34 @@ namespace {
                     s->callbacks.drain.cb(s, 1, s->callbacks.drain.userdata);
                 }
                 laar::updateOp(s->state.drain, PA_OPERATION_DONE);
+                pa_operation_unref(s->state.drain);
             }
         }
+    }
+
+    void streamClose(laar::Message message, void* userdata) {
+        pa_stream* s = reinterpret_cast<pa_stream*>(userdata);
+
+        if (message.type() != laar::message::type::SIMPLE || laar::messagePayload<laar::message::type::SIMPLE>(message) != laar::ACK) {
+            changeStreamState(s, PA_STREAM_FAILED);
+        } else {
+            changeStreamState(s, PA_STREAM_TERMINATED);
+        }
+
+        drained(s);
+        pa_stream_unref(s);
     }
 
     void confirmWrite(laar::Message message, void* userdata) {
         pa_stream* s = reinterpret_cast<pa_stream*>(userdata);
 
-        if (message.type() != laar::message::type::SIMPLE || laar::messagePayload<laar::message::type::SIMPLE>(message) != laar::ACK) {
+        if (message.type() != laar::message::type::SIMPLE) {
+            pcm_log::log("[stream] getting message of wrong type! expecting SIMPLE", pcm_log::ELogVerbosity::ERROR);
+            changeStreamState(s, PA_STREAM_FAILED);
+        }
+
+        if (auto code = laar::messagePayload<laar::message::type::SIMPLE>(message); code != laar::ACK) {
+            pcm_log::log(absl::StrFormat("[stream] getting wrong code, got %d, expected %d", code, laar::ACK), pcm_log::ELogVerbosity::ERROR);
             changeStreamState(s, PA_STREAM_FAILED);
         }
         
@@ -83,20 +103,22 @@ namespace {
             return;
         }
 
-        // skip cycle if corked
-        if (!s->state.cork) {
+        // cork is serving its purpose
+        if (s->state.cork) {
+            pcm_log::log("[stream] stream corked, missing cycle", pcm_log::ELogVerbosity::INFO);
+            a->time_free(e);
+            return;
+        }
 
-            s->buffer.avail += laar::SamplesPerTimeFrame * laar::getSampleSize(s->network.config.sample_spec().format());;
-            if (s->buffer.avail > s->buffer.size) {
-                pcm_log::log("avail reached the size of buffer, aborting stream", pcm_log::ELogVerbosity::ERROR);
-                cleanup(a, s, e);
-                return;
-            }
+        s->buffer.avail += laar::SamplesPerTimeFrame * laar::getSampleSize(s->network.config.sample_spec().format());;
+        if (s->buffer.avail > s->buffer.size) {
+            pcm_log::log("[stream] avail reached the size of buffer, aborting stream", pcm_log::ELogVerbosity::ERROR);
+            cleanup(a, s, e);
+            return;
+        }
 
-            if (s->callbacks.write.cb) {
-                s->callbacks.write.cb(s, s->buffer.avail - s->buffer.wPos, s->callbacks.write.userdata);
-            }
-        
+        if (s->callbacks.write.cb) {
+            s->callbacks.write.cb(s, s->buffer.avail - s->buffer.wPos, s->callbacks.write.userdata);
         }
 
         pa_context_rttime_restart(s->state.context, e, laar::TimeFrame.count() * 1000);
@@ -118,6 +140,10 @@ namespace {
 
         drained(s);
 
+        if (s->callbacks.start.cb) {
+            s->callbacks.start.cb(s, s->callbacks.start.userdata);
+        }
+
         // set up timer event for data writing
         pa_context_rttime_new(s->state.context, laar::TimeFrame.count() * 1000, queryStream, s);
     }
@@ -135,7 +161,7 @@ namespace {
         } else if (dir == PA_STREAM_RECORD) {
             config.set_direction(NSound::NCommon::TStreamConfiguration::RECORD);
         } else {
-            pcm_log::log(absl::StrFormat("unsupported stream direction: %d", dir), pcm_log::ELogVerbosity::ERROR);
+            pcm_log::log(absl::StrFormat("[stream] unsupported stream direction: %d", dir), pcm_log::ELogVerbosity::ERROR);
         }
 
         if (auto ss = &s->pulseAttributes.spec) {
@@ -143,7 +169,7 @@ namespace {
             if (ss->rate == laar::BaseSampleRate) {
                 config.mutable_sample_spec()->set_sample_rate(laar::BaseSampleRate);
             } else {
-                pcm_log::log(absl::StrFormat("unsupported rate: %d", ss->rate), pcm_log::ELogVerbosity::ERROR);
+                pcm_log::log(absl::StrFormat("[stream] unsupported rate: %d", ss->rate), pcm_log::ELogVerbosity::ERROR);
             }
 
             if (ss->format == PA_SAMPLE_U8) {
@@ -165,13 +191,13 @@ namespace {
             } else if (ss->format == PA_SAMPLE_FLOAT32BE) {
                 config.mutable_sample_spec()->set_format(NSound::NCommon::TStreamConfiguration::TSampleSpecification::FLOAT_32_BIG_ENDIAN);
             } else {
-                pcm_log::log(absl::StrFormat("unsupported format: %d", ss->format), pcm_log::ELogVerbosity::ERROR);
+                pcm_log::log(absl::StrFormat("[stream] unsupported format: %d", ss->format), pcm_log::ELogVerbosity::ERROR);
             }
 
             if (ss->channels == 1) {
                 config.mutable_sample_spec()->set_channels(ss->channels);
             } else {
-                pcm_log::log(absl::StrFormat("unsupported channel number: %d", ss->channels), pcm_log::ELogVerbosity::ERROR);
+                pcm_log::log(absl::StrFormat("[stream] unsupported channel number: %d", ss->channels), pcm_log::ELogVerbosity::ERROR);
             }
         }
 
@@ -210,6 +236,8 @@ namespace {
             .message = std::move(message),
             .op = o
         });
+
+        changeStreamState(s, PA_STREAM_CREATING);
     }
 
 }
@@ -223,6 +251,36 @@ pa_stream* pa_stream_new(pa_context *c, const char* name, const pa_sample_spec* 
 
     auto s = static_cast<pa_stream*>(pa_xmalloc(sizeof(pa_stream)));
     std::construct_at(s);
+
+    s->buffer.buffer = std::make_unique<std::uint8_t[]>(laar::NetworkBufferSize);
+    s->buffer.size = laar::NetworkBufferSize;
+    s->buffer.avail = s->buffer.rPos = s->buffer.wPos = 0;
+    s->buffer.directWrite = false;
+    
+    s->callbacks.write.cb = nullptr;
+    s->callbacks.write.userdata = nullptr;
+    s->callbacks.read.cb = nullptr;
+    s->callbacks.read.userdata = nullptr;
+    s->callbacks.drain.cb = nullptr;
+    s->callbacks.drain.userdata = nullptr;
+    s->callbacks.start.cb = nullptr;
+    s->callbacks.start.userdata = nullptr;
+    s->callbacks.state.cb = nullptr;
+    s->callbacks.state.userdata = nullptr;
+
+    s->state.context = c;
+    s->state.state = PA_STREAM_UNCONNECTED;
+    s->state.cork = false;
+    s->state.drain = nullptr;
+    s->state.ops = 0;
+    s->state.refs = 0;
+    
+    s->pulseAttributes.map = *map;
+    s->pulseAttributes.spec = *ss;
+    s->pulseAttributes.name = name;
+    
+    s->network.id = UINT32_MAX;
+
     pa_stream_ref(s);
 
     return s;
@@ -346,8 +404,35 @@ int pa_stream_connect_record(pa_stream *s, const char *dev, const pa_buffer_attr
 }
 
 int pa_stream_disconnect(pa_stream* s) {
-    PCM_MISSED_STUB();
+    PCM_STUB();
     UNUSED(s);
+
+    NSound::THolder holder;
+    holder.mutable_client()->mutable_stream_message()->set_stream_id(s->network.id);
+    *holder.mutable_client()->mutable_stream_message()->mutable_close() = NSound::NClient::TStreamMessage::TClose::default_instance();
+
+    s->state.cork = true;
+
+    pa_operation* o = new pa_operation;
+    o->cbSuccess = streamClose;
+    o->owner = s;
+    o->cbNotify = nullptr;
+    o->userdata = nullptr;
+    o->refs = 0;
+    o->state = PA_OPERATION_RUNNING;
+
+    ++s->state.ops;
+    pa_operation_ref(o);
+
+    auto message = s->state.context->network.factory->withType(laar::message::type::PROTOBUF)
+        .withPayload(std::move(holder))
+        .construct()
+        .constructed();
+
+    s->state.context->out.push_back(pa_context::QueuedMessage{
+        .message = std::move(message),
+        .op = o
+    });
 
     return PA_OK;
 }
@@ -395,18 +480,20 @@ int pa_stream_write_ext_free(pa_stream* p, const void* data, size_t nbytes, pa_f
             break;
     }
 
-    pcm_log::log(absl::StrFormat("calling write with seek mode: %d, offset: %d", seek, offset), pcm_log::ELogVerbosity::INFO);
+    pcm_log::log(absl::StrFormat("[stream] calling write with seek mode: %d, offset: %d", seek, offset), pcm_log::ELogVerbosity::INFO);
 
     if (!p->buffer.directWrite) {
-        pcm_log::log(absl::StrFormat("detecting an indirect write; writing %d bytes at pos: %d", nbytes, currWPos), pcm_log::ELogVerbosity::INFO);
+        pcm_log::log(absl::StrFormat("[stream] detecting an indirect write; writing %d bytes at pos: %d", nbytes, currWPos), pcm_log::ELogVerbosity::INFO);
         
         if (nbytes + currWPos > p->buffer.size) {
-            pcm_log::log("writing too much! returning early", pcm_log::ELogVerbosity::ERROR);
+            pcm_log::log("[stream] writing too much! returning early", pcm_log::ELogVerbosity::ERROR);
             return PA_ERR_TOOLARGE;
         }
 
         std::memcpy(p->buffer.buffer.get() + currWPos, data, nbytes);
-        pcm_log::log("writing ended, assembling call", pcm_log::ELogVerbosity::INFO);
+        pcm_log::log("[stream] writing ended, assembling call", pcm_log::ELogVerbosity::INFO);
+    } else {
+        pcm_log::log(absl::StrFormat("[stream] direct write, assuming %d bytes already in buffer", nbytes), pcm_log::ELogVerbosity::INFO);
     }
 
     // prepare for tiling data
@@ -414,18 +501,18 @@ int pa_stream_write_ext_free(pa_stream* p, const void* data, size_t nbytes, pa_f
     auto temp = std::make_unique<std::uint8_t[]>(tileSize);
 
     for (; p->buffer.rPos < p->buffer.avail; p->buffer.rPos += tileSize) {
+        pcm_log::log(absl::StrFormat("[stream] assembling tile, rpos: %d, wpos: %d, avail: %d", p->buffer.rPos, p->buffer.wPos, p->buffer.avail), pcm_log::ELogVerbosity::INFO);
         std::size_t end = std::min(p->buffer.rPos + tileSize, p->buffer.avail);
-
         std::memcpy(temp.get(), p->buffer.buffer.get() + p->buffer.rPos, end - p->buffer.rPos);
 
         NSound::THolder holder;
         NSound::NClient::TStreamMessage streamMessage;
+        streamMessage.set_stream_id(p->network.id);
         streamMessage.mutable_push()->set_data(std::string{reinterpret_cast<char*>(temp.get()), tileSize});
         streamMessage.mutable_push()->set_size(tileSize / laar::getSampleSize(p->network.config.sample_spec().format()));
 
         *holder.mutable_client()->mutable_stream_message() = std::move(streamMessage);
-
-        auto msg = p->state.context->network.factory->withPayload(laar::message::type::PROTOBUF)
+        auto msg = p->state.context->network.factory->withType(laar::message::type::PROTOBUF)
             .withPayload(std::move(holder))
             .construct()
             .constructed();

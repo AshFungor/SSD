@@ -520,6 +520,7 @@ pa_time_event* pa_context_rttime_new(const pa_context *c, pa_usec_t usec, pa_tim
     PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(c));
     
     timeval tv;
+    tv.tv_sec = 0;
     tv.tv_usec = usec;
     return c->state.api->time_new(c->state.api, &tv, cb, userdata);
 }
@@ -530,6 +531,7 @@ void pa_context_rttime_restart(const pa_context *c, pa_time_event *e, pa_usec_t 
     PCM_MACRO_WRAPPER_NO_RETURN(ENSURE_NOT_NULL(e));
 
     timeval tv;
+    tv.tv_sec = 0;
     tv.tv_usec = usec;
     c->state.api->time_restart(e, &tv);
 }

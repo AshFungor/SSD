@@ -22,12 +22,17 @@ message TStreamMessage {
         NCommon.TPropertyList property_list = 2;
     }
 
+    message TClose {
+
+    }
+
     oneof Request {
         TPush push = 1;
         TPull pull = 2;
         TConnect connect = 3;
         NCommon.TStreamDirective directive = 4;
+        TClose close = 5;
     }
 
-    uint32 stream_id = 5;
+    uint32 stream_id = 6;
 }
