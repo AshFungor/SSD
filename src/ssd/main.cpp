@@ -19,9 +19,9 @@
 #include <plog/Initializers/RollingFileInitializer.h>
 
 // laar
+#include <src/ssd/core/server.hpp>
 #include <src/ssd/util/config-loader.hpp>
 #include <src/ssd/sound/audio-handler.hpp>
-#include <src/ssd/core/routing-service.hpp>
 
 ABSL_FLAG(std::optional<std::string>, runtime_dir, std::nullopt, 
     "runtime directory for logs and configs");
@@ -57,9 +57,9 @@ int main(int argc, char** argv) {
     soundHandler->init();
     PLOG(plog::debug) << "module created: " << "SoundHandler; instance: " << soundHandler.get();
 
-    // auto server = laar::Server::create(soundHandler, context, laar::Port);
-    // server->init();
-    // PLOG(plog::debug) << "module created: " << "Server; instance: " << soundHandler.get();
+    auto server = laar::Server::create(soundHandler, context, laar::Port);
+    server->init();
+    PLOG(plog::debug) << "module created: " << "Server; instance: " << soundHandler.get();
 
     for (std::size_t tNum = 0; tNum < threads; ++tNum) {
         boost::asio::post(*tPool, [context]() {

@@ -1,15 +1,19 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(SOURCES 
-    routing-service.cpp
-    session.cpp
+    server.cpp
     message.cpp
+    session/context.cpp
+    session/stream.cpp
+    session/volume.cpp
 )
 
 set(HEADERS 
-    routing-service.hpp
-    session.hpp
+    server.hpp
     message.hpp
+    session/context.hpp
+    session/stream.hpp
+    session/volume.hpp
 )
 
 declare_ssd_target(

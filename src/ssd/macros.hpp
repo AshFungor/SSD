@@ -89,4 +89,5 @@ namespace laar {
     // Simple protocol directives
     inline constexpr std::uint32_t ACK = 1;
     inline constexpr std::uint32_t TRAIL = 2;
+    inline constexpr std::uint32_t ERROR = 3;
 }

@@ -136,12 +136,13 @@ namespace {
         received = 0;
     }
 
-    void dispatchIncomingStream(
+    int dispatchIncomingStream(
         Socket socket, 
         int& received, 
         std::shared_ptr<laar::MessageFactory> factory, 
         std::unique_ptr<std::uint8_t[]>& buffer
     ) {
+        int retval = 1;
         // intermidiate data for parsing messages
         laar::Message msg;
         std::size_t size = laar::NetworkBufferSize;
@@ -156,8 +157,9 @@ namespace {
                         absl::StrFormat("requesting for bytes: %d; bytes received: %d", factory->next(), acquired), 
                         pcm_log::ELogVerbosity::INFO
                     );
+                } else {
+                    SYSCALL_FALLBACK();
                 }
-                SYSCALL_FALLBACK();
             } else {
                 factory->parse(buffer.get() + offset, size);
                 offset += acquired;
@@ -172,8 +174,12 @@ namespace {
                 if (msg.type() == laar::message::type::PROTOBUF) {
                     auto clientMessage = std::move(*laar::messagePayload<laar::message::type::PROTOBUF>(msg).mutable_client());
                     if (clientMessage.has_stream_message()) {
-                        commonConfig = std::move(*clientMessage.mutable_stream_message()->mutable_connect()->mutable_configuration());
-                        id = 1;
+                        if (clientMessage.stream_message().has_close()) {
+                            retval = 0;
+                        } else {
+                            commonConfig = std::move(*clientMessage.mutable_stream_message()->mutable_connect()->mutable_configuration());
+                            id = 1;
+                        }
                     }
                 }
 
@@ -181,10 +187,10 @@ namespace {
                     break;
                 }
             }
-
         }
 
         pcm_log::log("received TRAIL", pcm_log::ELogVerbosity::INFO);
+        return retval;
     }
 
     void dummyStreamConnector(int fd) {
@@ -207,34 +213,18 @@ namespace {
 
         // dispatch some data (one cycle)
         pcm_log::log("dispatching data cycle 1", pcm_log::ELogVerbosity::INFO);
-        dispatchIncomingStream(socket, received, factory, buffer);
 
-        std::vector<EMessage> messages;
-        for (int i = 0; i < received - 1; ++i) {
-            messages.push_back(ACK);
+        int next = 1;
+        while (next) {
+            next = dispatchIncomingStream(socket, received, factory, buffer);
+            std::vector<EMessage> messages;
+            for (int i = 0; i < received - 1; ++i) {
+                messages.push_back(ACK);
+            }
+            messages.push_back(TRAIL);
+            writeBack(socket, received, factory, buffer, messages);
         }
-        messages.push_back(TRAIL);
-        writeBack(socket, received, factory, buffer, messages);
 
-        // dispatch some data (one cycle)
-        pcm_log::log("dispatching data cycle 2", pcm_log::ELogVerbosity::INFO);
-        dispatchIncomingStream(socket, received, factory, buffer);
-
-        for (int i = 0; i < received - 1; ++i) {
-            messages.push_back(ACK);
-        }
-        messages.push_back(TRAIL);
-        writeBack(socket, received, factory, buffer, messages);
-
-        // dispatch some data (one cycle)
-        pcm_log::log("dispatching data cycle 3", pcm_log::ELogVerbosity::INFO);
-        dispatchIncomingStream(socket, received, factory, buffer);
-
-        for (int i = 0; i < received - 1; ++i) {
-            messages.push_back(ACK);
-        }
-        messages.push_back(TRAIL);
-        writeBack(socket, received, factory, buffer, messages);
 
         close(socket.cfd);
         close(fd);
