@@ -1,6 +1,5 @@
 // pulse
 #include <cstdint>
-#include <format>
 #include <pulse/def.h>
 #include <pulse/sample.h>
 #include <pulse/simple.h>
@@ -77,7 +76,6 @@ pa_simple* makeConnection(
         config.set_direction(TSimpleMessage::TStreamConfiguration::RECORD);
     } else {
         int casted = dir;
-        pcm_log::logError("unsupported stream direction: {}", std::make_format_args(casted));
     }
 
     float scale = 1;
@@ -86,7 +84,6 @@ pa_simple* makeConnection(
         if (ss->rate == laar::BaseSampleRate) {
             config.mutable_sample_spec()->set_sample_rate(laar::BaseSampleRate);
         } else {
-            pcm_log::logError("unsupported rate: {}", std::make_format_args(ss->rate));
         }
 
         if (ss->format == PA_SAMPLE_U8) {
@@ -118,13 +115,11 @@ pa_simple* makeConnection(
             scale = sizeof (float);
         } else {
             int format = ss->format;
-            pcm_log::logError("unsupported sample type: ", std::make_format_args(format));
         }
 
         if (ss->channels == 1) {
             config.mutable_sample_spec()->set_channels(ss->channels);
         } else {
-            pcm_log::logError("unsupported channel number: {}", std::make_format_args(ss->channels));
         }
     }
 

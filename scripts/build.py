@@ -105,9 +105,7 @@ def build(args: argparse.Namespace) -> None:
                 '--build', 
                 f'{directory}/{config}', 
                 '-j', 
-                str(cores),
-                '--preset',
-                f'conan-{config.lower()}'
+                str(cores)
             ], encoding='UTF-8', stderr=subprocess.STDOUT, env=os.environ
         ))
 

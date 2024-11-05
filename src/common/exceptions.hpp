@@ -2,7 +2,6 @@
 
 // standard
 #include <exception>
-#include <format>
 #include <string>
 
 
@@ -53,7 +52,7 @@ namespace laar {
         {}
         
         LaarOverrun(std::size_t by) { 
-            message_ += std::vformat(": {} bytes left out of bounds", std::make_format_args(by));
+            message_ += "";
         }
 
         virtual const char* what() const noexcept override {
@@ -75,7 +74,7 @@ namespace laar {
         {}
         
         LaarDryRun(std::size_t by) { 
-            message_ += std::vformat(": {} bytes needed", std::make_format_args(by));
+            message_ += "";
         }
 
         virtual const char* what() const noexcept override {
@@ -110,7 +109,7 @@ namespace laar {
         LaarProtocolError() = default;
         LaarProtocolError(std::string additional)
         {
-            message_ = std::vformat(message_, std::make_format_args(additional));
+            message_ = "";
         }
 
         virtual const char* what() const noexcept override {

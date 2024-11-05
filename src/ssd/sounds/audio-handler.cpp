@@ -216,23 +216,7 @@ int laar::writeCallback(
     auto result = (std::int32_t*) out;
 
     std::unique_ptr<int32_t[]> buffer;
-    // PLOG(plog::debug) << "running iteration";
-
-    if (!data->job) {
-        // pass data to avoid blocking
-        buffer = handler->squash(data, frames);
-        // PLOG(plog::debug) << "job was not assigned last iteration";
-    } else {
-        // extract data
-        buffer = data->job->result();
-        // PLOG(plog::debug) << "job found";
-        if (!data->job->ready()) {
-            handler->jobs_.push_back(std::move(data->job));
-            // PLOG(plog::debug) << "job was not completed";
-        }
-    }
-
-    // PLOG(plog::debug) << "running current iteration";
+    buffer = handler->squash(data, frames);
     for (std::size_t channel = 0; channel < 2; ++channel) {
         for (std::size_t sample = 0; sample < frames; ++sample) {
             // result[channel * frames + sample] = (buffer[sample] != 0 ) ? buffer[sample] : laar::Silence;
@@ -240,25 +224,49 @@ int laar::writeCallback(
         }
     }
 
-    // PLOG(plog::debug) << "trying to assign next job";
-    if (handler->jobs_.size()) {
-        // PLOG(plog::debug) << "found unfinished jobs, finishing them";
-        std::erase_if(handler->jobs_, [](auto& job) {
-            return job->ready();
-        });
-        data->job = nullptr;
-        
-        // PLOG(plog::debug) << "skipping job assignment";
-        return rtcontrol::SUCCESS;
-    }
+    // PLOG(plog::debug) << "running iteration";
 
-    auto squashed = handler->squash(data, frames);
-    data->job = std::make_unique<laar::AsyncDispatchingJob>(
-        handler->pool_,
-        handler->bassDispatcher_,
-        frames,
-        std::move(squashed)
-    );
+    // if (!data->job) {
+    //     // pass data to avoid blocking
+    //     buffer = handler->squash(data, frames);
+    //     // PLOG(plog::debug) << "job was not assigned last iteration";
+    // } else {
+    //     // extract data
+    //     buffer = data->job->result();
+    //     // PLOG(plog::debug) << "job found";
+    //     if (!data->job->ready()) {
+    //         handler->jobs_.push_back(std::move(data->job));
+    //         // PLOG(plog::debug) << "job was not completed";
+    //     }
+    // }
+
+    // // PLOG(plog::debug) << "running current iteration";
+    // for (std::size_t channel = 0; channel < 2; ++channel) {
+    //     for (std::size_t sample = 0; sample < frames; ++sample) {
+    //         // result[channel * frames + sample] = (buffer[sample] != 0 ) ? buffer[sample] : laar::Silence;
+    //         result[channel * frames + sample] = buffer[sample];
+    //     }
+    // }
+
+    // // PLOG(plog::debug) << "trying to assign next job";
+    // if (handler->jobs_.size()) {
+    //     // PLOG(plog::debug) << "found unfinished jobs, finishing them";
+    //     std::erase_if(handler->jobs_, [](auto& job) {
+    //         return job->ready();
+    //     });
+    //     data->job = nullptr;
+        
+    //     // PLOG(plog::debug) << "skipping job assignment";
+    //     return rtcontrol::SUCCESS;
+    // }
+
+    // auto squashed = handler->squash(data, frames);
+    // data->job = std::make_unique<laar::AsyncDispatchingJob>(
+    //     handler->pool_,
+    //     handler->bassDispatcher_,
+    //     frames,
+    //     std::move(squashed)
+    // );
     // PLOG(plog::debug) << "assigned next job";
 
     return rtcontrol::SUCCESS;

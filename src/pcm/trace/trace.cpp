@@ -4,8 +4,7 @@
 // STD
 #include <chrono>
 #include <cstdint>
-#include <ctime>
-#include <format>
+#include <ctime>    
 #include <iomanip>
 #include <mutex>
 #include <sstream>
@@ -42,28 +41,6 @@ std::ostream& __pcm_trace_internal::info(std::ostream& os) {
 
 std::ostream& __pcm_trace_internal::warning(std::ostream& os) {
     return __pcm_trace_internal::timedLog(os, "[warning]");
-}
-
-void pcm_log::logError(const std::string& fmt, std::format_args args) {
-    #if defined(LOG_LEVEL) && LOG_LEVEL <= 3
-    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    __pcm_trace_internal::error(s_err) << std::vformat(fmt, args);
-    __pcm_trace_internal::error(s_out) << std::vformat(fmt, args);
-    #endif
-}
-
-void pcm_log::logInfo(const std::string& fmt, std::format_args args) {
-    #if defined(LOG_LEVEL) && LOG_LEVEL <= 1
-    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    __pcm_trace_internal::info(s_out) << std::vformat(fmt, args);
-    #endif
-}
-
-void pcm_log::logWarning(const std::string& fmt, std::format_args args) {
-    #if defined(LOG_LEVEL) && LOG_LEVEL <= 2
-    std::scoped_lock<std::mutex> lock {__pcm_trace_internal::GStandardLock};
-    __pcm_trace_internal::warning(s_out) << std::vformat(fmt, args);
-    #endif
 }
 
 std::string pcm_log::pa_buffer_attr_to_string(const pa_buffer_attr *attr) {
@@ -160,7 +137,7 @@ std::string pcm_log::pa_channel_position_t_to_string(const pa_channel_position_t
     }
 
     int posNumeric = pos;
-    return std::vformat("{}({})", std::make_format_args(result, posNumeric));
+    return "";
 }
 
 std::string pcm_log::pa_channel_map_to_string(const pa_channel_map *m) {
@@ -205,7 +182,7 @@ std::string pcm_log::pa_sample_format_t_to_string(pa_sample_format_t sf) {
     }
 
     int sfNumeric = sf;
-    return std::vformat("{}({})", std::make_format_args(fmt, sfNumeric));
+    return "";
 }
 
 std::string trace_pa_sample_spec_as_string(const pa_sample_spec *ss) {
@@ -214,6 +191,5 @@ std::string trace_pa_sample_spec_as_string(const pa_sample_spec *ss) {
     }
 
     const auto format = pa_sample_format_t_to_string(ss->format);
-    return std::vformat("{format = {}, rate = {}, channels = {}}",
-                        std::make_format_args(format, ss->rate, ss->channels));
+    return "";
 }

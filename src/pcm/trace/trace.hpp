@@ -6,7 +6,6 @@
 
 #include <ostream>
 #include <string>
-#include <format>
 
 #if defined(LOG_TO_STD)
     #include <iostream>
@@ -29,10 +28,6 @@ namespace pcm_log {
         std::ostream& info(std::ostream& os);
         std::ostream& warning(std::ostream& os);
     } // namespace __pcm_trace_internal
-
-    void logError(const std::string& fmt, std::format_args args);
-    void logInfo(const std::string& fmt, std::format_args args);
-    void logWarning(const std::string& fmt, std::format_args args);
 
     // pulse structs string converters
     std::string pa_buffer_attr_to_string(const pa_buffer_attr *attr);
