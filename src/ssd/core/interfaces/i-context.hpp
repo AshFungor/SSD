@@ -1,7 +1,6 @@
 #pragma once
 
 // boost
-#include <boost/bind.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/io_context.hpp>
 

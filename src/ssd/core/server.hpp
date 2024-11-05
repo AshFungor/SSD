@@ -5,7 +5,6 @@
 #include <memory>
 
 // Boost
-#include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/executor.hpp>
 #include <boost/asio/execution_context.hpp>
@@ -15,6 +14,7 @@
 #include <absl/status/statusor.h>
 
 // laar
+#include <src/ssd/core/session/context.hpp>
 #include <src/ssd/core/interfaces/i-context.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
 
@@ -34,7 +34,7 @@ namespace laar {
         ContextFactory& withHandler(std::weak_ptr<IStreamHandler> handler);
         ContextFactory& withContext(std::shared_ptr<boost::asio::io_context> context);
 
-        std::pair<std::shared_ptr<boost::asio::ip::tcp::socket>, std::shared_ptr<IContext>> AssembleAndReturn();
+        std::pair<std::shared_ptr<boost::asio::ip::tcp::socket>, std::shared_ptr<Context>> AssembleAndReturn();
 
     private:
 
@@ -70,7 +70,7 @@ namespace laar {
 
         Server(std::weak_ptr<IStreamHandler> handler, std::shared_ptr<boost::asio::io_context> context, std::uint32_t port);
 
-        void accept(std::shared_ptr<IContext> context, const boost::system::error_code& error);
+        void accept(std::shared_ptr<Context> context, const boost::system::error_code& error);
         void onNetworkError(const boost::system::error_code& error, bool isCritical);
 
     private:
@@ -78,7 +78,7 @@ namespace laar {
         std::once_flag init_;
 
         ContextFactory factory_;
-        std::vector<std::shared_ptr<IContext>> contexts_;
+        std::vector<std::shared_ptr<Context>> contexts_;
 
         tcp::acceptor acceptor_;
         std::shared_ptr<boost::asio::io_context> context_;

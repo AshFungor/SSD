@@ -142,6 +142,8 @@ namespace laar {
 
     private:
 
+        bool clean_;
+
         std::future<std::unique_ptr<std::int32_t[]>> future_;
 
         std::once_flag init_;

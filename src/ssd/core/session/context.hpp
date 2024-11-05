@@ -1,9 +1,8 @@
 #pragma once
 
 // laar
-#include <src/ssd/core/server.hpp>
-#include <src/ssd/core/message.hpp>
 #include <src/ssd/core/session/stream.hpp>
+#include <src/ssd/core/message.hpp>
 #include <src/ssd/core/interfaces/i-stream.hpp>
 #include <src/ssd/core/interfaces/i-context.hpp>
 #include <src/ssd/sound/interfaces/i-audio-handler.hpp>
@@ -22,6 +21,7 @@
 
 // STD
 #include <memory>
+#include <cstdint>
 
 
 namespace laar {
@@ -29,7 +29,7 @@ namespace laar {
     class Context
         : public IContext
         , public IStream::IStreamMaster
-        , std::enable_shared_from_this<Context> {
+        , public std::enable_shared_from_this<laar::Context> {
     public:
     
         using tcp = boost::asio::ip::tcp;
@@ -86,7 +86,8 @@ namespace laar {
 
         void onCriticalSessionError(absl::Status status);
 
-        void patch(IContext::APIResult result);
+        void patch(IContext::APIResult result, std::uint32_t id);
+        void trail();
         void acknowledge();
         void acknowledgeWithCode(laar::MessageSimplePayloadType simple);
         void acknowledgeWithProtobuf(laar::MessageProtobufPayloadType protobuf);
@@ -127,9 +128,6 @@ namespace laar {
         std::weak_ptr<IStreamHandler> handler_;
 
         std::vector<std::shared_ptr<Stream>> streams_;
-
-        // just stream config :)
-        std::optional<NSound::NCommon::TStreamConfiguration> streamConfig_;
 
     };
 

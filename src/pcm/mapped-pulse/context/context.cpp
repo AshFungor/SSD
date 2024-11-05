@@ -119,7 +119,7 @@ namespace {
                 logContextNetworkState(c, "writing stream");
                 if (int written = write(fd, c->network.buffer.get() + c->network.current, c->network.total - c->network.current); written >= 0) {
                     c->network.current += written;
-                } else HANDLE_SOCKET_ERROR(written, c);
+                } else HANDLE_SOCKET_ERROR(errno, c);
             }
 
             if (c->network.current == c->network.total) {
@@ -140,7 +140,7 @@ namespace {
 
             if (int acquired = read(fd, c->network.buffer.get() + c->network.current, c->network.total - c->network.current); acquired >= 0) {
                 c->network.current += acquired;
-            } else HANDLE_SOCKET_ERROR(acquired, c);
+            } else HANDLE_SOCKET_ERROR(errno, c);
 
             while (c->network.current == c->network.total) {
                 logContextNetworkState(c, "reading chunk");
@@ -173,7 +173,7 @@ namespace {
 
                 if (int acquired = read(fd, c->network.buffer.get() + c->network.current, c->network.total - c->network.current); acquired >= 0) {
                     c->network.current += acquired;
-                } else HANDLE_SOCKET_ERROR(acquired, c);
+                } else HANDLE_SOCKET_ERROR(errno, c);
             }
         }
     }
@@ -268,7 +268,7 @@ int pa_context_connect(pa_context *c, const char *server, pa_context_flags_t fla
     }
 
     sockaddr_in addr;
-    addr.sin_port = laar::Port;
+    addr.sin_port = htons(laar::Port);
     addr.sin_family = AF_INET;
     
     if (inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) < 0) {

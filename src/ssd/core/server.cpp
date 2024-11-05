@@ -77,9 +77,9 @@ void Server::notification(std::weak_ptr<IContext> context, EReason reason) {
     }
 }
 
-void Server::accept(std::shared_ptr<IContext> context, const boost::system::error_code& error) {
+void Server::accept(std::shared_ptr<Context> context, const boost::system::error_code& error) {
     if (error) {
-       onNetworkError(error, false);
+        onNetworkError(error, true);
     }
 
     context->init();
@@ -121,7 +121,7 @@ ContextFactory& ContextFactory::withContext(std::shared_ptr<boost::asio::io_cont
     return *this;
 }
 
-std::pair<std::shared_ptr<boost::asio::ip::tcp::socket>, std::shared_ptr<IContext>> ContextFactory::AssembleAndReturn() {
+std::pair<std::shared_ptr<boost::asio::ip::tcp::socket>, std::shared_ptr<Context>> ContextFactory::AssembleAndReturn() {
     if (state_.context) {
         auto socket = std::make_shared<boost::asio::ip::tcp::socket>(*state_.context);
         return std::make_pair(socket, Context::configure(state_.master, state_.context, socket, state_.handler, state_.size));

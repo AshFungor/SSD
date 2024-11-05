@@ -243,7 +243,7 @@ namespace {
             }
 
             sockaddr_in addr;
-            addr.sin_port = laar::Port;
+            addr.sin_port = htons(laar::Port);
             addr.sin_family = AF_INET;
 
             int retries = 120;
@@ -356,6 +356,6 @@ TEST_F(StreamTest, StreamOpenAndSimpleWrite) {
 
     pa_mainloop_run(m, nullptr);
 
-    pa_stream_ref(s);
+    pa_stream_unref(s);
     pa_context_unref(c);
 }

@@ -26,8 +26,9 @@ WriteHandle::WriteHandle(
     NSound::NCommon::TStreamConfiguration config, 
     std::weak_ptr<IListener> owner
 ) 
-    : sampleSize_(getSampleSize(config.sample_spec().format()))
-    , config_(std::move(config)) // think of config here
+    : isAlive_(true)
+    , sampleSize_(getSampleSize(config.sample_spec().format())) // think of config here
+    , config_(std::move(config))
     , buffer_(std::make_unique<laar::RingBuffer>(44100 * 4 * 120))
     , owner_(std::move(owner))
 {}
@@ -53,7 +54,7 @@ absl::StatusOr<int> WriteHandle::read(std::int32_t* dest, std::size_t size) {
     std::unique_lock<std::mutex> locked(lock_);
 
     if (buffer_->readableSize() / sizeof (std::int32_t) < config_.buffer_config().prebuffing_size()) {
-        PLOG(plog::debug) << "handle " << this << " is stalled, "
+        PLOG(plog::warning) << "handle " << this << " is stalled, "
             << "waiting for " << config_.buffer_config().prebuffing_size() - buffer_->readableSize() / sizeof (std::int32_t)
             << " samples (prebuffing size is " << config_.buffer_config().prebuffing_size()
             << "; readable size is " << buffer_->readableSize() / sizeof (std::int32_t) << ")";
@@ -68,7 +69,7 @@ absl::StatusOr<int> WriteHandle::read(std::int32_t* dest, std::size_t size) {
     }
 
     if (trail) {
-        PLOG(plog::debug) << "underrun on handle: " << this
+        PLOG(plog::warning) << "underrun on handle: " << this
             << " filling " << trail << " extra samples, avail: " << size - trail;
     }
 

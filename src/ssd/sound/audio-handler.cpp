@@ -1,4 +1,5 @@
 // boost
+#include "src/ssd/macros.hpp"
 #include <boost/asio/dispatch.hpp>
 
 // laar
@@ -72,7 +73,8 @@ SoundHandler::SoundHandler(
     std::shared_ptr<boost::asio::io_context> context,
     Private /* access */
 )
-    : context_(std::move(context))
+    : clean_(true)
+    , context_(std::move(context))
     , configHandler_(std::move(configHandler))
     , bassDispatcher_(laar::BassRouterDispatcher::create(
         ESamplesOrder::NONINTERLEAVED, 
@@ -398,30 +400,43 @@ int laar::writeCallback(
     }
 
     auto result = (std::int32_t*) out;
-    std::unique_ptr<int32_t[]> buffer;
-
-    if (!handler->future_.valid()) {
-        // future is empty, task was not run yet
-        buffer = handler->squash(frames);
-    } else {
-        buffer = handler->future_.get();
+    if (handler->clean_) {
+        // fill with silence until we acquire valid source
+        std::memset(result, laar::Silence, frames);
+        return rtcontrol::SUCCESS;
     }
 
+    std::unique_ptr<int32_t[]> buffer;
+
+    buffer = handler->squash(frames);
     for (std::size_t channel = 0; channel < 2; ++channel) {
         for (std::size_t sample = 0; sample < frames; ++sample) {
             result[channel * frames + sample] = buffer[sample];
         }
     }
 
-    handler->future_ = boost::asio::post(*handler->context_, 
-        std::packaged_task<std::unique_ptr<std::int32_t[]>()>(
-            [frames, handler]() {
-                // request more data to dispatch it in async manner
-                auto buffer = handler->squash(frames);
-                return handler->dispatchAsync(std::move(buffer), frames);
-            }
-        )
-    );
+    // if (!handler->future_.valid()) {
+    //     // future is empty, task was not run yet
+    //     
+    // } else {
+    //     buffer = handler->future_.get();
+    // }
+
+    // for (std::size_t channel = 0; channel < 2; ++channel) {
+    //     for (std::size_t sample = 0; sample < frames; ++sample) {
+    //         result[channel * frames + sample] = buffer[sample];
+    //     }
+    // }
+
+    // handler->future_ = boost::asio::post(*handler->context_, 
+    //     std::packaged_task<std::unique_ptr<std::int32_t[]>()>(
+    //         [frames, handler]() {
+    //             // request more data to dispatch it in async manner
+    //             auto buffer = handler->squash(frames);
+    //             return handler->dispatchAsync(std::move(buffer), frames);
+    //         }
+    //     )
+    // );
 
     return rtcontrol::SUCCESS;
 }
@@ -467,6 +482,7 @@ std::shared_ptr<SoundHandler::IReadHandle> SoundHandler::acquireReadHandle(
     std::weak_ptr<IStreamHandler::IHandle::IListener> owner) 
 {
     std::unique_lock<std::mutex> locked(local_->handlerLock);
+    clean_ = false;
     auto handle = std::make_shared<laar::ReadHandle>(std::move(config), std::move(owner));
     inHandles_.push_back(handle);
     return handle;
@@ -477,6 +493,7 @@ std::shared_ptr<SoundHandler::IWriteHandle> SoundHandler::acquireWriteHandle(
     std::weak_ptr<IStreamHandler::IHandle::IListener> owner) 
 {
     std::unique_lock<std::mutex> locked(local_->handlerLock);
+    clean_ = false;
     auto handle = std::make_shared<laar::WriteHandle>(std::move(config), std::move(owner));
     outHandles_.push_back(handle);
     return handle;

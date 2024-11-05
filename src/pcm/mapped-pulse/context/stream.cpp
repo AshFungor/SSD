@@ -121,7 +121,7 @@ namespace {
             s->callbacks.write.cb(s, s->buffer.avail - s->buffer.wPos, s->callbacks.write.userdata);
         }
 
-        pa_context_rttime_restart(s->state.context, e, laar::TimeFrame.count() * 1000);
+        pa_context_rttime_restart(s->state.context, e, laar::TimeFrame.count());
     }
 
     void confirmStreamOpen(laar::Message message, void* userdata) {
@@ -542,7 +542,7 @@ int pa_stream_write_ext_free(pa_stream* p, const void* data, size_t nbytes, pa_f
         ENSURE_FAIL_UNLESS(p->buffer.rPos == p->buffer.wPos);
         ENSURE_FAIL_UNLESS(p->buffer.wPos == p->buffer.avail);
 
-        p->buffer.rPos = p->buffer.wPos = p->buffer.wPos;
+        p->buffer.rPos = p->buffer.wPos = p->buffer.avail = 0;
     }
 
     if (free_cb) {

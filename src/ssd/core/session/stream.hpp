@@ -1,7 +1,6 @@
 #pragma once
 
 // laar
-#include <src/ssd/core/server.hpp>
 #include <src/ssd/core/message.hpp>
 #include <src/ssd/core/interfaces/i-stream.hpp>
 #include <src/ssd/core/interfaces/i-context.hpp>

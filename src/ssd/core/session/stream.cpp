@@ -176,8 +176,6 @@ IContext::APIResult Stream::onStreamConfiguration(NSound::NCommon::TStreamConfig
     NSound::THolder holder;
     holder.mutable_server()->mutable_stream_message()->mutable_connect_confirmal()->mutable_configuration()->CopyFrom(streamConfig_.value());
     holder.mutable_server()->mutable_stream_message()->mutable_connect_confirmal()->set_opened(true);
-    // FIXME: add stream id in patch
-    holder.mutable_server()->mutable_stream_message()->set_stream_id(0);
     return IContext::APIResult{absl::OkStatus(), std::move(holder)};
 }
 

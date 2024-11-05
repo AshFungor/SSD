@@ -78,9 +78,9 @@
 
 namespace laar {
 
-    inline constexpr int MaxBytesOnMessage = 2048;
+    inline constexpr int MaxBytesOnMessage = 4096;
     inline constexpr int StreamTrailSize = 100;
-    inline constexpr int NetworkBufferSize = 4096;
+    inline constexpr int NetworkBufferSize = 8192;
     inline constexpr int Port = 7777;
     inline constexpr int BaseSampleRate = 44100;
     inline constexpr std::int32_t Silence = INT32_MIN;

@@ -140,7 +140,7 @@ namespace {
             }
 
             sockaddr_in addr;
-            addr.sin_port = laar::Port;
+            addr.sin_port = htons(laar::Port);
             addr.sin_family = AF_INET;
             
             int retries = 120;

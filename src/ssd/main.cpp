@@ -2,6 +2,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/thread_pool.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 
 // Abseil
 #include <absl/flags/flag.h>
@@ -39,7 +40,7 @@ int main(int argc, char** argv) {
     }
 
     auto logDirectory = absl::StrCat(runtimeDirectory, "/server.log");
-    plog::init(plog::Severity::debug, logDirectory.c_str(), 1024 * 1024, 2);
+    plog::init(plog::Severity::info, logDirectory.c_str(), 1024 * 1024, 2);
 
     std::size_t threads = std::max<std::size_t>(std::thread::hardware_concurrency() / 2, 1);
     auto context = std::make_shared<boost::asio::io_context>();
@@ -61,11 +62,15 @@ int main(int argc, char** argv) {
     server->init();
     PLOG(plog::debug) << "module created: " << "Server; instance: " << soundHandler.get();
 
+    auto guard = boost::asio::make_work_guard(*context);
+
     for (std::size_t tNum = 0; tNum < threads; ++tNum) {
         boost::asio::post(*tPool, [context]() {
             context->run();
         });
     }
+
+    context->run();
 
     return 0;
 }
