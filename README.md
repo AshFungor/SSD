@@ -66,3 +66,7 @@ Main job about server is done, core features are implemented and now I need to p
 pulseaudio client-side implementation - pcm. I should also fix problems with load-balancing on
 sync protocol - on client side. 
 
+### End of development
+
+Unfortunately, the last version of protocol has disasterous performance. If work on this project continues, major refactoring should be done.
+
